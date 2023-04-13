@@ -1,0 +1,58 @@
+depth_multiple: 1.0
+width_multiple: 1.0
+
+architecture:
+  - input_idx: -1
+    module: ConvBNAct
+    module_args: 
+      out_channel: 64
+      kernel: 7
+      dilation: 1
+      stride: 2
+      bias: False
+      act: nn.ReLU
+      bn: True
+  - input_idx: -1
+    module: nn.MaxPool2d
+    module_args:
+      kernel_size: 3
+      stride: 2
+      padding: 1
+  - input_idx: -1
+    module: Bottleneck
+    num_repeat: 3
+    module_args:
+      out_channel: 256
+      stride: 1
+  - input_idx: -1
+    module: Bottleneck
+    num_repeat: 4
+    module_args:
+      out_channel: 512
+      stride: 2
+  - input_idx: -1
+    module: Bottleneck
+    num_repeat: 6
+    module_args:
+      out_channel: 1024
+      stride: 2
+  - input_idx: -1
+    module: Bottleneck
+    num_repeat: 3
+    module_args:
+      out_channel: 2048
+      stride: 2
+  - input_idx: -1
+    module: GlobalPoolBNAct
+    module_args:
+      kernel: 7
+      stride: 1
+      pool: avg
+      bn: False
+      act: False
+  - input_idx: -1
+    module: LinearAct
+    is_outlayer: True
+    module_args:
+      out_channel: num_classes
+      act: False

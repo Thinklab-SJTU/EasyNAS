@@ -1,0 +1,58 @@
+depth_multiple: 1.0
+width_multiple: 1.0
+
+architecture:
+  - input_idx: -1
+    module: ConvBNAct
+    module_args: 
+      out_channel: 64
+      kernel: 7
+      dilation: 1
+      stride: 2
+      bias: False
+      act: nn.ReLU
+      bn: True
+  - input_idx: -1
+    module: nn.MaxPool2d
+    module_args:
+      kernel_size: 3
+      stride: 2
+      padding: 1
+  - input_idx: -1
+    module: BasicBlock
+    num_repeat: 2
+    module_args:
+      out_channel: 64
+      stride: 1
+      downsample: False
+  - input_idx: -1
+    module: BasicBlock
+    num_repeat: 2
+    module_args:
+      out_channel: 128
+      stride: 2
+      downsample: True
+  - input_idx: -1
+    module: BasicBlock
+    num_repeat: 2
+    module_args:
+      out_channel: 256
+      stride: 2
+      downsample: True
+  - input_idx: -1
+    module: BasicBlock
+    num_repeat: 2
+    module_args:
+      out_channel: 512
+      stride: 2
+      downsample: True
+  - input_idx: -1
+    module: nn.AvgPool2d
+    module_args:
+      kernel_size: 7
+  - input_idx: -1
+    module: nn.Linear
+    is_outlayer: True
+    module_args:
+      in_features: 512
+      out_features: num_classes

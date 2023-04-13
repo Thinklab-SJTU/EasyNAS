@@ -1,0 +1,56 @@
+root_path: &root_path runs/cifar10_vgg/
+epoch: &epoch 100
+
+data: dataset/cfg/cifar10.yaml
+
+criterion: criterion/cfg/cross_entropy.yaml
+
+model: model/vgg.yaml
+
+optimizer: &optimizer
+  submodule_name: SGD
+  module_name: .optim
+  package_path: torch
+  args:
+    params:
+    lr: 0.1
+    momentum: 0.9 
+    weight_decay: 5e-4
+
+lr_scheduler: &scheduler
+  submodule_name: CosineAnnealingLR
+  module_name: .optim.lr_scheduler
+  package_path: torch
+  args:
+    optimizer: *optimizer
+    epochs: *epoch 
+
+opt_hook:
+  hook_name: OptHOOK
+  hook_args:
+    optimizer: *optimizer
+    accmulate_gradient: 1
+
+lr_scheduler_hook:
+  hook_name: LrScheduleHOOK
+  hook_args: 
+    lr_scheduler: *scheduler
+    mode: epoch
+
+eval_hook:
+  hook_name: EvalHOOK
+
+log_hook:
+  hook_name: LogHOOK
+  hook_args:
+    logger_name: TrainPip
+    log_path: !join [*root_path, test.log]
+    print_freq: 50
+
+ckpt_hook:
+  hook_name: CkptHOOK
+  hook_args:
+    save_root: !join [*root_path, ckpt/]
+    pretrain: 
+
+
