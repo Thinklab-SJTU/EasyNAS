@@ -1,19 +1,25 @@
 depth_multiple: 1.0
 width_multiple: 1.0
+num_classes: &num_classes 10
+
+name: BaseModel
+module_name: .models
+package_path: src
+log_path: model.log
 
 architecture:
   - input_idx: -1
     module: ConvBNAct
     module_args: 
       out_channel: 64
-      kernel: 7
+      kernel: 3
       dilation: 1
-      stride: 2
+      stride: 1
       bias: False
-      act: nn.ReLU
+      act: torch.nn.ReLU
       bn: True
   - input_idx: -1
-    module: nn.MaxPool2d
+    module: torch.nn.MaxPool2d
     module_args:
       kernel_size: 3
       stride: 2
@@ -24,35 +30,33 @@ architecture:
     module_args:
       out_channel: 64
       stride: 1
-      downsample: False
   - input_idx: -1
     module: BasicBlock
     num_repeat: 2
     module_args:
       out_channel: 128
       stride: 2
-      downsample: True
   - input_idx: -1
     module: BasicBlock
     num_repeat: 2
     module_args:
       out_channel: 256
       stride: 2
-      downsample: True
   - input_idx: -1
     module: BasicBlock
     num_repeat: 2
     module_args:
       out_channel: 512
       stride: 2
-      downsample: True
   - input_idx: -1
-    module: nn.AvgPool2d
+    module: GlobalPoolBNAct
     module_args:
-      kernel_size: 7
+      pool: avg
+      bn: False
+      act: False
   - input_idx: -1
-    module: nn.Linear
+    module: torch.nn.Linear
     is_outlayer: True
     module_args:
       in_features: 512
-      out_features: num_classes
+      out_features: *num_classes

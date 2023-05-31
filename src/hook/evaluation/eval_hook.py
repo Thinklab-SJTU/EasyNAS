@@ -1,8 +1,7 @@
 from ..hook import HOOK, execute_period
-from .build import create_optimizer
 from .utils import AverageMeter, accuracy
 
-def EvalHOOK(HOOK):
+class EvalAccHOOK(HOOK):
     def __init__(self):
         loss = AverageMeter()
         top1 = AverageMeter()

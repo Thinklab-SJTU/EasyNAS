@@ -1,11 +1,11 @@
-root_path: &root_path runs/cifar10_vgg/
+root_path: &root_path runs/cifar10_res18/
 epoch: &epoch 100
 
 data: cfg/dataset/cifar10.yaml
 
 criterion: cfg/criterion/cross_entropy.yaml
 
-model: cfg/model/vgg.yaml
+model: cfg/model/resnet18.yaml
 
 optimizer: &optimizer
   submodule_name: SGD
@@ -15,7 +15,7 @@ optimizer: &optimizer
     params:
     lr: 0.1
     momentum: 0.9 
-    weight_decay: 5e-4
+    weight_decay: 5.0e-4
 
 lr_scheduler: &scheduler
   submodule_name: CosineAnnealingLR

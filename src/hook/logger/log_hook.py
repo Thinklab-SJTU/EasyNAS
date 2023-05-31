@@ -1,11 +1,9 @@
 import logging
 
 from ..hook import HOOK, execute_period
-from .build import create_optimizer
-#from ..models.utils import count_parameters_in_MB
 
-def LogHOOK(HOOK):
-    def __init__(self, logger_name='TrainPip', log_path: Union[None, str], print_freq: int = 1):
+class LogHOOK(HOOK):
+    def __init__(self, logger_name='TrainPip', log_path: Union[None, str] = None, print_freq: int = 1):
         self.print_freq = print_freq
         if log_path and not os.path.exists(os.path.dirname(log_path)):
             os.makedirs(os.path.dirname(log_path))

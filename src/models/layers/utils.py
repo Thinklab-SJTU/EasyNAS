@@ -6,12 +6,12 @@ from builder.utils import get_submodule as utils_get_submodule
 OP = namedtuple('OP', ['OPtype', 'args'])
 
 darts_candidate_op = (
-       OP(OPtype='ConvBNAct', args=dict(kernel=3, dilation=1, pad=None, group=1, bn=True, act=nn.ReLU)),
-       OP(OPtype='ConvBNAct', args=dict(kernel=5, dilation=1, pad=None, group=1, bn=True, act=nn.ReLU)),
-       OP(OPtype='ConvBNAct', args=dict(kernel=3, dilation=2, pad=None, group=1, bn=True, act=nn.ReLU)),
-       OP(OPtype='ConvBNAct', args=dict(kernel=5, dilation=2, pad=None, group=1, bn=True, act=nn.ReLU)),
-       OP(OPtype='PoolBNAct', args=dict(pool='max', kernel=3, pad=None, bn=True, act=nn.ReLU)),
-       OP(OPtype='PoolBNAct', args=dict(pool='avg', kernel=3, pad=None, bn=True, act=nn.ReLU)),
+       OP(OPtype='ConvBNAct', args=dict(kernel=3, dilation=1, pad=None, group=1, bn=True, act=nn.ReLU())),
+       OP(OPtype='ConvBNAct', args=dict(kernel=5, dilation=1, pad=None, group=1, bn=True, act=nn.ReLU())),
+       OP(OPtype='ConvBNAct', args=dict(kernel=3, dilation=2, pad=None, group=1, bn=True, act=nn.ReLU())),
+       OP(OPtype='ConvBNAct', args=dict(kernel=5, dilation=2, pad=None, group=1, bn=True, act=nn.ReLU())),
+       OP(OPtype='PoolBNAct', args=dict(pool='max', kernel=3, pad=None, bn=True, act=nn.ReLU())),
+       OP(OPtype='PoolBNAct', args=dict(pool='avg', kernel=3, pad=None, bn=True, act=nn.ReLU())),
        OP(OPtype=nn.Identity, args={}),
                        )
 
@@ -20,22 +20,22 @@ eautodet_candidate_op = (
                        candidate_op=[(1,1), (3,1), (5,1), (3,2)], 
                        candidate_ch=[1.], 
                        gumbel_op=False, gumbel_channel=True,
-                       bn=True, act=nn.SiLU,
+                       bn=True, act=nn.SiLU(),
                        independent_ch_arch_param=False,
                        independent_op_arch_param=False)
          ),
 )
 
-submodule_map = {}
-def get_submodule(submodule_name):
-    global submodule_map 
-    if isinstance(submodule_name, str)
-        submodule = utils_get_submodule(submodule_name, '.layers', package_path='src.models', loaded_submodule=submodule_map)
-    elif isinstance(submodule_name, nn.Module):
-        submodule = submodule_name
+def get_act(act=True):
+    if act is None or act is False: return None
+    elif act is True: return nn.ReLU()
+    elif isinstance(act, nn.Module): return act
+    elif isinstance(act, str): 
+        act_name = act.split('.')
+        act = utils_get_submodule(act_name[-1], '.'.join(act_name[0:-1]), package_path=None)
+        return act()
     else:
-        raise(NotImplementedError(f"No implementation for Optype as {submodule_name}"))
-    return submodule
+        raise(TypeError(f"No Implementation for act func as {act}"))
 
 
 def autopad(k, p=None, d=1):  # kernel, padding
@@ -100,3 +100,14 @@ def gumbel_softmax(logits, temperature=1, hard=False):
     # Set gradients w.r.t. y_hard gradients w.r.t. y
     y_hard = y_hard - y.detach() + y
     return y_hard
+
+
+submodule_map = {}
+def get_submodule(submodule_name):
+    submodule_name = submodule_name.split('.')
+    if len(submodule_name) == 1:
+        submodule = utils_get_submodule(submodule_name[0], '.models.layers', package_path='src', loaded_submodule=submodule_map)
+    elif len(submodule_name)>=2:
+        submodule = utils_get_submodule(submodule_name[-1], '.'.join(submodule_name[0:-1]), package_path=None, loaded_submodule=submodule_map)
+
+    return submodule

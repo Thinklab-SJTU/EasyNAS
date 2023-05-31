@@ -5,7 +5,7 @@ from collections import namedtuple
 import numpy as np
 import torch
 
-from ..utils import get_submodule
+from .utils import get_submodule
 
 
 def build_one_dataset(submodule_name: str, module_name: str='dataset.datasets', package_path: str=None, **args_dict) -> torch.utils.data.Dataset:
@@ -14,7 +14,6 @@ def build_one_dataset(submodule_name: str, module_name: str='dataset.datasets', 
     return Dataset(**args_dict)
 
 
-#def create_dataloader(dataset_cfg: dict, dataloader_cfg: dict) -> dict:
 def create_dataloader(cfg: dict) -> dict:
     dataset_cfg = cfg['dataset']
     dataloader_cfg = cfg['dataloader']

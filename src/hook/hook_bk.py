@@ -1,15 +1,12 @@
 
-class execute_period:
-    def __init__(self, n):
-        self.n = n
-
-    def wrapper(self, func):
-        def inner(self_, *args, **kwargs):
-            setattr(self_, 'count', getattr(self_, 'count', {}))
-            count = self_.count.get(func.__name__, 0)
+def execute_period(n):
+    def wrapper(func):
+        def inner(self, *args, **kwargs):
+            setattr(self, 'count', getattr(self, 'count', {}))
+            count = self.count.get(func.__name__, 0)
             if count == 0:
-                func(self_, *args, **kwargs)
-            self_.count[func.__name__] = (count + 1) % n
+                func(self, *args, **kwargs)
+            self.count[func.__name__] = (count + 1) % n
         return inner
     return wrapper
 
@@ -101,3 +98,4 @@ if __name__ == '__main__':
         hook.before_epoch('')
         hook.before_run('')
         hook.after_run('')
+

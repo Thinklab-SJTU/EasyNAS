@@ -1,8 +1,11 @@
+num_classes: 10
+input_size: 32
+
 dataset:
   train:
     submodule_name: CIFAR10
     module_name: .datasets
-    package_path: dataset
+    package_path: src
     dataset_args:
       root: ./data/
       train: True
@@ -11,7 +14,7 @@ dataset:
   val:
     submodule_name: CIFAR10
     module_name: .datasets
-    package_path: dataset
+    package_path: src
     dataset_args:
       root: ./data/
       train: False

@@ -1,9 +1,9 @@
 import torch
-import torch.nn as nn
+from torch import nn as nn
 
-from .utils import get_submodule
-from .common import ConvBNAct, SepConvBNAct
+from .common import ConvBNAct, SepConvBNAct, GlobalPoolBNAct, PoolBNAct
 from .search_common import ConvBNAct_search, SepConvBNAct_search
+from .resnet import BasicBlock, Bottleneck
 
 NEED_INOUTC_OPs = ("ConvBNAct_search", "SepConvBNAct_search", "ConvBNAct", "SepConvBNAct")
 MULTIALPHA_OPs = ("ConvBNAct_search", "SepConvBNAct_search")

@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .utils import autopad, gumbel_softmax, darts_candidate_op, eautodet_candidate_op, OP, get_submodule
+from .utils import autopad, gumbel_softmax, darts_candidate_op, eautodet_candidate_op, OP, get_submodule, get_act
 from .base import OpLayer
 
 __all__ = ["SearchLayer", "ConvBNAct_search", "SepConvBNAct_search", "ParallelOpLayer", "AFF"]
@@ -62,8 +62,8 @@ class SearchLayer(nn.Module):
         return gumbel_softmax(F.log_softmax(alphas, dim=-1), hard=True) if gumbel else nn.functional.softmax(alphas, dim=-1)
 
     @classmethod
-    def genotype(self, cfg, op_alphas=None, ch_alphas=None, edge_alpha=None, num_reserved_op=1, num_reserved_ch=1, num_reserved_edge=2)
-        raise(NotImplementedError(f"No implementation of function genotype for class {self.__class__.__name__}"))
+    def genotype(cls, cfg, op_alphas=None, ch_alphas=None, edge_alpha=None, num_reserved_op=1, num_reserved_ch=1, num_reserved_edge=2):
+        raise(NotImplementedError(f"No implementation of function genotype for class {cls.__class__.__name__}"))
 
 class ConvBNAct_search(SearchLayer):
     # Mixed Depthwise Conv https://arxiv.org/abs/1907.09595
@@ -91,20 +91,20 @@ class ConvBNAct_search(SearchLayer):
                 self.weight.append(self.init_weight(cout_max, in_channel, k))
                 self.bias.append(self.init_bias(cout_max, self.weight[-1]))
 
-        self.act = nn.ReLU() if act is True else (act if isinstance(act, nn.Module) else None)
+        self.act = get_act(act)
         if self.gumbel_channel: self.bn = nn.ModuleList([nn.BatchNorm2d(int(self.cout*e)) for e in candidate_ch]) if bn else [None for _ in candidate_ch]
         else: self.bn = nn.BatchNorm2d(self.cout) if bn else None
 
         self.init_arch_param(independent_ch_arch_param, independent_op_arch_param)
 
     
-    def init_weight(self, cout, cin, kernel)
+    def init_weight(self, cout, cin, kernel):
         kernel = [kernel, kernel] if isinstance(kernel, int) else kernel
         tmp1 = torch.Tensor(cout, cin, *kernel)
         torch.nn.init.kaiming_normal_(tmp1, mode='fan_in')
         return nn.Parameter(tmp1)
 
-    def init_bias(self, c, weight)
+    def init_bias(self, c, weight):
         b = torch.Tensor(c)
         fan_in, _ = nn.init._calculate_fan_in_and_fan_out(weight)
         bound = 1 / math.sqrt(fan_in)
@@ -155,7 +155,7 @@ class ConvBNAct_search(SearchLayer):
             for e, a_e in zip(self.candidate_ch, alphas):
                 channel_mask[channel_idx[:int(e*self.cout)]] += a_e
             merge_kernel = merge_kernel * channel_mask.view(-1,1,1,1)
-      return merge_kernel, bias
+        return merge_kernel, bias
 
         
     def forward(self, x, op_alphas=None, ch_alphas=None):
@@ -163,7 +163,7 @@ class ConvBNAct_search(SearchLayer):
         bias = self.bias
         op_alphas = op_alphas if op_alphas is not None else (self.norm_arch_param(self.op_alphas, self.gumbel_op) if hasattr(self, 'op_alphas') else [1.])
         ch_alphas = ch_alphas if ch_alphas is not None else (self.norm_arch_param(self.ch_alphas, self.gumbel_channel) if hasattr(self, 'ch_alphas') else [1.])
-        bn = self.get_norm_layer(ch_alphas, self.bn, self.gumbel_channel):
+        bn = self.get_norm_layer(ch_alphas, self.bn, self.gumbel_channel)
                                    
         merge_kernel = self.get_merge_kernel(self.weight, op_alphas, merge=self.merge_kernel) if len(self.kd>1) else (self.weight if self.merge_kernel else self.weight[0])
 
@@ -181,33 +181,33 @@ class ConvBNAct_search(SearchLayer):
         return weight.argmax(dim=-1).item() if num_reserved==1 else [x.item() for x in torch.topk(weight, k=num_reserved, dim=-1)[1]]
 
     @classmethod
-    def genotype(self, cfg, op_alphas=None, ch_alphas=None, edge_alpha=None, num_reserved_op=None, num_reserved_ch=None, num_reserved_edge=None)
-        num_reserved_op = self.num_reserved_op if num_reserved_op is None else num_reserved_op
-        num_reserved_ch = self.num_reserved_ch if num_reserved_ch is None else num_reserved_ch
+    def genotype(cls, cfg, op_alphas=None, ch_alphas=None, edge_alpha=None, num_reserved_op=None, num_reserved_ch=None, num_reserved_edge=None):
+        num_reserved_op = cls.num_reserved_op if num_reserved_op is None else num_reserved_op
+        num_reserved_ch = cls.num_reserved_ch if num_reserved_ch is None else num_reserved_ch
         assert num_reserved_op==1
         assert num_reserved_ch==1
 
         new_cfg = deepcopy(cfg)
-        new_cfg['module'] = self.outOp_name
+        new_cfg['module'] = cls.outOp_name
         # del unused variables
-        need_key = inspect.signature(self.outOp.__init__).parameters.keys()
+        need_key = inspect.signature(cls.outOp.__init__).parameters.keys()
         for k in cfg.keys():
             if k not in need_key: del new_cfg['module_args'][k]
 
-        ch_alphas = ch_alphas if ch_alphas is not None else (self.get_ch_arch_param() if hasattr(self, 'ch_alphas') else None)
+        ch_alphas = ch_alphas if ch_alphas is not None else (cls.get_ch_arch_param() if hasattr(cls, 'ch_alphas') else None)
         if ch_alphas is not None:
-            ch_alphas_idx = self.get_reserved_idx(num_reserved_ch, ch_alphas)
+            ch_alphas_idx = cls.get_reserved_idx(num_reserved_ch, ch_alphas)
             new_cfg['module_args']['out_channel'] = cfg['module_args']['out_channel'] * cfg['module_args']['candidate_ch'][ch_alphas_idx]
 
-        op_alphas = op_alphas if op_alphas is not None else (self.get_op_arch_param() if hasattr(self, 'op_alphas') else None)
+        op_alphas = op_alphas if op_alphas is not None else (cls.get_op_arch_param() if hasattr(cls, 'op_alphas') else None)
         if op_alphas is not None:
-            op_alphas_idx = self.get_reserved_idx(num_reserved_op, op_alphas)
+            op_alphas_idx = cls.get_reserved_idx(num_reserved_op, op_alphas)
             new_cfg['module_args']['kernel'], new_cfg['module_args']['dilation'] = cfg['module_args']['candidate_op'][op_alphas_idx]
         return new_cfg
 
 
 class SepConvBNAct_search(ConvBNAct_search):
-    def init_weight(self, cout, cin, kernel)
+    def init_weight(self, cout, cin, kernel):
         kernel = [kernel, kernel] if isinstance(kernel, int) else kernel
         point_w = torch.Tensor(cin, 1, ks, ks)
         torch.nn.init.kaiming_normal_(point_w, mode='fan_in')
@@ -215,10 +215,10 @@ class SepConvBNAct_search(ConvBNAct_search):
         torch.nn.init.kaiming_normal_(depth_w, mode='fan_in')
         return nn.ParameterDict({
             'point_weight': nn.Parameter(point_w), 
-            'depth_weight': nn.Parameter(depth_w))
+            'depth_weight': nn.Parameter(depth_w)
         })
 
-    def init_bias(self, c, weight)
+    def init_bias(self, c, weight):
         b = torch.Tensor(c)
         fan_in, _ = nn.init._calculate_fan_in_and_fan_out(weight['point_weight'])
         bound = 1 / math.sqrt(fan_in)
@@ -245,7 +245,7 @@ class SepConvBNAct_search(ConvBNAct_search):
         bias = self.bias
         op_alphas = op_alphas if op_alphas is not None else (self.norm_arch_param(self.op_alphas, self.gumbel_op) if hasattr(self, 'op_alphas') else [1.])
         ch_alphas = ch_alphas if ch_alphas is not None else (self.norm_arch_param(self.ch_alphas, self.gumbel_channel) if hasattr(self, 'ch_alphas') else [1.])
-        bn = self.get_norm_layer(ch_alphas, self.bn, self.gumbel_channel):
+        bn = self.get_norm_layer(ch_alphas, self.bn, self.gumbel_channel)
 
         if self.merge_kernel:
             merge_kernel = self.get_merge_kernel(self.weight, op_alphas, merge=True) if len(self.kd>1) else self.weight['depth_weight']
@@ -280,7 +280,7 @@ class SepConvBNAct_search(ConvBNAct_search):
 
 
 class ParallelOpLayer(SearchLayer, OpLayer):
-    def __init__(self, in_channel, out_channel, candidate_op=darts_candidate_op, candidate_ch=[1.], gumbel_op=False, gumbel_channel=True, stride=1, act=nn.ReLU, bn=True, independent_ch_arch_param=True, independent_op_arch_param=True):
+    def __init__(self, in_channel, out_channel, candidate_op=darts_candidate_op, candidate_ch=[1.], gumbel_op=False, gumbel_channel=True, stride=1, act=nn.ReLU(), bn=True, independent_ch_arch_param=True, independent_op_arch_param=True):
         super(ParallelOpLayer, self).__init__()
         self.set_outOp("SingleOpLayer")
         self.candidate_op = candidate_op
@@ -300,7 +300,7 @@ class ParallelOpLayer(SearchLayer, OpLayer):
                  len(op.args['candidate_op']) if hasattr(op.args, 'candidate_op') else -1)
         self.num_op_alphas = sum(abs(x) for x in self.num_alphas_each_op)
 
-        self.act = nn.ReLU() if act is True else (act if isinstance(act, nn.Module) else None)
+        self.act = get_act(act)
         if self.gumbel_channel: self.bn = nn.ModuleList([nn.BatchNorm2d(int(self.cout*e)) for e in candidate_ch]) if bn else [None for _ in candidate_ch]
         else: self.bn = nn.BatchNorm2d(self.cout) if bn else None
 
@@ -316,7 +316,7 @@ class ParallelOpLayer(SearchLayer, OpLayer):
     def forward(self, x, op_alphas=None, ch_alphas=None):
         op_alphas = op_alphas if op_alphas is not None else (self.norm_arch_param(self.op_alphas, self.gumbel_op) if hasattr(self, 'op_alphas') else [1.])
         ch_alphas = ch_alphas if ch_alphas is not None else (self.norm_arch_param(self.ch_alphas, self.gumbel_channel) if hasattr(self, 'ch_alphas') else [1.])
-        bn = self.get_norm_layer(ch_alphas, self.bn, self.gumbel_channel):
+        bn = self.get_norm_layer(ch_alphas, self.bn, self.gumbel_channel)
 
         out, ptr = 0., 0
         for idx, (op, num_alphas_each_op) in enumerate(zip(op_alphas, self.ops, self.num_alphas_each_op)):
@@ -334,7 +334,7 @@ class ParallelOpLayer(SearchLayer, OpLayer):
         return out
 
     @classmethod
-    def genotype(self, cfg, op_alphas=None, ch_alphas=None, edge_alpha=None, num_reserved_op=None, num_reserved_ch=None, num_reserved_edge=None)
+    def genotype(self, cfg, op_alphas=None, ch_alphas=None, edge_alpha=None, num_reserved_op=None, num_reserved_ch=None, num_reserved_edge=None):
         num_reserved_op = self.num_reserved_op if num_reserved_op is None else num_reserved_op
         num_reserved_ch = self.num_reserved_ch if num_reserved_ch is None else num_reserved_ch
         assert num_reserved_op==1
@@ -357,7 +357,7 @@ class ParallelOpLayer(SearchLayer, OpLayer):
         new_cfg['module'] = self.outOp_name
         if num > 0: # (Sep)ConvBNAct_search
             select_op = self.candidate_op[op_idx]
-            layer_cfg = self.get_submodule(select_op.Optype).genotype(select_op.args, op_alphas=op_alphas[], ch_alphas=None, edge_alphas=None, num_reserved_op=num_reserved_op)
+            layer_cfg = self.get_submodule(select_op.Optype).genotype(select_op.args, op_alphas=op_alphas, ch_alphas=None, edge_alphas=None, num_reserved_op=num_reserved_op)
             new_cfg['module_args']['op'] = OP(OPtype=layer_cfg['module'], args=layer_cfg['module_args'])
         else:
             new_cfg['module_args']['op'] = self.candidate_op[op_idx]
@@ -372,7 +372,7 @@ class ParallelOpLayer(SearchLayer, OpLayer):
 
 class AFF(SearchLayer, OpLayer):
     # Auto-Feature Fusion
-    def __init__(self, in_channels, out_channel, strides, candidate_op=darts_candidate_op, candidate_ch=[1.], gumbel_op=False, gumbel_channel=True, gumbel_edge=False, act=nn.ReLU, bn=True, independent_ch_arch_param=True, independent_op_arch_param=True, independent_edge_arch_param=True):
+    def __init__(self, in_channels, out_channel, strides, candidate_op=darts_candidate_op, candidate_ch=[1.], gumbel_op=False, gumbel_channel=True, gumbel_edge=False, act=nn.ReLU(), bn=True, independent_ch_arch_param=True, independent_op_arch_param=True, independent_edge_arch_param=True):
         """
         strides: a list indicating the scale for each edge. Whether to up-sampling or down-sampling, and how much the degree is
         """
@@ -398,7 +398,7 @@ class AFF(SearchLayer, OpLayer):
                           independent_ch_arch_param=False,
                           independent_op_arch_param=independent_op_arch_param))
         self.init_arch_param(independent_ch_arch_param, independent_edge_arch_param)
-        self.act = nn.ReLU() if act is True else (act if isinstance(act, nn.Module) else None)
+        self.act = get_act(act)
         if self.gumbel_channel: self.bn = nn.ModuleList([nn.BatchNorm2d(int(self.cout*e)) for e in candidate_ch]) if bn else [None for _ in candidate_ch]
         else: self.bn = nn.BatchNorm2d(self.cout) if bn else None
 
@@ -408,13 +408,13 @@ class AFF(SearchLayer, OpLayer):
         if ind_edge_alpha:
             super().init_arch_param('edge_alphas', len(self.cin))
 
-    def check_valid(self, in_channels, strides)
+    def check_valid(self, in_channels, strides):
         assert(len(in_channels)==len(strides))
 
     def forward(self, xs, op_alphas=None, ch_alphas=None, edge_alpha=None):
         ch_alphas = ch_alphas if ch_alphas is not None else (self.norm_arch_param(self.ch_alphas, self.gumbel_channel) if hasattr(self, 'ch_alphas') else [1.])
         edge_alphas = edge_alphas if edge_alphas is not None else (self.norm_arch_param(self.edge_alphas, self.gumbel_edge) if hasattr(self, 'edge_alphas') else [1.]*len(self.cin))
-        bn = self.get_norm_layer(ch_alphas, self.bn, self.gumbel_channel):
+        bn = self.get_norm_layer(ch_alphas, self.bn, self.gumbel_channel)
 
         out = 0.
         for x, m, edge_alpha in zip(xs, self.m, edge_alphas):
@@ -423,10 +423,10 @@ class AFF(SearchLayer, OpLayer):
         if bn: out = bn(out)
         if self.act: out = self.act(out)
 
-       return out
+        return out
 
     @classmethod
-    def genotype(self, cfg, op_alphas=None, ch_alphas=None, edge_alpha=None, num_reserved_op=None, num_reserved_ch=None, num_reserved_edge=None)
+    def genotype(self, cfg, op_alphas=None, ch_alphas=None, edge_alpha=None, num_reserved_op=None, num_reserved_ch=None, num_reserved_edge=None):
         num_reserved_op = self.num_reserved_op if num_reserved_op is None else num_reserved_op
         num_reserved_ch = self.num_reserved_ch if num_reserved_ch is None else num_reserved_ch
         assert num_reserved_op==1
@@ -463,8 +463,8 @@ class SPP_search(SearchLayer):
     def __init__(self, in_channel, out_channel, kernel=(5, 9, 13)):
         super(SPP_search, self).__init__()
         c_ = in_channel // 2  # hidden channels
-        self.cv1 = ConvBNAct_search(in_channel, out_channel, candidate_op=[(1,1)], candidate_ch=[1.], stride=1, act=nn.SiLU, bn=True, merge_kernel=True)
-        self.cv2 = ConvBNAct(c_ * (len(k) + 1), out_channel, kernel=1, dilation=1, stride=1, act=nn.SiLU, bn=True)
+        self.cv1 = ConvBNAct_search(in_channel, out_channel, candidate_op=[(1,1)], candidate_ch=[1.], stride=1, act=nn.SiLU(), bn=True, merge_kernel=True)
+        self.cv2 = ConvBNAct(c_ * (len(k) + 1), out_channel, kernel=1, dilation=1, stride=1, act=nn.SiLU(), bn=True)
 
         self.m = nn.ModuleList([nn.MaxPool2d(kernel_size=x, stride=1, padding=x // 2) for x in kernel])
 

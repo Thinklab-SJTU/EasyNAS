@@ -1,7 +1,7 @@
 from typing import Union
 from ..hook import HOOK, execute_period
 
-def CkptHOOK(HOOK):
+class CkptHOOK(HOOK):
     def __init__(self, save_root: Union[None, str]=None, pretrain: Union[None, str]=None):
         self.save_root = save_root
         self.pretrain = pretrain

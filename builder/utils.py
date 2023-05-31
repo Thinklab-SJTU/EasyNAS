@@ -6,12 +6,12 @@ import yaml
 import importlib
 
 def _get_submodule(submodule_name: str, module_name: str='dataset.datasets', package_path: str=None):
-    package = package_path.split('.')[0].replace('/', '.') if isinstance(package_path, str) else None
-
 #    print(importlib.util.find_spec("dataset.datasets"))
 #    module = importlib.import_module('dataset.datasets')
 #    print(getattr(module, 'CIFAR10'))
 
+#    package = package_path.split('.')[0].replace('/', '.') if isinstance(package_path, str) else None
+    package = package_path.replace('/', '.') if isinstance(package_path, str) else None
     if importlib.util.find_spec(module_name, package=package):
         module = importlib.import_module(module_name, package=package_path)
         try:
@@ -26,7 +26,7 @@ def create_submodule(submodule_name, module_name, package_path, **args):
     submodule = _get_submodule(submodule_name, module_name, package_path)
     return submodule(**args)
 
-def get_submodule(submodule_name, module_name, package_path, loaded_submodule={}):
+def get_submodule(submodule_name, module_name, package_path=None, loaded_submodule={}):
     submodule = loaded_submodule.get(submodule_name, None)
     if submodule: 
         return submodule
