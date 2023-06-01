@@ -37,11 +37,11 @@ def DARTSHOOK(HOOK):
     def before_train_epoch(self, runner)
         self.dataiter = iter(self.dataloader)
 
-    @execute_period(self.update_freq)
+    @execute_period("update_freq")
     def before_train_iter(self, runner):
-        self.optimizer_hook.before_train_iter(self)
+        self.optimizer_hook.before_train_iter(runner)
         self.step(runner)
-        self.optimizer_hook.after_train_iter(self)
+        self.optimizer_hook.after_train_iter(runner)
 
     def after_train_epoch(self, runner):
         arch_param = runner.model.get_arch_param()

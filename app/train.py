@@ -1,6 +1,8 @@
 import os
 import argparse
+
 from builder import parse_cfg, create_dataloader, create_model, create_criterion, create_submodule_from_dict, create_hook
+from pipeline.trainer import Trainer
 
 parser = argparse.ArgumentParser("train")
 parser.add_argument('--cfg', type=str, help='location of the config file')
@@ -18,7 +20,7 @@ def main():
     # build submodules
     # build data
     print("Building dataloader")
-    dataloader = create_dataloader(cfg['data'])
+    datasets, dataloaders = create_dataloader(cfg['data'])
     # parse model
     print("Building model")
     if cfg.get('root_path') and cfg['model'].get('log_path', None):
@@ -35,7 +37,7 @@ def main():
     opt_hook = cfg.get('opt_hook', None)
     if opt_hook:
         opt_hook['hook_args']['optimizer'] = optimizer
-        optimizer = create_hook(opt_hook)
+        opt_hook = create_hook(opt_hook)
     # parse scheduler
     print("Building lr scheduler")
     cfg['lr_scheduler']['args']['optimizer'] = optimizer
@@ -43,7 +45,7 @@ def main():
     scheduler_hook = cfg.get('lr_scheduler_hook', None)
     if scheduler_hook:
         scheduler_hook['hook_args']['lr_scheduler'] = scheduler
-        scheduler = create_hook(scheduler_hook)
+        scheduler_hook = create_hook(scheduler_hook)
     # parse other hooks
     print("Building hooks")
     hooks = []
@@ -52,11 +54,11 @@ def main():
             hooks.append(create_hook(v))
 
     # build trainer
-    trainer = Trainer(dataloders=dataloders, 
+    trainer = Trainer(dataloaders=dataloaders, 
                       model=model, 
                       criterion=criterion, 
-                      optimizer=optimizer,
-                      lr_scheduler=scheduler,
+                      optimizer=opt_hook,
+                      lr_scheduler=scheduler_hook,
                       hooks=hooks
                       )
     print("Traning...")

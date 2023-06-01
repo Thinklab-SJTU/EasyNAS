@@ -1,3 +1,4 @@
+from .hook import HOOK
 from .optimizer.opt_hook import OptHOOK
 from .scheduler.scheduler_hook import LrScheduleHOOK
 from .evaluation.eval_hook import EvalAccHOOK

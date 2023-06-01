@@ -8,6 +8,9 @@ class LrScheduleHOOK(HOOK):
         else:
             raise(ValueError(f"No implementation for mode as {mode}"))
 
+    def initialize(self, last_epoch):
+        self.lr_scheduler.last_epoch = last_epoch
+
     def update_lr(self, runner):
         self.lr_scheduler.step()
 

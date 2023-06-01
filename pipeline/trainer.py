@@ -1,17 +1,23 @@
 from easydict import EasyDict
-from .hook import HOOK, OptHOOK
 from typing import Union, List
+import torch
+
+from src.hook import HOOK, OptHOOK
 
 class Trainer(object):
-    def __init__(dataloaders:dict, model, criterion, optimizer: Union[HOOK, torch.nn.Optimizer], lr_scheduler: HOOK, hooks: List[HOOK]=[]):
+    def __init__(self, dataloaders:dict, model, criterion, optimizer: Union[HOOK, torch.optim.Optimizer], lr_scheduler: HOOK, hooks: List[HOOK]=[], rank=-1):
+
         self.train_loader, self.val_loader, self.test_loader = dataloaders.get('train', None), dataloaders.get('val', None), dataloaders.get('test', None)
         assert self.train_loader is not None
 
-        self.model = model
+        self.device = torch.device('cuda', max(rank, 0))
+        self.rank = rank
+
+        self.model = model.to(self.device)
         self.criterion = criterion
         self.start_epoch = 0
-        self._hook = hooks
-        self.info = EasyDict({'results': {}})
+        self._hooks = hooks
+        self.info = EasyDict({'results': {'train': {}, 'val': {}}})
 
         if isinstance(optimizer, HOOK):
             self.optimizer_hook = optimizer
@@ -24,6 +30,10 @@ class Trainer(object):
             self.lr_scheduler_hook = LrScheduleHOOK(lr_scheduler)
         self.register_hook(self.lr_scheduler_hook, 0)
 
+    def is_dpp(self):
+        return self.rank == -1
+
+
     def register_hook(self, hook: HOOK, priority: int):
         """Register a hook into the hook list.
         The hook will be inserted into a priority queue, with the specified
@@ -35,14 +45,14 @@ class Trainer(object):
             priority (int or str or :obj:`Priority`): Hook priority.
                 Lower value means higher priority.
         """
-        assert isinstance(hook, Hook)
+        assert isinstance(hook, HOOK)
         if hasattr(hook, 'priority'):
             raise ValueError('"priority" is a reserved attribute for hooks')
         hook.priority = priority
         # insert the hook to a sorted list
         inserted = False
         for i in range(len(self._hooks) - 1, -1, -1):
-            if priority >= self._hooks[i].priority:
+            if priority >= getattr(self._hooks[i], 'priority', len(self._hooks)):
                 self._hooks.insert(i + 1, hook)
                 inserted = True
                 break
@@ -64,8 +74,8 @@ class Trainer(object):
         for step, (input, target) in enumerate(train_loader):
             self.call_hook('before_train_iter')
             self.info.iter_step = step
-            target = target.cuda(non_blocking=True)
-            input = input.cuda(non_blocking=True)
+            target = target.to(self.device, non_blocking=True)
+            input = input.to(self.device, non_blocking=True)
             logits = model(input)
             loss = criterion(logits, target)
             loss.backward()
@@ -80,10 +90,11 @@ class Trainer(object):
         self.call_hook('before_val_epoch')
         model.eval()
         with torch.no_grad():
-            for step, (input, target) in enumerate(valid_loader):
+            for step, (input, target) in enumerate(val_loader):
                 self.call_hook('before_val_iter')
-                target = target.cuda(non_blocking=True)
-                input = input.cuda(non_blocking=True)
+                self.info.iter_step = step
+                target = target.to(self.device, non_blocking=True)
+                input = input.to(self.device, non_blocking=True)
             
                 logits = model(input)
                 loss = criterion(logits, target)

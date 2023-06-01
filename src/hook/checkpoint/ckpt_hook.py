@@ -1,14 +1,19 @@
+import os
 from typing import Union
+import torch
+
 from ..hook import HOOK, execute_period
 
 class CkptHOOK(HOOK):
     def __init__(self, save_root: Union[None, str]=None, pretrain: Union[None, str]=None):
         self.save_root = save_root
         self.pretrain = pretrain
-        if self.save_root: setattr(self, after_epoch, save_model)
+        if self.save_root: 
+            os.makedirs(self.save_root, exist_ok=True)
+            setattr(self, 'after_epoch', self.save_model)
 
     def get_pretrain_model(self):
-        if self.pretrain is None: return
+        if self.pretrain is None: return None
         if not os.path.exists(self.pretrain): 
             raise(ValueError(f"{self.pretrain} is not an existed file or a directory."))
         if os.path.isdir(self.pretrain):
@@ -35,30 +40,33 @@ class CkptHOOK(HOOK):
         load pretrain model
         """
         checkpoint = self.get_pretrain_model()
-        if runner.is_dist():
-          runner.model.module.load_state_dict(checkpoint['state_dict'])
-        else:
-          runner.model.load_state_dict(checkpoint['state_dict'])
-        runner.start_epoch = int(checkpoint['epoch']) + 1
-        runner.optimizer_hook.optimizer.load_state_dict(checkpoint['optimizer'])
-        runner.best_acc_top1 = float(checkpoint['best_acc_top1'])
+        if checkpoint is not None:
+            if runner.is_dpp():
+                runner.model.module.load_state_dict(checkpoint['state_dict'])
+            else:
+                runner.model.load_state_dict(checkpoint['state_dict'])
+            runner.start_epoch = int(checkpoint['epoch']) + 1
+            runner.optimizer_hook.initialize(checkpoint['optimizer'])
+            if hasattr(runner, lr_scheduler_hook):
+                runner.lr_scheduler_hook.initialize(last_epoch=start_epoch-1)
+            runner.info.results = float(checkpoint['results'])
 
-    def _save_model(self, model_name: Union[None, str]=None):
+    def _save_model(self, runner, model_name: Union[None, str]=None):
         ckpt = {
-          'epoch': epoch,
+          'epoch': runner.info.current_epoch,
           'state_dict': runner.model.state_dict(),
-          'best_acc_top1': runner.best_acc_top1,
+          'results': runner.info.results,
           'optimizer' : runner.optimizer_hook.optimizer.state_dict(),
                }
         model_name = 'weight_%d.pt'%epoch if model_name is None else model_name
-        save_path = os.path.join(self.save_path, model_name)
+        save_path = os.path.join(self.save_root, model_name)
         torch.save(ckpt, save_path)
 
     def save_model(self, runner):
 #        model_name = runner.info['current_epoch']
-        self._save_model('last.pt')
+        self._save_model(runner, 'last.pt')
         if runner.info.get('is_best', False):
-            self._save_model('best.pt')
+            self._save_model(runner, 'best.pt')
         
 
 

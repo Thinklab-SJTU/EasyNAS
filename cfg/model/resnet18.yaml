@@ -18,12 +18,12 @@ architecture:
       bias: False
       act: torch.nn.ReLU
       bn: True
-  - input_idx: -1
-    module: torch.nn.MaxPool2d
-    module_args:
-      kernel_size: 3
-      stride: 2
-      padding: 1
+#  - input_idx: -1
+#    module: torch.nn.MaxPool2d
+#    module_args:
+#      kernel_size: 3
+#      stride: 2
+#      padding: 1
   - input_idx: -1
     module: BasicBlock
     num_repeat: 2
