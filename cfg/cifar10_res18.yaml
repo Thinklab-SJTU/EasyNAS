@@ -29,16 +29,26 @@ opt_hook:
   hook_name: OptHOOK
   hook_args:
     optimizer: 
+    priority: 0
     accumulate_gradient: 1
 
 lr_scheduler_hook:
   hook_name: LrScheduleHOOK
   hook_args: 
     lr_scheduler:
+    priority: 0
     mode: epoch
 
 eval_hook:
   hook_name: EvalAccHOOK
+  hook_args: 
+    priority: 0
+
+ddp_hook:
+  hook_name: DDPHOOK
+  hook_args:
+    priority: 5
+
 
 log_hook:
   hook_name: LogHOOK
@@ -46,11 +56,15 @@ log_hook:
     logger_name: TrainPip
     log_path: !join [*root_path, test.log]
     print_freq: 50
+    only_master: True
+    priority: 10
 
 ckpt_hook:
   hook_name: CkptHOOK
   hook_args:
     save_root: !join [*root_path, ckpt/]
     pretrain: 
+    only_master: True
+    priority: 20
 
 

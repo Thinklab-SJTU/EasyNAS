@@ -4,4 +4,4 @@ from .scheduler.scheduler_hook import LrScheduleHOOK
 from .evaluation.eval_hook import EvalAccHOOK
 from .checkpoint.ckpt_hook import CkptHOOK
 from .logger.log_hook import LogHOOK
-
+from .ddp.ddp_hook import DDPHOOK

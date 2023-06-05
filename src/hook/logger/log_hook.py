@@ -6,7 +6,9 @@ from typing import Union
 from ..hook import HOOK, execute_period
 
 class LogHOOK(HOOK):
-    def __init__(self, logger_name='TrainPip', log_path: Union[None, str] = None, print_freq: int = 1):
+    def __init__(self, priority=0, logger_name='TrainPip', log_path: Union[None, str] = None, print_freq: int = 1, only_master=True):
+        self.priority = priority
+        self.only_master = only_master
         self.print_freq = print_freq
         if log_path and not os.path.exists(os.path.dirname(log_path)):
             os.makedirs(os.path.dirname(log_path))

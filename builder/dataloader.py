@@ -6,6 +6,7 @@ import numpy as np
 import torch
 
 from .utils import get_submodule
+from app.distribute_utils import is_dist_avail_and_initialized, get_world_size, get_rank
 
 
 def build_one_dataset(submodule_name: str, module_name: str='dataset.datasets', package_path: str=None, **args_dict) -> torch.utils.data.Dataset:
@@ -48,6 +49,16 @@ def create_dataloader(cfg: dict) -> dict:
             end = start + int(np.floor(portion * num_train))
             splitInfos[set_name] = splitInfos[set_name]._replace(start=end)
             dataset = torch.utils.data.Subset(dataset, indices=indices[start:end])
-        dataloaders[loader_name] = torch.utils.data.DataLoader(dataset, **cfg.get('dataloader_args', {}))
+
+        if is_dist_avail_and_initialized() and cfg.get('use_dist', True):
+            world_size = get_world_size()
+            rank = get_rank()
+            sampler = torch.utils.data.DistributedSampler(
+                dataset, num_replicas=world_size, rank=rank, shuffle=True
+            )
+        else:
+            sampler = torch.utils.data.RandomSampler(dataset)
+        dataloaders[loader_name] = torch.utils.data.DataLoader(dataset, sampler=sampler, **cfg.get('dataloader_args', {}))
+        dataloaders[loader_name].cfg = loader_cfg
     return datasets, dataloaders
 		

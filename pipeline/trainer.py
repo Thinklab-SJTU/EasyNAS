@@ -5,15 +5,24 @@ import torch
 from src.hook import HOOK, OptHOOK
 
 class Trainer(object):
-    def __init__(self, dataloaders:dict, model, criterion, optimizer: Union[HOOK, torch.optim.Optimizer], lr_scheduler: HOOK, hooks: List[HOOK]=[], rank=-1):
+    def __init__(self, dataloaders:dict, model, criterion, optimizer: Union[HOOK, torch.optim.Optimizer], lr_scheduler: HOOK, hooks: List[HOOK]=[], local_rank=-1, sync_bn=False):
 
         self.train_loader, self.val_loader, self.test_loader = dataloaders.get('train', None), dataloaders.get('val', None), dataloaders.get('test', None)
         assert self.train_loader is not None
 
-        self.device = torch.device('cuda', max(rank, 0))
-        self.rank = rank
+        self.local_rank = local_rank
+        self.device = torch.device('cuda', max(local_rank, 0))
 
-        self.model = model.to(self.device)
+        if self.local_rank >= 0:
+#            # convert BN to SyncBN
+            if sync_bn:
+                model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
+            model = model.to(self.device)
+            self.model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[self.local_rank], output_device=self.local_rank)
+#            model_without_ddp = model.module
+        else:
+            self.model = model.to(self.device)
+
         self.criterion = criterion
         self.start_epoch = 0
         self._hooks = hooks
@@ -23,18 +32,17 @@ class Trainer(object):
             self.optimizer_hook = optimizer
         else:
             self.optimizer_hook = OptHOOK(optimizer)
-        self.register_hook(self.optimizer_hook, 0)
+        self.register_hook(self.optimizer_hook)
         if isinstance(lr_scheduler, HOOK):
             self.lr_scheduler_hook = lr_scheduler
         else: 
             self.lr_scheduler_hook = LrScheduleHOOK(lr_scheduler)
-        self.register_hook(self.lr_scheduler_hook, 0)
+        self.register_hook(self.lr_scheduler_hook)
 
-    def is_dpp(self):
-        return self.rank == -1
+    def is_ddp(self):
+        return self.local_rank >= 0
 
-
-    def register_hook(self, hook: HOOK, priority: int):
+    def register_hook(self, hook: HOOK, priority: int=-1):
         """Register a hook into the hook list.
         The hook will be inserted into a priority queue, with the specified
         priority (See :class:`Priority` for details of priorities).
@@ -46,9 +54,12 @@ class Trainer(object):
                 Lower value means higher priority.
         """
         assert isinstance(hook, HOOK)
-        if hasattr(hook, 'priority'):
-            raise ValueError('"priority" is a reserved attribute for hooks')
-        hook.priority = priority
+        if priority < 0:
+            assert hasattr(hook, 'priority')
+        else:
+            hook.priority = priority
+#        if hasattr(hook, 'priority'):
+#            raise ValueError('"priority" is a reserved attribute for hooks')
         # insert the hook to a sorted list
         inserted = False
         for i in range(len(self._hooks) - 1, -1, -1):
@@ -66,6 +77,7 @@ class Trainer(object):
                 "before_train_epoch".
         """
         for hook in self._hooks:
+            if getattr(hook, 'only_master', False) and self.local_rank not in [-1, 0]: continue
             getattr(hook, fn_name)(self)
 
     def train_one_epoch(self, train_loader, model, criterion):
@@ -108,11 +120,15 @@ class Trainer(object):
     def run(self, epochs=None):
         self.call_hook('before_run')
         for epoch in range(self.start_epoch, epochs):
-            self.call_hook('before_epoch')
+#            if self.is_ddp():
+#                if self.train_loader.cfg.get('use_dist', True): self.train_loader.sampler.set_epoch(epoch)
+#                if self.val_loader.cfg.get('use_dist', True): self.val_loader.sampler.set_epoch(epoch)
             self.info.current_epoch = epoch
+            self.call_hook('before_epoch')
             self.train_one_epoch(self.train_loader, self.model, self.criterion)
   
-            self.val(self.val_loader, self.model, self.criterion)
+            if self.local_rank in [-1, 0] or self.val_loader.cfg.get('use_dist', True):
+                self.val(self.val_loader, self.model, self.criterion)
             self.call_hook('after_epoch')
         self.call_hook('after_run')
         

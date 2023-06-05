@@ -1,7 +1,8 @@
 from ..hook import HOOK, execute_period, OptHOOK
 
 def DARTSHOOK(HOOK):
-    def __init__(self, optimizer, dataloader, criterion, update_freq=1, accumulate_gradient=1):
+    def __init__(self, priority=0, optimizer, dataloader, criterion, update_freq=1, accumulate_gradient=1):
+        self.priority = priority
         self.optimizer_hook = OptHOOK(optimizer, accumulate_gradient)
         self.dataloader = dataloader
         self.dataiter = iter(self.dataloader)

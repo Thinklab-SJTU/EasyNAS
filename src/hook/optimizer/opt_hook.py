@@ -1,7 +1,8 @@
 from ..hook import HOOK, execute_period
 
 class OptHOOK(HOOK):
-    def __init__(self, optimizer, accumulate_gradient=1):
+    def __init__(self, optimizer, accumulate_gradient=1, priority=0):
+        self.priority = priority
         self.optimizer = optimizer
         self.accumulate_gradient = accumulate_gradient
 

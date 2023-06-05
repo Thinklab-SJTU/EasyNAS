@@ -26,13 +26,12 @@ dataloader:
     dataset_name: train
     dataloader_args:
       batch_size: 96
-      sampler:
       pin_memory: True
       num_workers: 4
   val:
     dataset_name: val
+    use_dist: False
     dataloader_args:
       batch_size: 96
-      sampler:
       pin_memory: True
       num_workers: 4

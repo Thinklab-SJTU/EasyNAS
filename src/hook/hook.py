@@ -15,7 +15,8 @@ def execute_period(attr_name=None, n=None):
 
 
 class HOOK(object):
-    def __init__(self, ns=[2, 3]):
+    def __init__(self, only_master=False, ns=[2, 3]):
+        self.only_master = only_master
         self.n = 1
         self.set_period('before_run', ns[0])
         self.set_period('after_run', ns[1])

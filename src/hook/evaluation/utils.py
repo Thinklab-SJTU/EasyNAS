@@ -1,3 +1,6 @@
+import torch.distributed as dist
+
+from app.distribute_utils import is_dist_avail_and_initialized
 
 class AverageMeter(object):
 
@@ -13,6 +16,20 @@ class AverageMeter(object):
     self.sum += val * n
     self.cnt += n
     self.avg = self.sum / self.cnt
+
+  def synchronize_between_processes(self):
+      """
+      Warning: does not synchronize the deque!
+      """
+      if not is_dist_avail_and_initialized():
+          return
+      t = torch.tensor([self.cnt, self.sum], dtype=torch.float64, device='cuda')
+      dist.barrier()
+      dist.all_reduce(t)
+      t = t.tolist()
+      self.cnt = int(t[0])
+      self.sum = t[1]
+      self.avg = self.sum / self.cnt
 
 
 def accuracy(output, target, topk=(1,)):

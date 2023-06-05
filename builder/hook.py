@@ -13,4 +13,7 @@ def create_hook(cfg: dict):
     submodule = get_submodule(cfg.get('hook_name'), cfg.get('module_name', 'src.hook'), cfg.get('package_name', None))
     return submodule(**cfg.get('hook_args', {}))
 		
+def create_distribute_hook(cfg: dict):
+    submodule = get_submodule(cfg.get('hook_name'), cfg.get('module_name', 'src.hook'), cfg.get('package_name', None))
+    return submodule(**cfg.get('hook_args', {}))
 

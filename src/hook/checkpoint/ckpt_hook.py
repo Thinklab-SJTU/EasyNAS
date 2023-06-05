@@ -5,7 +5,9 @@ import torch
 from ..hook import HOOK, execute_period
 
 class CkptHOOK(HOOK):
-    def __init__(self, save_root: Union[None, str]=None, pretrain: Union[None, str]=None):
+    def __init__(self, priority=0, save_root: Union[None, str]=None, pretrain: Union[None, str]=None, only_master=True):
+        self.priority = priority
+        self.only_master = only_master
         self.save_root = save_root
         self.pretrain = pretrain
         if self.save_root: 
@@ -28,7 +30,7 @@ class CkptHOOK(HOOK):
                 pretrain = os.path.join(self.pretrain, f)
         elif os.path.isfile(self.pretrain): 
               pretrain = self.pretrain
-        else: raise(ValueError(f"Get unkown type as pretrain. Expect path of file or directory, but get {type(self.pretrain)}"))
+        else: raise(ValueError(f"Get unknown type as pretrain. Expect path of file or directory, but get {type(self.pretrain)}"))
 
         print('====== Load ckpt ======')
         print(f"Loading from {pretrain}")
