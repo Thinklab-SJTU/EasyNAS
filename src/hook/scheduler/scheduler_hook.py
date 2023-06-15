@@ -9,6 +9,12 @@ class LrScheduleHOOK(HOOK):
         else:
             raise(ValueError(f"No implementation for mode as {mode}"))
 
+    def state_dict(self):
+        return self.lr_scheduler.state_dict()
+
+    def load_state_dict(self, state_dict):
+        self.lr_scheduler.load_state_dict(state_dict)
+
     def initialize(self, last_epoch):
         self.lr_scheduler.last_epoch = last_epoch
 

@@ -1,5 +1,5 @@
 root_path: &root_path runs/cifar10_res18/
-epoch: &epoch 100
+epoch: &epoch 300
 
 data: cfg/dataset/cifar10.yaml
 

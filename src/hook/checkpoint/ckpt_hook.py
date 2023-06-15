@@ -51,6 +51,7 @@ class CkptHOOK(HOOK):
             runner.optimizer_hook.initialize(checkpoint['optimizer'])
             if hasattr(runner, lr_scheduler_hook):
                 runner.lr_scheduler_hook.initialize(last_epoch=start_epoch-1)
+                runner.lr_scheduler_hook.load_state_dict(checkpoint['scheduler'])
             runner.info.results = float(checkpoint['results'])
 
     def _save_model(self, runner, model_name: Union[None, str]=None):
@@ -58,7 +59,8 @@ class CkptHOOK(HOOK):
           'epoch': runner.info.current_epoch,
           'state_dict': runner.model.state_dict(),
           'results': runner.info.results,
-          'optimizer' : runner.optimizer_hook.optimizer.state_dict(),
+          'optimizer': runner.optimizer_hook.optimizer.state_dict(),
+          'scheduler': runner.lr_scheduler_hook.state_dict(),
                }
         model_name = 'weight_%d.pt'%epoch if model_name is None else model_name
         save_path = os.path.join(self.save_root, model_name)

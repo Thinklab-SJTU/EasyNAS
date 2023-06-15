@@ -25,7 +25,9 @@ def create_dataloader(cfg: dict) -> dict:
        	submodule_name = cfg.pop('submodule_name', 'Dataset')
        	module_name = cfg.pop('module_name', 'dataset.datasets')
        	package_path = cfg.pop('package_path', None)
-        datasets[set_name] = build_one_dataset(submodule_name, module_name, package_path, **cfg.get('dataset_args', {}))
+        Dataset = get_submodule(submodule_name, module_name, package_path)
+        Dataset(**cfg.get('dataset_args', {}))
+#        datasets[set_name] = build_one_dataset(submodule_name, module_name, package_path, **cfg.get('dataset_args', {}))
 
     # build dataloader
     dataloaders = {}
@@ -58,7 +60,12 @@ def create_dataloader(cfg: dict) -> dict:
             )
         else:
             sampler = torch.utils.data.RandomSampler(dataset)
-        dataloaders[loader_name] = torch.utils.data.DataLoader(dataset, sampler=sampler, **cfg.get('dataloader_args', {}))
+
+       	submodule_name = cfg.pop('submodule_name', 'DataLoader')
+       	module_name = cfg.pop('module_name', '.utils.data')
+       	package_path = cfg.pop('package_path', 'torch')
+        Dataloader = get_submodule(submodule_name, module_name, package_path)
+        dataloaders[loader_name] = Dataloader(dataset, sampler=sampler, **cfg.get('dataloader_args', {}))
         dataloaders[loader_name].cfg = loader_cfg
     return datasets, dataloaders
 		

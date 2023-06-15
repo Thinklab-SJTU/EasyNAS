@@ -1,0 +1,99 @@
+root_path: &root_path runs/cifar10_res18/
+epoch: &epoch 300
+accumulate_gradient: &acc_grad 1
+amp: True
+
+train_hyp: &hyp
+  lr0: &lr0 0.01  # initial learning rate (SGD=1E-2, Adam=1E-3)
+  lrf: &lrf 0.2  # final OneCycleLR learning rate (lr0 * lrf)
+  momentum: &momentum 0.937  # SGD momentum/Adam beta1
+  weight_decay: &wd 0.0005  # optimizer weight decay 5e-4
+  warmup_epochs: 3.0  # warmup epochs (fractions ok)
+  warmup_init_momentum_rate: &warmup_init_momentum_rate 0.854  # warmup initial momentum
+  warmup_bias_lr: &warmup_bias_lr 0.1  # warmup initial bias lr
+
+data: cfg/dataset/coco_yolo.yaml
+
+criterion: cfg/criterion/yolov5.yaml
+
+model: cfg/model/yolov5s.yaml
+
+
+optimizer: &optimizer
+  submodule_name: SGD
+  module_name: .optim
+  package_path: torch
+  args:
+    params: [{'params': conv_parameters, 'weight_decay': *wd}, {'params': bias_parameters}, {'params': all_parameters}]
+    lr: *lr0
+    momentum: *momentum
+
+lr_scheduler: &scheduler
+  submodule_name: LambdaLR
+  module_name: .optim.lr_scheduler
+  package_path: torch
+  args:
+    optimizer: 
+    lr_lambda: !get_module [src.scheduler.one_cycle, {'start': 1, 'end': *lrf, 'steps': *epoch}]
+
+opt_hook:
+  hook_name: OptHOOK
+  hook_args:
+    optimizer: 
+    priority: 1
+    accumulate_gradient: &acc_grad
+
+lr_scheduler_hook:
+  hook_name: LrScheduleHOOK
+  hook_args: 
+    lr_scheduler:
+    priority: 1
+    mode: epoch
+
+#TODO
+eval_hook:
+  hook_name: EvalmAPHOOK
+  hook_args: 
+    priority: 10
+
+ddp_hook:
+  hook_name: DDPHOOK
+  hook_args:
+    priority: 5
+
+
+log_hook:
+  hook_name: LogHOOK
+  hook_args:
+    logger_name: TrainPip
+    log_path: !join [*root_path, test.log]
+    print_freq: 50
+    only_master: True
+    priority: 10
+
+ckpt_hook:
+  hook_name: CkptHOOK
+  hook_args:
+    save_root: !join [*root_path, ckpt/]
+    pretrain: 
+    only_master: True
+    priority: 20
+
+warmup_hook:
+  hook_name: WarmupHOOK
+  hook_args:
+    max_iter: 1000
+    warmup_init_lr_rate: [1., *warmup_bias_lr, 1.]
+    warmup_init_momentum_rate: *warmup_init_momentum_rate
+    priority: 0
+    accumulate_gradient: *acc_grad
+
+ema_hook:
+  hook_name: EMAHOOK
+  hook_args:
+    decay: 0.999
+    priority: 5
+    accumulate_gradient: *acc_grad
+
+
+

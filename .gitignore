@@ -4,6 +4,7 @@ logs
 *.swp
 *.log
 *.DS_Store
+.nfs*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

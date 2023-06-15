@@ -15,7 +15,7 @@ echo "Configuration: ${cfg}"
 
 if [ ${gpu_num} -gt 1 ]; then
 #    START_CMD="torchrun --nnodes=1 --node_rank=0 --nproc_per_node=${gpu_num}"
-    START_CMD="python -m torch.distributed.launch --nnodes=1 --node_rank=0 --nproc_per_node=${gpu_num} --use_env"
+    START_CMD="python -m torch.distributed.launch --nnodes=1 --node_rank=0 --nproc_per_node=${gpu_num} --use_env --master_port 9527"
 else
     START_CMD="python"
 fi
@@ -26,8 +26,8 @@ case $Answer in
     Yes|yes|y|Y|"")
 #        echo "Start the process. Log file is saved to logs/${NAME}.log"
         CUDA_VISIBLE_DEVICES=$gpustr ${START_CMD} app/train.py \
-		--cfg ${cfg}
-#        	> logs/${NAME}.log 2>&1 &
+		--cfg ${cfg} \
+#        	> logs/test.log 2>&1 &
         ;;
     No|no|N|n)
         echo "The process is killed!"

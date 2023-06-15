@@ -6,6 +6,7 @@ from .criterion import create_criterion
 from .model import create_model
 from .dataloader import create_dataloader 
 from .hook import create_hook
+from .optimizer import create_optimizer
 from .utils import CfgLoader, create_submodule_from_dict
 
 

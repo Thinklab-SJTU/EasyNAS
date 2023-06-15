@@ -5,11 +5,12 @@ import torch
 from src.hook import HOOK, OptHOOK
 
 class Trainer(object):
-    def __init__(self, dataloaders:dict, model, criterion, optimizer: Union[HOOK, torch.optim.Optimizer], lr_scheduler: HOOK, hooks: List[HOOK]=[], local_rank=-1, sync_bn=False):
+    def __init__(self, dataloaders:dict, model, criterion, optimizer: Union[HOOK, torch.optim.Optimizer], lr_scheduler: HOOK, hooks: List[HOOK]=[], local_rank=-1, sync_bn=False, amp=False):
 
         self.train_loader, self.val_loader, self.test_loader = dataloaders.get('train', None), dataloaders.get('val', None), dataloaders.get('test', None)
         assert self.train_loader is not None
 
+        self.amp = amp
         self.local_rank = local_rank
         self.device = torch.device('cuda', max(local_rank, 0))
 
@@ -23,7 +24,7 @@ class Trainer(object):
         else:
             self.model = model.to(self.device)
 
-        self.criterion = criterion
+        self.criterion = criterion.to(self.device)
         self.start_epoch = 0
         self._hooks = hooks
         self.info = EasyDict({'results': {'train': {}, 'val': {}}})
@@ -85,15 +86,17 @@ class Trainer(object):
         model.train()
         for step, (input, target) in enumerate(train_loader):
             self.call_hook('before_train_iter')
-            self.info.iter_step = step
+            self.info.current_iter = step
             target = target.to(self.device, non_blocking=True)
             input = input.to(self.device, non_blocking=True)
-            logits = model(input)
-            loss = criterion(logits, target)
-            loss.backward()
-            self.info.train_bs_logits = logits
+            self.info.train_bs_input = input
             self.info.train_bs_target = target
-            self.info.train_bs_loss = loss
+            with torch.cuda.amp.autocast(enabled=self.amp)
+                logits = model(input)
+                loss = criterion(logits, target)
+                self.info.train_bs_logits = logits
+                self.info.train_bs_loss = loss
+#            loss.backward()
             self.call_hook('after_train_iter')
 
         self.call_hook('after_train_epoch')
@@ -104,7 +107,7 @@ class Trainer(object):
         with torch.no_grad():
             for step, (input, target) in enumerate(val_loader):
                 self.call_hook('before_val_iter')
-                self.info.iter_step = step
+                self.info.current_iter = step
                 target = target.to(self.device, non_blocking=True)
                 input = input.to(self.device, non_blocking=True)
             

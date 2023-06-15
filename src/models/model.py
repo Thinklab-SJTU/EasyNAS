@@ -11,6 +11,7 @@ import thop
 
 from .utils import count_parameters_in_MB, make_divisible, default_init_weights
 from .layers.utils import get_submodule
+from app.distribute_utils import setup_for_distributed
 #from builder.utils import get_submodule as utils_get_submodule
 
 def get_outchannel(cin, module_name, module_args):
@@ -23,13 +24,14 @@ def get_outchannel(cin, module_name, module_args):
     else: return cin
 
 class BaseModel(nn.Module):
-    def __init__(self, cfg, output_ch, input_ch=3, input_size=None, log_path=None, init_func=None):
+    def __init__(self, cfg, output_ch, input_ch=3, input_size=None, log_path=None, init_func=None, local_rank=-1):
         super(BaseModel, self).__init__()
         self.logger = logging.getLogger('model_builder')
-        if log_path:
+        if log_path and local_rank in [-1, 0]:
             fh = logging.FileHandler(log_path)
             fh.setFormatter(logging.Formatter(log_format))
             self.logger.addHandler(fh)
+        setup_for_distributed(local_rank in [-1, 0], self.logger)
 
         assert isinstance(cfg, dict)
         self.output_ch = output_ch
@@ -107,6 +109,9 @@ class BaseModel(nn.Module):
         return nn.Sequential(*layers), sorted(set(save))
 
 class SearchModel(BaseModel):
+    def __init__(self, cfg, output_ch, input_ch=3, input_size=None, log_path=None, init_func=None, local_rank=-1):
+        super(SearchModel, self).__init__(cfg, output_ch, input_ch=3, input_size=None, log_path=None, init_func=None, local_rank=-1)
+
     def genotype(self):
         out_cfg = deepcopy(self.cfg)
         new_arch = []

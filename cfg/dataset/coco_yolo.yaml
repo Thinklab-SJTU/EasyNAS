@@ -1,0 +1,67 @@
+num_classes: 80
+input_size: &imgsz 640
+batch_size: &bs 80
+
+data_hyp: &hyp
+  hsv_h: 0.015  # image HSV-Hue augmentation (fraction)
+  hsv_s: 0.7  # image HSV-Saturation augmentation (fraction)
+  hsv_v: 0.4  # image HSV-Value augmentation (fraction)
+  degrees: 0.0  # image rotation (+/- deg)
+  translate: 0.1  # image translation (+/- fraction)
+  scale: 0.5  # image scale (+/- gain)
+  shear: 0.0  # image shear (+/- deg)
+  perspective: 0.0  # image perspective (+/- fraction), range 0-0.001
+  flipud: 0.0  # image flip up-down (probability)
+  fliplr: 0.5  # image flip left-right (probability)
+  mosaic: 1.0  # image mosaic (probability)
+  mixup: 0.0  # image mixup (probability)
+
+dataset:
+  train:
+    submodule_name: COCO_YOLO
+    module_name: .datasets
+    package_path: src
+    dataset_args:
+      path: ./data/
+      imgsz: *imgsz
+      batch_size: *bs
+      augment: True
+      hyp: *hyp
+      rect: False
+      stride: 32
+  val:
+    submodule_name: COCO_YOLO
+    module_name: .datasets
+    package_path: src
+    dataset_args:
+      path: ./data/
+      imgsz: *imgsz
+      batch_size: *bs
+      augment: True
+      hyp: *hyp
+      rect: False
+      stride: 32
+
+dataloader:
+  train:
+    dataset_name: train
+    submodule_name: LOADER_YOLO
+    module_name: .datasets
+    package_path: src
+    dataloader_args:
+      batch_size: *bs
+      pin_memory: True
+      num_workers: 4
+      collate_fn: !get_module [src.datasets.coco_yolo.collate_fn]
+  val:
+    dataset_name: val
+    submodule_name: LOADER_YOLO
+    module_name: .datasets
+    package_path: src
+    use_dist: False
+    dataloader_args:
+      batch_size: *bs
+      pin_memory: True
+      num_workers: 4
+      collate_fn: !get_module [src.datasets.coco_yolo.collate_fn]
+

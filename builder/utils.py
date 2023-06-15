@@ -22,9 +22,9 @@ def _get_submodule(submodule_name: str, module_name: str='dataset.datasets', pac
     else:
         raise(ValueError(f"[{module_name}] is not found in the package [{package_path}]"))
 
-def create_submodule(submodule_name, module_name, package_path, **args):
-    submodule = _get_submodule(submodule_name, module_name, package_path)
-    return submodule(**args)
+#def create_submodule(submodule_name, module_name, package_path, **args):
+#    submodule = _get_submodule(submodule_name, module_name, package_path)
+#    return submodule(**args)
 
 def get_submodule(submodule_name, module_name, package_path=None, loaded_submodule={}):
     submodule = loaded_submodule.get(submodule_name, None)
@@ -39,7 +39,8 @@ def create_submodule_from_dict(cfg: dict):
     module_name = cfg.get('module_name', None)
     package_path = cfg.get('package_path', None)
     args = cfg.get('args', {})
-    return create_submodule(submodule_name, module_name, package_path, **args)
+    submodule = _get_submodule(submodule_name, module_name, package_path)
+    return submodule(**args)
 
 
 
@@ -50,10 +51,20 @@ class CfgLoader(yaml.SafeLoader):
     def join(self, node):
         return ''.join([str(i) for i in self.construct_sequence(node)])
 
+    def get_module(self, node):
+        name_args = self.construct_sequence(node)
+        module_name = str(name_args[0]).split('.')
+        module = _get_submodule(module_name[-1], '.'.join(module_name[:-1]))
+        if len(name_args) > 1:
+            return partial(module, **self.construct_mapping(name_args[1], deep=False))
+        else:
+            return module
+
 CfgLoader.add_constructor(
     u'tag:yaml.org,2002:python/tuple',
     CfgLoader.construct_python_tuple)
 CfgLoader.add_constructor('!join', CfgLoader.join)
+CfgLoader.add_constructor('!get_module', CfgLoader.get_module)
 
 if __name__ == '__main__':
   doc = yaml.dump(tuple("foo bar baaz".split()))

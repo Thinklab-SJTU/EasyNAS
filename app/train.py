@@ -48,7 +48,7 @@ def main():
         print("Building model")
     if cfg.get('root_path') and cfg['model'].get('log_path', None):
         cfg['model']['log_path'] = os.path.join(cfg['root_path'], cfg['model']['log_path'])
-    model = create_model(cfg['model'], num_classes=cfg['data']['num_classes'], input_size=cfg['data'].get('input_size', None), log_path=cfg['model'].get('log_path', None))
+    model = create_model(cfg['model'], num_classes=cfg['data']['num_classes'], input_size=cfg['data'].get('input_size', None), log_path=cfg['model'].get('log_path', None), local_rank=args.local_rank)
 
     # parse criterion
     if args.local_rank in [0, -1]:
@@ -58,9 +58,7 @@ def main():
     # parse optimizer
     if args.local_rank in [0, -1]:
         print("Building optimizer")
-    param = model.parameters()
-    cfg['optimizer']['args']['params'] = param
-    optimizer = create_submodule_from_dict(cfg['optimizer'])
+    optimizer = create_optimizer(model, cfg['optimizer'])
     opt_hook = cfg.get('opt_hook', None)
     if opt_hook:
         opt_hook['hook_args']['optimizer'] = optimizer
@@ -92,7 +90,8 @@ def main():
                       optimizer=opt_hook,
                       lr_scheduler=scheduler_hook,
                       hooks=hooks,
-                      local_rank=args.local_rank
+                      local_rank=args.local_rank,
+                      amp=cfg['amp']
                       )
     if args.local_rank in [0, -1]:
         print("Traning...")

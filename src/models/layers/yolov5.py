@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from .common import ConvBNAct, SepConvBNAct
 
 __all__ = ["YOLOBottleneck", "YOLOBottleneckCSP"
-          ,"YOLOC3", "NMS", "autoShape", "Detections", "Classify"]
+          ,"YOLOC3", "NMS", "autoShape", "Detections", "Classify", "YOLODetect"]
 
 class YOLOBottleneck(nn.Module):
     # Standard bottleneck
@@ -14,8 +14,8 @@ class YOLOBottleneck(nn.Module):
         hidden_channel = int(out_channel * expansion)  # hidden channels
         if separable: my_conv = SepConvBNAct
         else: my_conv = ConvBNAct
-        self.cv1 = ConvBNAct(in_channel, hidden_channel, kernel=1, dilation=1, stride=1, bn=True, act=nn.SiLU)
-        self.cv2 = my_conv(hidden_channel, out_channel, kernel, dilation=dilation, stride=1, group=group, bn=True, act=nn.SiLU)
+        self.cv1 = ConvBNAct(in_channel, hidden_channel, kernel=1, dilation=1, stride=1, bn=True, act=nn.SiLU())
+        self.cv2 = my_conv(hidden_channel, out_channel, kernel, dilation=dilation, stride=1, group=group, bn=True, act=nn.SiLU())
         self.add = shortcut and c1 == c2
 
     def forward(self, x):
@@ -26,7 +26,7 @@ class YOLOBottleneckCSP(nn.Module):
     def __init__(self, in_channel, out_channel, num_repeat=1, shortcut=True, group=1, expansion=0.5):  # ch_in, ch_out, number, shortcut, groups, expansion
         super(YOLOBottleneckCSP, self).__init__()
         hidden_channel = int(out_channel * expansion)  # hidden channels
-        self.cv1 = ConvBNAct(in_channel, hidden_channel, kernel=1, dilation=1, stride=1, bn=True, act=nn.SiLU)
+        self.cv1 = ConvBNAct(in_channel, hidden_channel, kernel=1, dilation=1, stride=1, bn=True, act=nn.SiLU())
         self.cv2 = nn.Conv2d(in_channel, hidden_channel, 1, 1, bias=False)
         self.cv3 = nn.Conv2d(hidden_channel, hidden_channel, 1, 1, bias=False)
         self.cv4 = ConvBNAct(2 * hidden_channel, out_channel, kernel=1, dilation=1, stride=1)
@@ -57,14 +57,14 @@ class YOLOC3(nn.Module):
         if isinstance(out_channel, int): out_channel = [out_channel for _ in range(num_repeat)]  
         c1out = int(out_channel[0]*expansion); c2out = int(out_channel[-1]*expansion)  # hidden channels
 
-        self.cv1 = ConvBNAct(in_channel, c1out, kernel=1, dilation=1, stride=1, bn=True, act=nn.SiLU)
+        self.cv1 = ConvBNAct(in_channel, c1out, kernel=1, dilation=1, stride=1, bn=True, act=nn.SiLU())
         m_list = []; cin = c1out
         for i in range(num_repeat):
           m_list.append(Bottleneck(cin, int(out_channel[i]*expansion), ks[i], ds[i], shortcut, group, e=es[i], separable=separable))
           cin = int(out_channel[i]*e)
         self.m = nn.Sequential(*m_list)
-        self.cv2 = ConvBNAct(in_channel, c2out, kernel=1, dilation=1, stride=1, bn=True, act=nn.SiLU)
-        self.cv3 = ConvBNAct(2 * c2out, out_channel[-1], kernel=1, dilation=1, stride=1, bn=True, act=nn.SiLU)  # act=FReLU(c2)
+        self.cv2 = ConvBNAct(in_channel, c2out, kernel=1, dilation=1, stride=1, bn=True, act=nn.SiLU())
+        self.cv3 = ConvBNAct(2 * c2out, out_channel[-1], kernel=1, dilation=1, stride=1, bn=True, act=nn.SiLU())  # act=FReLU(c2)
 
     def forward(self, x):
         return self.cv3(torch.cat((self.m(self.cv1(x)), self.cv2(x)), dim=1))
@@ -224,4 +224,46 @@ class Classify(nn.Module):
     def forward(self, x):
         z = torch.cat([self.aap(y) for y in (x if isinstance(x, list) else [x])], 1)  # cat if list
         return self.flat(self.conv(z))  # flatten to x(b,c2)
+
+class YOLODetect(nn.Module):
+    stride = None  # strides computed during build
+    export = False  # onnx export
+
+    def __init__(self, in_channel, num_classes=80, anchors=()):  # detection layer
+        super(YOLODetect, self).__init__()
+        self.no = num_classes + 5  # number of outputs per anchor
+        self.nl = len(anchors)  # number of detection layers
+        self.na = len(anchors[0]) // 2  # number of anchors
+        self.grid = [torch.zeros(1)] * self.nl  # init grid
+        a = torch.tensor(anchors).float().view(self.nl, -1, 2)
+        self.register_buffer('anchors', a)  # shape(nl,na,2)
+        self.register_buffer('anchor_grid', a.clone().view(self.nl, 1, -1, 1, 1, 2))  # shape(nl,1,na,1,1,2)
+        self.m = nn.ModuleList(nn.Conv2d(x, self.no * self.na, 1) for x in in_channel)  # output conv
+
+    def forward(self, x):
+        # x = x.copy()  # for profiling
+        z = []  # inference output
+        logits = []
+        self.training |= self.export
+        for i in range(self.nl):
+            tmp = self.m[i](x[i])  # conv
+            bs, _, ny, nx = tmp.shape  # x(bs,255,20,20) to x(bs,3,20,20,85)
+            tmp = tmp.view(bs, self.na, self.no, ny, nx).permute(0, 1, 3, 4, 2).contiguous()
+
+            if not self.training:  # inference
+                if self.grid[i].shape[2:4] != tmp.shape[2:4]:
+                    self.grid[i] = self._make_grid(nx, ny).to(tmp.device)
+
+                y = tmp.sigmoid()
+                y[..., 0:2] = (y[..., 0:2] * 2. - 0.5 + self.grid[i]) * self.stride[i]  # xy
+                y[..., 2:4] = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh
+                z.append(y.view(bs, -1, self.no))
+            logits.append(tmp)
+
+        return logits if self.training else (torch.cat(z, 1), logits)
+
+    @staticmethod
+    def _make_grid(nx=20, ny=20):
+        yv, xv = torch.meshgrid([torch.arange(ny), torch.arange(nx)])
+        return torch.stack((xv, yv), 2).view((1, 1, ny, nx, 2)).float()
 

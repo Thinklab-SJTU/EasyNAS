@@ -1,3 +1,9 @@
+def only_master(func):
+    def inner(*args, **kwargs):
+        if runner.local_rank in [-1, 0]:
+            return func(*args, **kwargs)
+    return inner
+
 
 def execute_period(attr_name=None, n=None):
     def wrapper(func):

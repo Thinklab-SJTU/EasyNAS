@@ -3,7 +3,7 @@ import sys
 import logging
 from typing import Union
 
-from ..hook import HOOK, execute_period
+from ..hook import HOOK, execute_period, only_master
 
 class LogHOOK(HOOK):
     def __init__(self, priority=0, logger_name='TrainPip', log_path: Union[None, str] = None, print_freq: int = 1, only_master=True):
@@ -26,26 +26,30 @@ class LogHOOK(HOOK):
 #    def before_run(self, runner):
 #        self.logger.info("param size = %fMB", count_parameters_in_MB(runner.model))
 
+    @only_master
     @execute_period("print_freq")
     def after_train_iter(self, runner):
-        string = 'train %03d lr %e' % (runner.info.iter_step, runner.lr_scheduler_hook.lr_scheduler.get_lr()[0])
+        string = 'train %03d lr %e' % (runner.info.current_iter, runner.lr_scheduler_hook.lr_scheduler.get_lr()[0])
         for k, v in runner.info.results.train.items():
             string += ' %s: %f' % (k, v)
         self.logger.info(string)
 
+    @only_master
     def after_train_epoch(self, runner):
         string = 'Epoch %03d train' % (runner.info.current_epoch)
         for k, v in runner.info.results.train.items():
             string += ' %s: %f' % (k, v)
         self.logger.info(string)
 
+    @only_master
     @execute_period("print_freq")
     def after_val_iter(self, runner):
-        string = 'val %03d' % runner.info.iter_step
+        string = 'val %03d' % runner.info.current_iter
         for k, v in runner.info.results.val.items():
             string += ' %s: %f' % (k, v)
         self.logger.info(string)
 
+    @only_master
     def after_val_epoch(self, runner):
         string = 'Epoch %03d val' % (runner.info.current_epoch)
         for k, v in runner.info.results.val.items():

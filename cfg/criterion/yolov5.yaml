@@ -1,0 +1,26 @@
+anchors: &anchor
+  - [10,13, 16,30, 33,23]  # P3/8
+  - [30,61, 62,45, 59,119]  # P4/16
+  - [116,90, 156,198, 373,326]  # P5/32
+
+loss_hyp: &hyp
+  box: 0.05  # box loss gain
+  cls: 0.5  # cls loss gain
+  cls_pw: 1.0  # cls BCELoss positive_weight
+  obj: 1.0  # obj loss gain (scale with pixels)
+  obj_pw: 1.0  # obj BCELoss positive_weight
+  iou_t: 0.20  # IoU training threshold
+  anchor_t: 4.0  # anchor-multiple threshold
+  fl_gamma: 0.0  # focal loss gamma (efficientDet default gamma=1.5)
+
+name: YOLOv5Loss
+module_name: .criterions
+package_path: src
+criterion_args:
+        hyp: *hyp
+        num_anchors: 3
+        num_det_layers: 3
+        anchors: *anchors
+        iou_loss_ratio: 1.0
+        autobalance: False
+

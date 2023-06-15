@@ -1,20 +1,26 @@
 import os
 import torch
+import torch.nn as nn
 import torch.distributed as dist
 
-def setup_for_distributed(is_master):
+def setup_for_distributed(is_master, logger=None):
     """
     This function disables printing when not in master process
     """
     import builtins as __builtin__
-    builtin_print = __builtin__.print
+    builtin_print = __builtin__.print if logger is None else logger.info
 
     def print(*args, **kwargs):
         force = kwargs.pop('force', False)
         if is_master or force:
             builtin_print(*args, **kwargs)
 
-    __builtin__.print = print
+    if logger is None:
+        __builtin__.print = print
+    else: logger.info = print
+
+def is_parallel(model):
+    return isinstance(model, [nn.parallel.DataParallel, nn.parallel.DistributedDataParallel])
 
 
 def is_dist_avail_and_initialized():
@@ -38,7 +44,7 @@ def get_rank():
 
 
 def is_main_process():
-    return get_rank() == 0
+    return get_rank() in [0, -1]
 
 
 def init_distributed_mode(args):
