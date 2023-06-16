@@ -14,29 +14,29 @@ class WarmupHOOK(HOOK):
         self.warmup_init_momentum_rate = warmup_init_momentum_rate
         self.warmup_init_lr_rate = warmup_init_lr_rate
 
-    def get_lr_rate(self, curr_iter, group_id):
+    def get_lr_rate(self, group_id):
         xi = [0, self.max_iter]  # x interp
         # bias lr falls from 0.1 to lr0, all other lrs rise from 0.0 to lr0
         warmup_init_lr_rate = self.warmup_init_lr_rate[group_id] if isinstance(self.warmup_init_lr_rate, (tuple, list)) else self.warmup_init_lr_rate
         if warmup_init_lr_rate is None: return 1.
-        return np.interp(curr_iter, xi, [warmup_init_lr_rate, 1.]) / (np.interp(curr_iter-1, xi, [warmup_init_lr_rate, 1.]) if curr_iter > 0 else 1)
+        return np.interp(self.count, xi, [warmup_init_lr_rate, 1.]) / (np.interp(self.count-1, xi, [warmup_init_lr_rate, 1.]) if self.count > 0 else 1)
 
-    def get_momentum_rate(self, curr_iter):
+    def get_momentum_rate(self):
         xi = [0, self.max_iter]  # x interp
-        return np.interp(curr_iter, xi, [self.warmup_init_momentum_rate, 1.]) / (np.interp(curr_iter-1, xi, [self.warmup_init_momentum_rate, 1.]) if curr_iter > 0 else 1)
+        return np.interp(self.count, xi, [self.warmup_init_momentum_rate, 1.]) / (np.interp(self.count-1, xi, [self.warmup_init_momentum_rate, 1.]) if self.count > 0 else 1)
 
     @execute_period('accumulate_gradient')
-    def before_train_iter(self, runner):
+    def after_train_iter(self, runner):
         if self.count == self.max_iter:
             return
-        self.count += 1
         for j, x in enumerate(runner.optimizer_hook.optimizer.param_groups):
             # bias lr falls from 0.1 to lr0, all other lrs rise from 0.0 to lr0
-            lr_rate = self.get_lr_rate(runner.info.current_iter, j)
+            lr_rate = self.get_lr_rate(j)
             x['lr'] *= lr_rate
 #            x['lr'] = np.interp(ni, xi, [hyp['warmup_bias_lr'] if j == 2 else 0.0, x['initial_lr'] * lf(epoch)])
             if self.warmup_init_momentum_rate:
-                momentum_rate = self.get_momentum_rate(runner.info.current_iter)
+                momentum_rate = self.get_momentum_rate()
                 if 'momentum' in x:
                     x['momentum'] *= momentum_rate
+        self.count += 1
 

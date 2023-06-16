@@ -7,10 +7,6 @@ module_name: .models
 package_path: src
 log_path: model.log
 
-        self.conv1 = nn.Conv2d(3, 16, kernel_size=3, stride=2, padding=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(16)
-        self.hs1 = act(inplace=True)
-
 architecture:
   - input_idx: -1
     module: ConvBNAct

@@ -37,12 +37,12 @@ class Bottleneck(nn.Module):
         # conv2   3x3
         self.cv2 = ConvBNAct(c_, c_, kernel=3, dilation=1, stride=stride, act=nn.ReLU(), bn=True, bias=False)
         # conv3   1x1  
-        self.cv3 = ConvBNAct(c_, out_channel, kernel=1, dilation=1, stride=1, act=nn.ReLU(), bn=True, bias=True)
+        self.cv3 = ConvBNAct(c_, out_channel, kernel=1, dilation=1, stride=1, act=None, bn=True, bias=True)
+
         self.relu = nn.ReLU()
 
         # refine shortcut channel or downsample 
-        if in_channel != out_channel or stride > 1:
-            self.downsample = ConvBNAct(in_channel, out_channel, kernel=1, dilation=1, stride=stride, bias=False, act=None, bn=True)
+        self.downsample = ConvBNAct(in_channel, out_channel, kernel=1, dilation=1, stride=stride, bias=False, act=None, bn=True) if (in_channel != out_channel or stride > 1) else None
 
     def forward(self, x):
         out = self.cv1(x)
