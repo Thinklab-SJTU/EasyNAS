@@ -4,7 +4,7 @@ import argparse
 import numpy as np
 import torch
 
-from builder import parse_cfg, create_dataloader, create_model, create_criterion, create_submodule_from_dict, create_hook 
+from builder import parse_cfg, create_dataloader, create_model, create_optimizer, create_criterion, create_submodule_from_dict, create_hook 
 from pipeline.trainer import Trainer
 from distribute_utils import init_distributed_mode, get_rank
 

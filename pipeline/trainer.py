@@ -11,6 +11,8 @@ class Trainer(object):
         assert self.train_loader is not None
 
         self.amp = amp
+        self.scaler = torch.cuda.amp.GradScaler(enabled=True) if amp else None
+
         self.local_rank = local_rank
         self.device = torch.device('cuda', max(local_rank, 0))
 
@@ -27,7 +29,11 @@ class Trainer(object):
         self.criterion = criterion.to(self.device)
         self.start_epoch = 0
         self._hooks = hooks
-        self.info = EasyDict({'results': {'train': {}, 'val': {}}})
+        self.info = EasyDict({
+            'results': {'train': {}, 'val': {}},
+            'current_iter': 0,
+            'current_epoch': 0,
+            })
 
         if isinstance(optimizer, HOOK):
             self.optimizer_hook = optimizer
@@ -91,12 +97,15 @@ class Trainer(object):
             input = input.to(self.device, non_blocking=True)
             self.info.train_bs_input = input
             self.info.train_bs_target = target
-            with torch.cuda.amp.autocast(enabled=self.amp)
+            with torch.cuda.amp.autocast(enabled=self.amp):
                 logits = model(input)
                 loss = criterion(logits, target)
                 self.info.train_bs_logits = logits
                 self.info.train_bs_loss = loss
-#            loss.backward()
+            if self.scaler:
+                self.scaler.scale(loss).backward()
+            else:
+                loss.backward()
             self.call_hook('after_train_iter')
 
         self.call_hook('after_train_epoch')
@@ -111,11 +120,12 @@ class Trainer(object):
                 target = target.to(self.device, non_blocking=True)
                 input = input.to(self.device, non_blocking=True)
             
-                logits = model(input)
-                loss = criterion(logits, target)
-                self.info.val_bs_logits = logits
-                self.info.val_bs_target = target
-                self.info.val_bs_loss = loss
+                with torch.cuda.amp.autocast(enabled=self.amp):
+                    logits = model(input)
+                    loss = criterion(logits, target)
+                    self.info.val_bs_logits = logits
+                    self.info.val_bs_target = target
+                    self.info.val_bs_loss = loss
                 self.call_hook('after_val_iter')
 
         self.call_hook('after_val_epoch')

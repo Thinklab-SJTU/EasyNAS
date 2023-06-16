@@ -1,4 +1,4 @@
-from ..hook import HOOK, execute_period, only_master
+from .hook import HOOK, execute_period, only_master
 from app.distribute_utils import is_parallel
 
 class EMA():

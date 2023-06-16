@@ -1,21 +1,21 @@
 def only_master(func):
-    def inner(*args, **kwargs):
+    def inner(self, runner, *args, **kwargs):
         if runner.local_rank in [-1, 0]:
-            return func(*args, **kwargs)
+            return func(self, runner, *args, **kwargs)
     return inner
 
 
 def execute_period(attr_name=None, n=None):
     def wrapper(func):
         def inner(self_, *args, **kwargs):
-            setattr(self_, 'count', getattr(self_, 'count', {}))
-            count = self_.count.get(func.__name__, 0)
+            setattr(self_, 'execute_period_count', getattr(self_, 'execute_period_count', {}))
+            count = self_.execute_period_count.get(func.__name__, 0)
             if count == 0:
                 func(self_, *args, **kwargs)
 
             attr = '_execute_period_'+func.__name__ if attr_name is None else attr_name
             execute_period = getattr(self_, attr, n if n is not None else 1)
-            self_.count[func.__name__] = (count + 1) % execute_period
+            self_.execute_period_count[func.__name__] = (count + 1) % execute_period
         return inner
     return wrapper
 

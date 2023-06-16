@@ -26,8 +26,9 @@ def create_dataloader(cfg: dict) -> dict:
        	module_name = cfg.pop('module_name', 'dataset.datasets')
        	package_path = cfg.pop('package_path', None)
         Dataset = get_submodule(submodule_name, module_name, package_path)
-        Dataset(**cfg.get('dataset_args', {}))
+        datasets[set_name] = Dataset(**cfg.get('dataset_args', {}))
 #        datasets[set_name] = build_one_dataset(submodule_name, module_name, package_path, **cfg.get('dataset_args', {}))
+
 
     # build dataloader
     dataloaders = {}
