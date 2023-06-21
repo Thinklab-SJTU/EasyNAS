@@ -12,6 +12,16 @@ class EvalAccHOOK(HOOK):
         self.val_top1 = AverageMeter()
         self.val_top5 = AverageMeter()
 
+    def before_train_epoch(self, runner):
+        self.loss.reset()
+        self.top1.reset()
+        self.top5.reset()
+
+    def before_val_epoch(self, runner):
+        self.val_loss.reset()
+        self.val_top1.reset()
+        self.val_top5.reset()
+
     def after_train_iter(self, runner):
         logits, target, iter_loss = runner.info.train_bs_logits, runner.info.train_bs_target, runner.info.train_bs_loss
         prec1, prec5 = accuracy(logits, target, topk=(1, 5))

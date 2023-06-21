@@ -1,1 +1,1 @@
-from .utils import one_cycle
+from .utils import one_cycle, linear

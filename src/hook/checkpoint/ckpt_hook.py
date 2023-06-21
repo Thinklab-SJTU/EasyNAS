@@ -43,16 +43,16 @@ class CkptHOOK(HOOK):
         """
         checkpoint = self.get_pretrain_model()
         if checkpoint is not None:
-            if runner.is_dpp():
+            if runner.is_ddp():
                 runner.model.module.load_state_dict(checkpoint['state_dict'])
             else:
                 runner.model.load_state_dict(checkpoint['state_dict'])
             runner.start_epoch = int(checkpoint['epoch']) + 1
             runner.optimizer_hook.initialize(checkpoint['optimizer'])
-            if hasattr(runner, lr_scheduler_hook):
-                runner.lr_scheduler_hook.initialize(last_epoch=start_epoch-1)
+            if hasattr(runner, 'lr_scheduler_hook'):
+                runner.lr_scheduler_hook.initialize(last_epoch=runner.start_epoch-1)
                 runner.lr_scheduler_hook.load_state_dict(checkpoint['scheduler'])
-            runner.info.results = float(checkpoint['results'])
+            runner.info.results = checkpoint['results']
 
     def _save_model(self, runner, model_name: Union[None, str]=None):
         ckpt = {

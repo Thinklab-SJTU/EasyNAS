@@ -94,7 +94,7 @@ def main():
                       amp=cfg['amp']
                       )
     if args.local_rank in [0, -1]:
-        print("Traning...")
+        print("Training...")
     trainer.run(cfg['epoch'])
     
 

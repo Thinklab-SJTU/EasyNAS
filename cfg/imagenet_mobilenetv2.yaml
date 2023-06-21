@@ -1,7 +1,7 @@
 root_path: &root_path runs/cifar10_res18/
 epoch: &epoch 300
 accumulate_gradient: &acc_grad 1
-amp: True
+amp: False # True
 
 data: cfg/dataset/imagenet.yaml
 
@@ -10,13 +10,23 @@ criterion: cfg/criterion/cross_entropy.yaml
 model: cfg/model/mobilenetv2.yaml
 
 optimizer: &optimizer
-  submodule_name: AdamW
+  submodule_name: SGD
   module_name: .optim
   package_path: torch
   args:
     params:
-    lr: 4.e-3
-    weight_decay: 0.05
+    lr: 0.1
+    momentum: 0.9
+    weight_decay: 3.0e-5
+
+# optimizer: &optimizer
+#   submodule_name: AdamW
+#   module_name: .optim
+#   package_path: torch
+#   args:
+#     params:
+#     lr: 4.e-3
+#     weight_decay: 0.05
 
 lr_scheduler: &scheduler
   submodule_name: CosineAnnealingLR
@@ -38,7 +48,7 @@ lr_scheduler_hook:
   hook_name: LrScheduleHOOK
   hook_args: 
     lr_scheduler:
-    priority: 1
+    priority: 2
     mode: epoch
 
 eval_hook:
@@ -69,10 +79,10 @@ ckpt_hook:
     only_master: True
     priority: 20
 
-warmup_hook:
-  hook_name: WarmupHOOK
-  hook_args:
-    max_iter: 1000
-    warmup_init_lr_rate: 1.e-3
-    priority: 0
-    accumulate_gradient: *acc_grad
+# warmup_hook:
+#   hook_name: WarmupHOOK
+#   hook_args:
+#     max_iter: 1000
+#     warmup_init_lr_rate: 1.e-3
+#     priority: 0
+#     accumulate_gradient: *acc_grad

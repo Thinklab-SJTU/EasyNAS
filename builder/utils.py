@@ -1,6 +1,7 @@
 import sys
 import os
 sys.path.append(os.getcwd())
+from functools import partial
 
 import yaml
 import importlib
@@ -52,13 +53,17 @@ class CfgLoader(yaml.SafeLoader):
         return ''.join([str(i) for i in self.construct_sequence(node)])
 
     def get_module(self, node):
-        name_args = self.construct_sequence(node)
+#        module_name = str(self.construct_scalar(node.value[0])).split('.')
+#        args = self.construct_mapping(node.value[1])
+        name_args = self.construct_sequence(node, deep=True)
         module_name = str(name_args[0]).split('.')
         module = _get_submodule(module_name[-1], '.'.join(module_name[:-1]))
         if len(name_args) > 1:
-            return partial(module, **self.construct_mapping(name_args[1], deep=False))
+#            return partial(module, **name_args[1])
+            return module(**name_args[1])
         else:
-            return module
+            return module()
+
 
 CfgLoader.add_constructor(
     u'tag:yaml.org,2002:python/tuple',

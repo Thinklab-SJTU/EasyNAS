@@ -25,10 +25,7 @@ class WarmupHOOK(HOOK):
         xi = [0, self.max_iter]  # x interp
         return np.interp(self.count, xi, [self.warmup_init_momentum_rate, 1.]) / (np.interp(self.count-1, xi, [self.warmup_init_momentum_rate, 1.]) if self.count > 0 else 1)
 
-    @execute_period('accumulate_gradient')
-    def after_train_iter(self, runner):
-        if self.count == self.max_iter:
-            return
+    def update_lr_momentum(self, runner):
         for j, x in enumerate(runner.optimizer_hook.optimizer.param_groups):
             # bias lr falls from 0.1 to lr0, all other lrs rise from 0.0 to lr0
             lr_rate = self.get_lr_rate(j)
@@ -38,5 +35,15 @@ class WarmupHOOK(HOOK):
                 momentum_rate = self.get_momentum_rate()
                 if 'momentum' in x:
                     x['momentum'] *= momentum_rate
+
+    def before_run(self, runner):
+        self.update_lr_momentum(runner)
+        self.count += 1
+
+    @execute_period('accumulate_gradient')
+    def after_train_iter(self, runner):
+        if self.count == self.max_iter:
+            return
+        self.update_lr_momentum(runner)
         self.count += 1
 

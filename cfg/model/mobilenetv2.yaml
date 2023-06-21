@@ -73,7 +73,7 @@ architecture:
       out_channel: 320
       kernel: 3
       stride: 1
-      expand_ratio: 1
+      expand_ratio: 6
   - input_idx: -1
     module: ConvBNAct
     module_args: 
