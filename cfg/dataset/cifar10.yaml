@@ -3,18 +3,14 @@ input_size: 32
 
 dataset:
   train:
-    submodule_name: CIFAR10
-    module_name: .datasets
-    package_path: src
+    submodule_name: src.datasets.CIFAR10
     dataset_args:
       root: ./data/
       train: True
       download: True
       transform: default
   val:
-    submodule_name: CIFAR10
-    module_name: .datasets
-    package_path: src
+    submodule_name: src.datasets.CIFAR10
     dataset_args:
       root: ./data/
       train: False

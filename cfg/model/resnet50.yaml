@@ -1,85 +1,82 @@
-depth_multiple: 1.0
-width_multiple: 1.0
-num_classes: &num_classes 1000
-
-name: BaseModel
-module_name: .models
-package_path: src
-log_path: model.log
-
-architecture:
-  - input_idx: -1
-    module: ConvBNAct
-    module_args: 
-      out_channel: 64
-      kernel: 7
-      dilation: 1
-      stride: 2
-      bias: False
-      act: torch.nn.ReLU
-      bn: True
-  - input_idx: -1
-    module: torch.nn.MaxPool2d
-    module_args:
-      kernel_size: 3
-      stride: 2
-      padding: 1
-
-  - input_idx: -1
-    module: Bottleneck
-    num_repeat: 3
-    module_args:
-      out_channel: 256
-      stride: 1
-
-  - input_idx: -1
-    module: Bottleneck
-    num_repeat: 1
-    module_args:
-      out_channel: 512
-      stride: 2
-  - input_idx: -1
-    module: Bottleneck
-    num_repeat: 3
-    module_args:
-      out_channel: 512
-      stride: 1
-
-  - input_idx: -1
-    module: Bottleneck
-    num_repeat: 1
-    module_args:
-      out_channel: 1024
-      stride: 2
-  - input_idx: -1
-    module: Bottleneck
-    num_repeat: 5
-    module_args:
-      out_channel: 1024
-      stride: 1
-
-  - input_idx: -1
-    module: Bottleneck
-    num_repeat: 1
-    module_args:
-      out_channel: 2048
-      stride: 2
-  - input_idx: -1
-    module: Bottleneck
-    num_repeat: 2
-    module_args:
-      out_channel: 2048
-      stride: 1
-
-  - input_idx: -1
-    module: GlobalPoolBNAct
-    module_args:
-      pool: avg
-      bn: False
-      act: False
-  - input_idx: -1
-    module: torch.nn.Linear
-    is_outlayer: True
-    module_args:
-      in_features: 2048
-      out_features: *num_classes
+submodule_name: src.models.BaseModel
+args:
+  log_path: model.log
+  depth_multiple: 1.0
+  width_multiple: 1.0
+  output_ch: &num_classes 1000
+  architecture:
+    - input_idx: -1
+      layer: ConvBNAct
+      args: 
+        out_channel: 64
+        kernel: 7
+        dilation: 1
+        stride: 2
+        bias: False
+        act: torch.nn.ReLU
+        bn: True
+    - input_idx: -1
+      layer: torch.nn.MaxPool2d
+      args:
+        kernel_size: 3
+        stride: 2
+        padding: 1
+  
+    - input_idx: -1
+      layer: Bottleneck
+      num_repeat: 3
+      args:
+        out_channel: 256
+        stride: 1
+  
+    - input_idx: -1
+      layer: Bottleneck
+      num_repeat: 1
+      args:
+        out_channel: 512
+        stride: 2
+    - input_idx: -1
+      layer: Bottleneck
+      num_repeat: 3
+      args:
+        out_channel: 512
+        stride: 1
+  
+    - input_idx: -1
+      layer: Bottleneck
+      num_repeat: 1
+      args:
+        out_channel: 1024
+        stride: 2
+    - input_idx: -1
+      layer: Bottleneck
+      num_repeat: 5
+      args:
+        out_channel: 1024
+        stride: 1
+  
+    - input_idx: -1
+      layer: Bottleneck
+      num_repeat: 1
+      args:
+        out_channel: 2048
+        stride: 2
+    - input_idx: -1
+      layer: Bottleneck
+      num_repeat: 2
+      args:
+        out_channel: 2048
+        stride: 1
+  
+    - input_idx: -1
+      layer: GlobalPoolBNAct
+      args:
+        pool: avg
+        bn: False
+        act: False
+    - input_idx: -1
+      layer: torch.nn.Linear
+      is_outlayer: True
+      args:
+        in_features: 2048
+        out_features: *num_classes

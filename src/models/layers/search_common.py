@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .utils import autopad, gumbel_softmax, darts_candidate_op, eautodet_candidate_op, OP, get_submodule, get_act
+from .utils import autopad, gumbel_softmax, darts_candidate_op, eautodet_candidate_op, OP, get_layer, get_act
 from .base import OpLayer
 
 __all__ = ["SearchLayer", "ConvBNAct_search", "SepConvBNAct_search", "ParallelOpLayer", "AFF"]
@@ -19,7 +19,7 @@ class SearchLayer(nn.Module):
 
     def set_outOp(self, name=None):
         setattr(self, 'outOp_name', self.__class__.__name__.rstrip("_search") if name is None else name)
-        setattr(self, 'outOp', get_submodule(self.outOp_name))
+        setattr(self, 'outOp', get_layer(self.outOp_name))
 
     def forward(self, x):
         raise(NotImplementedError("No implementation"))
@@ -357,7 +357,7 @@ class ParallelOpLayer(SearchLayer, OpLayer):
         new_cfg['module'] = self.outOp_name
         if num > 0: # (Sep)ConvBNAct_search
             select_op = self.candidate_op[op_idx]
-            layer_cfg = self.get_submodule(select_op.Optype).genotype(select_op.args, op_alphas=op_alphas, ch_alphas=None, edge_alphas=None, num_reserved_op=num_reserved_op)
+            layer_cfg = self.get_layer(select_op.Optype).genotype(select_op.args, op_alphas=op_alphas, ch_alphas=None, edge_alphas=None, num_reserved_op=num_reserved_op)
             new_cfg['module_args']['op'] = OP(OPtype=layer_cfg['module'], args=layer_cfg['module_args'])
         else:
             new_cfg['module_args']['op'] = self.candidate_op[op_idx]

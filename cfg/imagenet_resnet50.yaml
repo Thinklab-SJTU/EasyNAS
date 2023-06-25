@@ -5,14 +5,13 @@ amp: False
 
 data: cfg/dataset/imagenet.yaml
 
-criterion: cfg/criterion/cross_entropy.yaml
-
 model: cfg/model/resnet50.yaml
 
+criterion: 
+  submodule_name: torch.nn.CrossEntropyLoss
+
 optimizer: &optimizer
-  submodule_name: SGD
-  module_name: .optim
-  package_path: torch
+  submodule_name: torch.optim.SGD
   args:
     params:
     lr: 0.01
@@ -20,59 +19,56 @@ optimizer: &optimizer
 #    weight_decay: 3.0e-5
 
 lr_scheduler: &scheduler
-  submodule_name: LambdaLR
-  module_name: .optim.lr_scheduler
-  package_path: torch
+  submodule_name: torch.optim.lr_scheduler.LambdaLR
   args:
     optimizer: 
     lr_lambda: !get_module [src.scheduler.utils.multistep, {gamma: 0.1, milestones: [100]}]
 
-opt_hook:
-  hook_name: OptHOOK
-  hook_args:
-#    optimizer: 
-    priority: 0
-    accumulate_gradient: *acc_grad
-
-lr_scheduler_hook:
-  hook_name: LrScheduleHOOK
-  hook_args: 
-#    lr_scheduler:
-    priority: 5
-    mode: epoch
-
-eval_hook:
-  hook_name: EvalAccHOOK
-  hook_args: 
-    priority: 5
-
-ddp_hook:
-  hook_name: DDPHOOK
-  hook_args:
-    priority: 10
-
-
-log_hook:
-  hook_name: LogHOOK
-  hook_args:
-    logger_name: TrainPip
-    log_path: !join [*root_path, test.log]
-    print_freq: 100
-    only_master: True
-    priority: 20
-
-ckpt_hook:
-  hook_name: CkptHOOK
-  hook_args:
-    save_root: !join [*root_path, ckpt/]
-    pretrain: 
-    only_master: True
-    priority: 20
-
-# warmup_hook:
-#   hook_name: WarmupHOOK
-#   hook_args:
-#     max_iter: 1000
-#     warmup_init_lr_rate: 1.e-3
-#     priority: 10
-#     accumulate_gradient: *acc_grad
+hooks:
+  opt_hook:
+    submodule_name: OptHOOK
+    args:
+      priority: 0
+      accumulate_gradient: *acc_grad
+  
+  lr_scheduler_hook:
+    submodule_name: LrScheduleHOOK
+    args: 
+      priority: 5
+      mode: epoch
+  
+  eval_hook:
+    submodule_name: EvalAccHOOK
+    args: 
+      priority: 5
+  
+  ddp_hook:
+    submodule_name: DDPHOOK
+    args:
+      priority: 10
+  
+  
+  log_hook:
+    submodule_name: LogHOOK
+    args:
+      logger_name: TrainPip
+      log_path: !join [*root_path, test.log]
+      print_freq: 100
+      only_master: True
+      priority: 20
+  
+  ckpt_hook:
+    submodule_name: CkptHOOK
+    args:
+      save_root: !join [*root_path, ckpt/]
+      pretrain: 
+      only_master: True
+      priority: 20
+  
+  # warmup_hook:
+  #   submodule_name: WarmupHOOK
+  #   args:
+  #     max_iter: 1000
+  #     warmup_init_lr_rate: 1.e-3
+  #     priority: 10
+  #     accumulate_gradient: *acc_grad

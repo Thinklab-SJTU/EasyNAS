@@ -1,6 +1,6 @@
 #!/bin/sh
 
-cfg=cfg/imagenet_resnet50.yaml
+cfg=cfg/imagenet_mobilenetv2.yaml
 
 gpu=( $@ )
 gpu_num=$#
@@ -27,7 +27,7 @@ case $Answer in
 #        echo "Start the process. Log file is saved to logs/${NAME}.log"
         CUDA_VISIBLE_DEVICES=$gpustr ${START_CMD} app/train.py \
 		--cfg ${cfg} \
-        	> logs/test.log 2>&1 &
+#        	> logs/test.log 2>&1 &
         ;;
     No|no|N|n)
         echo "The process is killed!"

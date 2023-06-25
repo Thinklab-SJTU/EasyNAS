@@ -1,6 +1,6 @@
 import torch
 
-from .utils import get_submodule
+from .utils import get_submodule, get_submodule_by_name
 
 def all_parameters(model, ingroup_param=set()):
     if len(ingroup_param) == 0:
@@ -35,16 +35,8 @@ func_map = {
         'bias_parameters': bias_parameters,
         }
 
-def load_optimizer(name: str, module_name: str=None, package_path: str=None):
-    if module_name:
-        return get_submodule(name, module_name, package_path)
-    try:
-        return getattr(torch.optim, name)
-    except:
-        raise(ValueError(f"No criterion named as {name} in torch.nn.criterion or the given module"))
-
 def create_optimizer(model, cfg: dict):
-    optimizer = load_optimizer(cfg.get('submodule_name'), cfg.get('module_name', None), cfg.get('package_path', None))
+    optimizer = get_submodule_by_name(cfg.get('submodule_name'), search_path=('torch.optim',))
     args = cfg.get('args', {})
     if args.get('params', None):
         ingroup_param = set()

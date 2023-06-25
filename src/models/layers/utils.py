@@ -1,7 +1,7 @@
 import torch.nn as nn
 from collections import namedtuple
 
-from builder.utils import get_submodule as utils_get_submodule
+from builder.utils import get_submodule_by_name as utils_get_submodule_by_name
 
 OP = namedtuple('OP', ['OPtype', 'args'])
 
@@ -31,9 +31,7 @@ def get_act(act=True):
     elif act is True: return nn.ReLU()
     elif isinstance(act, nn.Module): return act
     elif isinstance(act, str): 
-        act_name = act.split('.')
-        act = utils_get_submodule(act_name[-1], '.'.join(act_name[0:-1]), package_path=None)
-        return act()
+        return utils_get_submodule_by_name(act)()
     else:
         raise(TypeError(f"No Implementation for act func as {act}"))
 
@@ -103,11 +101,13 @@ def gumbel_softmax(logits, temperature=1, hard=False):
 
 
 submodule_map = {}
-def get_submodule(submodule_name):
-    submodule_name = submodule_name.split('.')
-    if len(submodule_name) == 1:
-        submodule = utils_get_submodule(submodule_name[0], '.models.layers', package_path='src', loaded_submodule=submodule_map)
-    elif len(submodule_name)>=2:
-        submodule = utils_get_submodule(submodule_name[-1], '.'.join(submodule_name[0:-1]), package_path=None, loaded_submodule=submodule_map)
+def get_layer(layer_name):
+    return utils_get_submodule_by_name(layer_name, search_path=['src.models.layers', 'torch.nn'], loaded_submodule=submodule_map)
 
-    return submodule
+#    submodule_name = submodule_name.split('.')
+#    if len(submodule_name) == 1:
+#        submodule = utils_get_submodule(submodule_name[0], '.models.layers', package_path='src', loaded_submodule=submodule_map)
+#    elif len(submodule_name)>=2:
+#        submodule = utils_get_submodule(submodule_name[-1], '.'.join(submodule_name[0:-1]), package_path=None, loaded_submodule=submodule_map)
+
+#    return submodule

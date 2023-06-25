@@ -5,14 +5,8 @@ from collections import namedtuple
 import numpy as np
 import torch
 
-from .utils import get_submodule
+from .utils import get_submodule, get_submodule_by_name
 from app.distribute_utils import is_dist_avail_and_initialized, get_world_size, get_rank
-
-
-def build_one_dataset(submodule_name: str, module_name: str='dataset.datasets', package_path: str=None, **args_dict) -> torch.utils.data.Dataset:
-
-    Dataset = get_submodule(submodule_name, module_name, package_path)
-    return Dataset(**args_dict)
 
 
 def create_dataloader(cfg: dict) -> dict:
@@ -22,12 +16,13 @@ def create_dataloader(cfg: dict) -> dict:
     datasets = {}
     for set_name, set_cfg in dataset_cfg.items():
        	cfg = copy.deepcopy(set_cfg)
-       	submodule_name = cfg.pop('submodule_name', 'Dataset')
-       	module_name = cfg.pop('module_name', 'dataset.datasets')
-       	package_path = cfg.pop('package_path', None)
-        Dataset = get_submodule(submodule_name, module_name, package_path)
+#        submodule_name = cfg.pop('submodule_name', 'Dataset')
+#        module_name = cfg.pop('module_name', 'dataset.datasets')
+#        package_path = cfg.pop('package_path', None)
+#        Dataset = get_submodule(submodule_name, module_name, package_path)
+       	submodule_name = cfg.pop('submodule_name')
+        Dataset = get_submodule_by_name(submodule_name, search_path='src.datasets')
         datasets[set_name] = Dataset(**cfg.get('dataset_args', {}))
-#        datasets[set_name] = build_one_dataset(submodule_name, module_name, package_path, **cfg.get('dataset_args', {}))
 
 
     # build dataloader
@@ -62,10 +57,12 @@ def create_dataloader(cfg: dict) -> dict:
         else:
             sampler = torch.utils.data.RandomSampler(dataset)
 
-       	submodule_name = cfg.pop('submodule_name', 'DataLoader')
-       	module_name = cfg.pop('module_name', '.utils.data')
-       	package_path = cfg.pop('package_path', 'torch')
-        Dataloader = get_submodule(submodule_name, module_name, package_path)
+#        submodule_name = cfg.pop('submodule_name', 'DataLoader')
+#        module_name = cfg.pop('module_name', '.utils.data')
+#        package_path = cfg.pop('package_path', 'torch')
+#        Dataloader = get_submodule(submodule_name, module_name, package_path)
+       	submodule_name = cfg.pop('submodule_name', 'torch.utils.data.DataLoader')
+        Dataloader = get_submodule_by_name(submodule_name, search_path='src.datasets')
         dataloaders[loader_name] = Dataloader(dataset, sampler=sampler, **cfg.get('dataloader_args', {}))
         dataloaders[loader_name].cfg = loader_cfg
     return datasets, dataloaders

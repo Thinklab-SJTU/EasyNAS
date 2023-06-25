@@ -21,7 +21,7 @@ def _get_submodule(submodule_name: str, module_name: str='dataset.datasets', pac
         except Exception as e:
             print(e)
     else:
-        raise(ValueError(f"[{module_name}] is not found in the package [{package_path}]"))
+        raise(ImportError(f"[{module_name}] is not found in the package [{package_path}]"))
 
 #def create_submodule(submodule_name, module_name, package_path, **args):
 #    submodule = _get_submodule(submodule_name, module_name, package_path)
@@ -35,14 +35,60 @@ def get_submodule(submodule_name, module_name, package_path=None, loaded_submodu
     loaded_submodule[submodule_name] = submodule
     return submodule
 
-def create_submodule_from_dict(cfg: dict):
+def create_submodule_by_dict(cfg: dict, search_path=None):
     submodule_name = cfg.get('submodule_name')
-    module_name = cfg.get('module_name', None)
-    package_path = cfg.get('package_path', None)
-    args = cfg.get('args', {})
-    submodule = _get_submodule(submodule_name, module_name, package_path)
-    return submodule(**args)
+    return get_submodule_by_name(submodule_name, search_path)(**cfg.get('args', {}))
 
+def get_submodule_by_name(name, search_path=None, loaded_submodule=None):
+    if loaded_submodule and loaded_submodule.get(name, None): 
+        return loaded_submodule.get(name)
+
+    module_name = str(name).split('.')
+    try: 
+        submodule = _get_submodule(module_name[-1], '.'.join(module_name[:-1]))
+    except ImportError as e: 
+        if search_path:
+            search_path = [search_path] if isinstance(search_path, str) else search_path
+            for p in search_path:
+                if not name.startswith(p):
+                    try:
+                        submodule = get_submodule_by_name('.'.join([p, name]))
+                    except: pass
+                    else:
+                        if loaded_submodule:
+                            loaded_submodule[name] = submodule
+                        return submodule
+
+            raise(e)
+        else: 
+            raise(e)
+    except Exception as e:
+        raise(e)
+    else:
+        if loaded_submodule:
+            loaded_submodule[name] = submodule
+        return submodule
+
+#    if default_path is not None and not name.startswith(default_path):
+#        module_name = '.'.join(default_path, module_name)
+#    return _get_submodule(module_name[-1], '.'.join(module_name[:-1]))
+
+def parse_cfg(yaml_file):
+    with open(yaml_file, 'r') as f:
+        tmp_cfg = yaml.load(f.read(), CfgLoader)
+
+    if isinstance(tmp_cfg, dict):
+        cfg = {}
+        for k, v in tmp_cfg.items():
+            cfg[k] = parse_cfg(v) if isinstance(v, str) and os.path.isfile(v) else v
+    elif isinstance(tmp_cfg, list):
+        cfg = []
+        for v in tmp_cfg:
+            cfg.append(parse_cfg(v) if isinstance(v, str) and os.path.isfile(v) else v)
+    else:
+        cfg = deepcopy(tmp_cfg)
+
+    return cfg
 
 
 class CfgLoader(yaml.SafeLoader):
@@ -56,8 +102,7 @@ class CfgLoader(yaml.SafeLoader):
 #        module_name = str(self.construct_scalar(node.value[0])).split('.')
 #        args = self.construct_mapping(node.value[1])
         name_args = self.construct_sequence(node, deep=True)
-        module_name = str(name_args[0]).split('.')
-        module = _get_submodule(module_name[-1], '.'.join(module_name[:-1]))
+        module = get_submodule_by_name(name_args[0])
         if len(name_args) > 1:
             return partial(module, **name_args[1])
 #            return module(**name_args[1])

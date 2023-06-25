@@ -1,29 +1,24 @@
 import os
 import yaml
 from copy import deepcopy
+from .utils import CfgLoader, parse_cfg
 
-from .criterion import create_criterion
-from .model import create_model
 from .dataloader import create_dataloader 
-from .hook import create_hook
 from .optimizer import create_optimizer
-from .utils import CfgLoader, create_submodule_from_dict
 
+from .utils import get_submodule_by_name
 
-def parse_cfg(yaml_file):
-    with open(yaml_file, 'r') as f:
-        tmp_cfg = yaml.load(f.read(), CfgLoader)
+def create_criterion(cfg: dict):
+    return get_submodule_by_name(cfg.get('submodule_name'), search_path='torch.nn.criterion')(**cfg.get('args', {}))
 
-    if isinstance(tmp_cfg, dict):
-        cfg = {}
-        for k, v in tmp_cfg.items():
-            cfg[k] = parse_cfg(v) if isinstance(v, str) and os.path.isfile(v) else v
-    elif isinstance(tmp_cfg, list):
-        cfg = []
-        for v in tmp_cfg:
-            cfg.append(parse_cfg(v) if isinstance(v, str) and os.path.isfile(v) else v)
-    else:
-        cfg = deepcopy(tmp_cfg)
+def create_scheduler(cfg: dict):
+    return get_submodule_by_name(cfg.get('submodule_name'), search_path='torch.optim.lr_scheduler')(**cfg.get('args', {}))
 
-    return cfg
+def create_model(cfg: dict, num_classes, input_size=None, root_path=None, local_rank=-1):
+    if root_path and cfg['args'].get('log_path', None):
+        cfg['args']['log_path'] = os.path.join(root_path, cfg['args']['log_path'])
+    model = get_submodule_by_name(cfg.get('submodule_name'), search_path=['src.models'])
+    return model(input_size=input_size, local_rank=local_rank, **cfg['args'])
 
+def create_hook(cfg: dict):
+    return get_submodule_by_name(cfg.get('submodule_name'), search_path='src.hook')(**cfg.get('args', {}))

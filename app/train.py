@@ -4,7 +4,7 @@ import argparse
 import numpy as np
 import torch
 
-from builder import parse_cfg, create_dataloader, create_model, create_optimizer, create_criterion, create_submodule_from_dict, create_hook 
+from builder import parse_cfg, create_dataloader, create_model, create_optimizer, create_criterion, create_hook, create_scheduler
 from pipeline.trainer import Trainer
 from distribute_utils import init_distributed_mode, get_rank
 
@@ -44,42 +44,28 @@ def main():
     datasets, dataloaders = create_dataloader(cfg['data'])
 
     # parse model
-    if args.local_rank in [0, -1]:
-        print("Building model")
-    if cfg.get('root_path') and cfg['model'].get('log_path', None):
-        cfg['model']['log_path'] = os.path.join(cfg['root_path'], cfg['model']['log_path'])
-    model = create_model(cfg['model'], num_classes=cfg['data']['num_classes'], input_size=cfg['data'].get('input_size', None), log_path=cfg['model'].get('log_path', None), local_rank=args.local_rank)
+    print("Building model")
+    assert cfg['data']['num_classes'] == cfg['model']['args']['output_ch']
+    model = create_model(cfg['model'], num_classes=cfg['data']['num_classes'], input_size=cfg['data'].get('input_size', None), local_rank=args.local_rank)
 
     # parse criterion
-    if args.local_rank in [0, -1]:
-        print("Building criterion")
+    print("Building criterion")
     criterion = create_criterion(cfg['criterion'])
 
     # parse optimizer
-    if args.local_rank in [0, -1]:
-        print("Building optimizer")
+    print("Building optimizer")
     optimizer = create_optimizer(model, cfg['optimizer'])
-#    opt_hook = cfg.get('opt_hook', None)
-#    if opt_hook:
-#        opt_hook['hook_args']['optimizer'] = optimizer
-#        opt_hook = create_hook(opt_hook)
 
     # parse scheduler
-    if args.local_rank in [0, -1]:
-        print("Building lr scheduler")
+    print("Building lr scheduler")
     cfg['lr_scheduler']['args']['optimizer'] = optimizer
-    scheduler = create_submodule_from_dict(cfg['lr_scheduler'])
-#    scheduler_hook = cfg.get('lr_scheduler_hook', None)
-#    if scheduler_hook:
-#        scheduler_hook['hook_args']['lr_scheduler'] = scheduler
-#        scheduler_hook = create_hook(scheduler_hook)
+    scheduler = create_scheduler(cfg['lr_scheduler'])
 
     # parse other hooks
-    if args.local_rank in [0, -1]:
-        print("Building hooks")
+    print("Building hooks")
     hooks = []
-    for k, v in cfg.items():
-        if 'hook' in k and ((not v.get('hook_args', {}).get('only_master', False)) or args.local_rank in [-1, 0]):
+    for k, v in cfg['hooks'].items():
+        if (not v.get('args', {}).get('only_master', False)) or args.local_rank in [-1, 0]:
             hooks.append(create_hook(v))
 
 
@@ -93,8 +79,7 @@ def main():
                       local_rank=args.local_rank,
                       amp=cfg['amp']
                       )
-    if args.local_rank in [0, -1]:
-        print("Training...")
+    print("Training...")
     trainer.run(cfg['epoch'])
     
 

@@ -1,3 +1,0 @@
-name: CrossEntropyLoss
-module_name: .nn
-package_path: torch

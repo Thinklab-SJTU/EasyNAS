@@ -18,9 +18,7 @@ data_hyp: &hyp
 
 dataset:
   train:
-    submodule_name: COCO_YOLO
-    module_name: .datasets
-    package_path: src
+    submodule_name: src.datasets.COCO_YOLO
     dataset_args:
       path: ./data/
       imgsz: *imgsz
@@ -30,9 +28,7 @@ dataset:
       rect: False
       stride: 32
   val:
-    submodule_name: COCO_YOLO
-    module_name: .datasets
-    package_path: src
+    submodule_name: src.datasets.COCO_YOLO
     dataset_args:
       path: ./data/
       imgsz: *imgsz
@@ -45,9 +41,7 @@ dataset:
 dataloader:
   train:
     dataset_name: train
-    submodule_name: LOADER_YOLO
-    module_name: .datasets
-    package_path: src
+    submodule_name: src.datasets.LOADER_YOLO
     dataloader_args:
       batch_size: *bs
       pin_memory: True
@@ -55,9 +49,7 @@ dataloader:
       collate_fn: !get_module [src.datasets.coco_yolo.collate_fn]
   val:
     dataset_name: val
-    submodule_name: LOADER_YOLO
-    module_name: .datasets
-    package_path: src
+    submodule_name: src.datasets.LOADER_YOLO
     use_dist: False
     dataloader_args:
       batch_size: *bs

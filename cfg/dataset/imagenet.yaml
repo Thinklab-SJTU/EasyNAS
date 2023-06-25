@@ -3,17 +3,13 @@ input_size: 224
 
 dataset:
   train:
-    submodule_name: IMAGENET
-    module_name: .datasets
-    package_path: src
+    submodule_name: src.datasets.IMAGENET
     dataset_args:
       root: ./data/imagenet/train
       train: True
       transform: default
   val:
-    submodule_name: IMAGENET
-    module_name: .datasets
-    package_path: src
+    submodule_name: src.datasets.IMAGENET
     dataset_args:
       root: ./data/imagenet/val
       train: False
@@ -23,14 +19,14 @@ dataloader:
   train:
     dataset_name: train
     dataloader_args:
-      batch_size: 512
+      batch_size: 64
       pin_memory: True
       num_workers: 8
   val:
     dataset_name: val
     use_dist: False
     dataloader_args:
-      batch_size: 512
+      batch_size: 64
       pin_memory: True
       num_workers: 4
 
