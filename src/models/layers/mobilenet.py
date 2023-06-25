@@ -110,5 +110,5 @@ class InvertedResidual_search(SearchLayer):
         else:
             return self.conv(x)
 
-    @classmethod
-    def genotype(cls, cfg):
+#    @classmethod
+#    def genotype(cls, cfg):

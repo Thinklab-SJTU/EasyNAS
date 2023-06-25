@@ -29,7 +29,7 @@ class LogHOOK(HOOK):
     @only_master
     @execute_period("print_freq")
     def after_train_iter(self, runner):
-        string = 'train %03d lr %e' % (runner.info.current_iter, runner.lr_scheduler_hook.lr_scheduler.get_lr()[0])
+        string = 'train %03d lr %e' % (runner.info.current_iter, runner.lr_scheduler.get_lr()[0])
         for k, v in runner.info.results.train.items():
             string += ' %s: %f' % (k, v)
         self.logger.info(string)

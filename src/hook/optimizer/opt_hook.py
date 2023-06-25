@@ -2,9 +2,8 @@ import torch
 from ..hook import HOOK, execute_period
 
 class OptHOOK(HOOK):
-    def __init__(self, optimizer, accumulate_gradient=1, grad_clip=None, priority=0):
+    def __init__(self, accumulate_gradient=1, grad_clip=None, priority=0):
         self.priority = priority
-        self.optimizer = optimizer
         self.accumulate_gradient = accumulate_gradient
         self.grad_clip = grad_clip
 
@@ -12,6 +11,7 @@ class OptHOOK(HOOK):
         self.optimizer.load_state_dict(ckpt_opt)
 
     def before_run(self, runner):
+        self.optimizer = runner.optimizer
         self.amp = runner.amp
         self.optimizer.zero_grad()
 

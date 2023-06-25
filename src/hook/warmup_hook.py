@@ -26,7 +26,7 @@ class WarmupHOOK(HOOK):
         return np.interp(self.count, xi, [self.warmup_init_momentum_rate, 1.]) / (np.interp(self.count-1, xi, [self.warmup_init_momentum_rate, 1.]) if self.count > 0 else 1)
 
     def update_lr_momentum(self, runner):
-        for j, x in enumerate(runner.optimizer_hook.optimizer.param_groups):
+        for j, x in enumerate(runner.optimizer.param_groups):
             # bias lr falls from 0.1 to lr0, all other lrs rise from 0.0 to lr0
             lr_rate = self.get_lr_rate(j)
             x['lr'] *= lr_rate

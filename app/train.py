@@ -59,20 +59,20 @@ def main():
     if args.local_rank in [0, -1]:
         print("Building optimizer")
     optimizer = create_optimizer(model, cfg['optimizer'])
-    opt_hook = cfg.get('opt_hook', None)
-    if opt_hook:
-        opt_hook['hook_args']['optimizer'] = optimizer
-        opt_hook = create_hook(opt_hook)
+#    opt_hook = cfg.get('opt_hook', None)
+#    if opt_hook:
+#        opt_hook['hook_args']['optimizer'] = optimizer
+#        opt_hook = create_hook(opt_hook)
 
     # parse scheduler
     if args.local_rank in [0, -1]:
         print("Building lr scheduler")
     cfg['lr_scheduler']['args']['optimizer'] = optimizer
     scheduler = create_submodule_from_dict(cfg['lr_scheduler'])
-    scheduler_hook = cfg.get('lr_scheduler_hook', None)
-    if scheduler_hook:
-        scheduler_hook['hook_args']['lr_scheduler'] = scheduler
-        scheduler_hook = create_hook(scheduler_hook)
+#    scheduler_hook = cfg.get('lr_scheduler_hook', None)
+#    if scheduler_hook:
+#        scheduler_hook['hook_args']['lr_scheduler'] = scheduler
+#        scheduler_hook = create_hook(scheduler_hook)
 
     # parse other hooks
     if args.local_rank in [0, -1]:
@@ -87,8 +87,8 @@ def main():
     trainer = Trainer(dataloaders=dataloaders, 
                       model=model, 
                       criterion=criterion, 
-                      optimizer=opt_hook,
-                      lr_scheduler=scheduler_hook,
+                      optimizer=optimizer,
+                      lr_scheduler=scheduler,
                       hooks=hooks,
                       local_rank=args.local_rank,
                       amp=cfg['amp']

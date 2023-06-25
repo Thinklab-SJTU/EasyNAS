@@ -24,30 +24,53 @@ architecture:
       kernel_size: 3
       stride: 2
       padding: 1
+
   - input_idx: -1
     module: Bottleneck
     num_repeat: 3
     module_args:
       out_channel: 256
       stride: 1
+
   - input_idx: -1
     module: Bottleneck
-    num_repeat: 4
+    num_repeat: 1
     module_args:
       out_channel: 512
       stride: 2
   - input_idx: -1
     module: Bottleneck
-    num_repeat: 6
+    num_repeat: 3
+    module_args:
+      out_channel: 512
+      stride: 1
+
+  - input_idx: -1
+    module: Bottleneck
+    num_repeat: 1
     module_args:
       out_channel: 1024
       stride: 2
   - input_idx: -1
     module: Bottleneck
-    num_repeat: 3
+    num_repeat: 5
+    module_args:
+      out_channel: 1024
+      stride: 1
+
+  - input_idx: -1
+    module: Bottleneck
+    num_repeat: 1
     module_args:
       out_channel: 2048
       stride: 2
+  - input_idx: -1
+    module: Bottleneck
+    num_repeat: 2
+    module_args:
+      out_channel: 2048
+      stride: 1
+
   - input_idx: -1
     module: GlobalPoolBNAct
     module_args:

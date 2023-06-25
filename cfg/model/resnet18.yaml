@@ -24,30 +24,53 @@ architecture:
 #      kernel_size: 3
 #      stride: 2
 #      padding: 1
+#
   - input_idx: -1
     module: BasicBlock
     num_repeat: 2
     module_args:
       out_channel: 64
       stride: 1
+
   - input_idx: -1
     module: BasicBlock
-    num_repeat: 2
+    num_repeat: 1
     module_args:
       out_channel: 128
       stride: 2
   - input_idx: -1
     module: BasicBlock
-    num_repeat: 2
+    num_repeat: 1
+    module_args:
+      out_channel: 128
+      stride: 1
+
+  - input_idx: -1
+    module: BasicBlock
+    num_repeat: 1
     module_args:
       out_channel: 256
       stride: 2
   - input_idx: -1
     module: BasicBlock
-    num_repeat: 2
+    num_repeat: 1
+    module_args:
+      out_channel: 256
+      stride: 1
+
+  - input_idx: -1
+    module: BasicBlock
+    num_repeat: 1
     module_args:
       out_channel: 512
       stride: 2
+  - input_idx: -1
+    module: BasicBlock
+    num_repeat: 1
+    module_args:
+      out_channel: 512
+      stride: 1
+
   - input_idx: -1
     module: GlobalPoolBNAct
     module_args:

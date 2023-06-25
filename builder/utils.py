@@ -59,10 +59,10 @@ class CfgLoader(yaml.SafeLoader):
         module_name = str(name_args[0]).split('.')
         module = _get_submodule(module_name[-1], '.'.join(module_name[:-1]))
         if len(name_args) > 1:
-#            return partial(module, **name_args[1])
-            return module(**name_args[1])
+            return partial(module, **name_args[1])
+#            return module(**name_args[1])
         else:
-            return module()
+            return module
 
 
 CfgLoader.add_constructor(

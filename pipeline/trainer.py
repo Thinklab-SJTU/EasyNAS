@@ -5,7 +5,7 @@ import torch
 from src.hook import HOOK, OptHOOK
 
 class Trainer(object):
-    def __init__(self, dataloaders:dict, model, criterion, optimizer: Union[HOOK, torch.optim.Optimizer], lr_scheduler: HOOK, hooks: List[HOOK]=[], local_rank=-1, sync_bn=False, amp=False):
+    def __init__(self, dataloaders:dict, model, criterion, optimizer, lr_scheduler, hooks: List[HOOK]=[], local_rank=-1, sync_bn=False, amp=False):
 
         self.train_loader, self.val_loader, self.test_loader = dataloaders.get('train', None), dataloaders.get('val', None), dataloaders.get('test', None)
         assert self.train_loader is not None
@@ -35,16 +35,9 @@ class Trainer(object):
             'current_epoch': 0,
             })
 
-        if isinstance(optimizer, HOOK):
-            self.optimizer_hook = optimizer
-        else:
-            self.optimizer_hook = OptHOOK(optimizer)
-        self.register_hook(self.optimizer_hook)
-        if isinstance(lr_scheduler, HOOK):
-            self.lr_scheduler_hook = lr_scheduler
-        else: 
-            self.lr_scheduler_hook = LrScheduleHOOK(lr_scheduler)
-        self.register_hook(self.lr_scheduler_hook)
+        self.optimizer = optimizer
+        self.lr_scheduler = lr_scheduler
+
 
     def is_ddp(self):
         return self.local_rank >= 0

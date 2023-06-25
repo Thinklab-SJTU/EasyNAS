@@ -1,0 +1,78 @@
+root_path: &root_path runs/cifar10_resnet50/
+epoch: &epoch 100
+accumulate_gradient: &acc_grad 1
+amp: False
+
+data: cfg/dataset/imagenet.yaml
+
+criterion: cfg/criterion/cross_entropy.yaml
+
+model: cfg/model/resnet50.yaml
+
+optimizer: &optimizer
+  submodule_name: SGD
+  module_name: .optim
+  package_path: torch
+  args:
+    params:
+    lr: 0.01
+    momentum: 0.9
+#    weight_decay: 3.0e-5
+
+lr_scheduler: &scheduler
+  submodule_name: LambdaLR
+  module_name: .optim.lr_scheduler
+  package_path: torch
+  args:
+    optimizer: 
+    lr_lambda: !get_module [src.scheduler.utils.multistep, {gamma: 0.1, milestones: [100]}]
+
+opt_hook:
+  hook_name: OptHOOK
+  hook_args:
+#    optimizer: 
+    priority: 0
+    accumulate_gradient: *acc_grad
+
+lr_scheduler_hook:
+  hook_name: LrScheduleHOOK
+  hook_args: 
+#    lr_scheduler:
+    priority: 5
+    mode: epoch
+
+eval_hook:
+  hook_name: EvalAccHOOK
+  hook_args: 
+    priority: 5
+
+ddp_hook:
+  hook_name: DDPHOOK
+  hook_args:
+    priority: 10
+
+
+log_hook:
+  hook_name: LogHOOK
+  hook_args:
+    logger_name: TrainPip
+    log_path: !join [*root_path, test.log]
+    print_freq: 100
+    only_master: True
+    priority: 20
+
+ckpt_hook:
+  hook_name: CkptHOOK
+  hook_args:
+    save_root: !join [*root_path, ckpt/]
+    pretrain: 
+    only_master: True
+    priority: 20
+
+# warmup_hook:
+#   hook_name: WarmupHOOK
+#   hook_args:
+#     max_iter: 1000
+#     warmup_init_lr_rate: 1.e-3
+#     priority: 10
+#     accumulate_gradient: *acc_grad

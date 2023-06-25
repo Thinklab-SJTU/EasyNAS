@@ -3,7 +3,8 @@ import numpy as np
 import torch.nn as nn
 
 def count_parameters_in_MB(model):
-  return np.sum(np.prod(v.size()) for name, v in model.named_parameters() if "auxiliary" not in name)/1e6
+#  return np.sum(np.prod(v.size()) for name, v in model.named_parameters() if "auxiliary" not in name)/1e6
+  return np.sum(v.numel() for name, v in model.named_parameters() if "auxiliary" not in name)/1e6
 
 def make_divisible(x, divisor):
     # Returns x evenly divisible by divisor
@@ -19,8 +20,8 @@ def default_init_weights(m):
         if hasattr(m, 'bias') and m.bias is not None:
             nn.init.constant_(m.bias, 0)
     elif isinstance(m, nn.BatchNorm2d):
-        m.eps = 1e-3
-        m.momentum = 0.03
+#        m.eps = 1e-3
+#        m.momentum = 0.03
         if hasattr(m, 'weight') and m.weight is not None:
             nn.init.constant_(m.weight, 1)
         if hasattr(m, 'bias') and m.bias is not None:

@@ -23,14 +23,14 @@ dataloader:
   train:
     dataset_name: train
     dataloader_args:
-      batch_size: 64
+      batch_size: 512
       pin_memory: True
       num_workers: 8
   val:
     dataset_name: val
     use_dist: False
     dataloader_args:
-      batch_size: 64
+      batch_size: 512
       pin_memory: True
       num_workers: 4
 
