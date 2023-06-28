@@ -1,42 +1,74 @@
+import inspect
 import torch
 import torch.nn as nn
 
-class OpLayer(nn.Module):
-    def __init__(self): 
-        super(OpLayer, self).__init__()
-        self.adjust_ch_op = OP(OPtype='ConvBNAct', args=dict(kernel=1, dilation=1, bn=False, act=None))
-        self.upsample_op = OP(OPtype=nn.Upsampling, args=dict(size=None, scale_factor=None, mode='nearest', align_corners=None))
+from .utils import get_layer
 
-    def refine_op(self, op_config, in_channel, out_channel, stride=1, **update_args):
+OP_CFG = namedtuple('OP_CFG', ['OPtype', 'args'])
+
+darts_candidate_op = (
+       OP_CFG(OPtype='ConvBNAct', args=dict(kernel=3, dilation=1, pad=None, group=1, bn=True, act=nn.ReLU())),
+       OP_CFG(OPtype='ConvBNAct', args=dict(kernel=5, dilation=1, pad=None, group=1, bn=True, act=nn.ReLU())),
+       OP_CFG(OPtype='ConvBNAct', args=dict(kernel=3, dilation=2, pad=None, group=1, bn=True, act=nn.ReLU())),
+       OP_CFG(OPtype='ConvBNAct', args=dict(kernel=5, dilation=2, pad=None, group=1, bn=True, act=nn.ReLU())),
+       OP_CFG(OPtype='PoolBNAct', args=dict(pool='max', kernel=3, pad=None, bn=True, act=nn.ReLU())),
+       OP_CFG(OPtype='PoolBNAct', args=dict(pool='avg', kernel=3, pad=None, bn=True, act=nn.ReLU())),
+       OP_CFG(OPtype=nn.Identity, args={}),
+                       )
+
+eautodet_candidate_op = (
+       OP_CFG(OPtype='SepConvBNAct_search', args=dict(
+                       candidate_op=[(1,1), (3,1), (5,1), (3,2)], 
+                       candidate_ch=[1.], 
+                       gumbel_op=False, gumbel_channel=True,
+                       bn=True, act=nn.SiLU(),
+                       independent_ch_arch_param=False,
+                       independent_op_arch_param=False)
+         ),
+)
+
+class OpBuilder(object):
+    def __init__(self, auto_refine=False, adjust_ch_op=None, upsample_op=None): 
+        self.auto_refine = auto_refine
+        self.adjust_ch_op = OP_CFG(OPtype='ConvBNAct', args=dict(kernel=1, dilation=1, bn=False, act=None)) if adjust_ch_op is None else adjust_ch_op
+        self.upsample_op = OP_CFG(OPtype=nn.Upsampling, args=dict(size=None, scale_factor=None, mode='nearest', align_corners=None)) if upsample_op is None else upsample_op
+
+    def refine_C_stride(self, op_config, in_channel, out_channel, stride, **update_args):
+        if isinstance(op_config, OP_CFG):
+            op_config = [op_config]
         refined_op_config = []
         if isinstance(in_channel, int): in_channel = (in_channel,)*len(op_config)
         if isinstance(out_channel, int): out_channel = (out_channel,)*len(op_config)
         if isinstance(stride, int): stride = (stride,) + (1,)*len(op_config)
         for idx, (cin, cout, s, op) in enumerate(zip(in_channel, out_channel, stride, op_config)):
             if isinstance(op, [tuple, list]):
+                Warning("Sequential op will only automatically refine in_channel, out_channel for the last op, and stride for the first op")
                 refined_op = list(deepcopy(op))
-                refined_op[0].args.update(in_channel=cin)
-                assert update_args is None
-            elif isinstance(op, OP):
+                refined_op[0].args.update(stride=s)
+                refined_op[-1].args.update(in_channel=cin)
+                refined_op[-1].args.update(out_channel=cout)
+                assert len(update_args) == 0
+            elif isinstance(op, OP_CFG):
                 refined_op = deepcopy(op)
                 up_s, s = int(1./s), max(1, s)
                 adjust_ch = False
                 tmp_update_args = {}
                 for k, v in update_args:
                     tmp_update_args[k] = v[idx] if isinstance(v, [list, tuple]) else v
-                if refined_op.OPtype in NEED_INOUTC_OPs: 
+                arg_names = inspect.getfullargspec(get_layer(refined_op.OPtype).__init__)
+                if 'in_channel' in arg_names and 'out_channel' in arg_names: 
                     refined_op.args.update(in_channel=cin, out_channel=cout, stride=s, **tmp_update_args)
                 else:
                     refined_op.args.update(stride=s, **tmp_update_args)
-                    if in_channel != out_channel:
-                        print("Warning: input channel should be the same as output channel")
+                    if cin != cout:
+                        Warning("Input channel should be the same as output channel. Otherwise, you should set auto_refine as True")
                         adjust_ch = True
                 refined_op = [refined_op]
-                if up_s > 1: 
+                if self.auto_refine and up_s > 1: 
                     upsample_op = deepcopy(self.upsample_op)
                     upsample_op.args.update(scale_factor=up_s)
                     refined_op.append(upsample_op)
-                if adjust_ch: 
+                if self.auto_refine and adjust_ch: 
                     adjust_ch_op = deepcopy(self.adjust_ch_op)
                     adjust_ch_op.args.update(in_channel=cin, out_channel=cout)
                     refined_op.append(adjust_ch_op)
@@ -44,21 +76,131 @@ class OpLayer(nn.Module):
             refined_op_config.append(tuple(refined_op))
         return tuple(refined_op_config)
 
-    def refine_C_stride(self, op_config, in_channel, out_channel, stride):
-        return self.refine_op(op_config, in_channel, out_channel, stride)
-
-    def build_op(self, op_config):
+    def _build_op(self, op_config):
         ops = nn.ModuleList([])
         for config in op_config:
             if isinstance(config, [tuple, list]):
                 op = nn.Sequential()
                 for idx, sub_config in enumerate(config):
-                    module = get_submodule(sub_config.OPtype) 
+                    module = get_layer(sub_config.OPtype) 
                     op.add_module(idx, module(**sub_config.args))
-            elif isinstance(config, OP):
-                module = get_submodule(config.OPtype) 
+            elif isinstance(config, OP_CFG):
+                module = get_layer(config.OPtype) 
                 op = module(**config.args)
             else: 
-                raise(TypeError("op_config should be either OP or sequence"))
+                raise(TypeError("op_config should be either OP_CFG or sequence"))
             ops.append(op)
         return ops
+
+    def build_op(self, op_config, in_channel, out_channel, stride, **update_args)
+        op_config = self.refine_C_stride(op_config, in_channel, out_channel, stride, **update_args)
+        return self.build_op(op_config)
+
+
+
+class OpLayer(nn.Module):
+    def __init__(self, in_channel, out_channel, stride, op, act=nn.ReLU(), bn=True, auto_refine=False, adjust_ch_op=None, upsample_op=None):
+        super(OpLayer, self).__init__()
+        op_builder = OpBuilder(auto_refine=auto_refine, adjust_ch_op=adjust_ch_op, upsample_op=upsample_op)
+        self.op = OpBuilder.build_op(op, in_channel, out_channel, stride)
+        self.act = get_act(act)
+        self.bn = nn.BatchNorm2d(self.cout) if bn else None
+
+    def forward(self, x):
+       out = sum(op(x) for op in self.op)
+       if self.bn: out = self.bn(out)
+       if self.act: out = self.act(out)
+       return out
+        
+
+#class ParallelOpLayer(SearchLayer, OpLayer):
+#    def __init__(self, in_channel, out_channel, candidate_op=darts_candidate_op, candidate_ch=[1.], gumbel_op=False, gumbel_channel=True, stride=1, act=nn.ReLU(), bn=True, independent_ch_arch_param=True, independent_op_arch_param=True):
+#        super(ParallelOpLayer, self).__init__()
+#        self.set_outOp("SingleOpLayer")
+#        self.candidate_op = candidate_op
+#        self.candidate_ch = candidate_ch
+#        self.gumbel_op = gumbel_op 
+#        self.gumbel_channel = gumbel_channel and len(candidate_ch)>1
+#
+#        self.adjust_ch_op = OP(OPtype='ConvBNAct_search', args=dict(candidate_op=[(1,1)], candidate_ch=candidate_ch, gumbel_channel=gumbel_channel, stride=1, bn=False, act=None, independent_ch_arch_param=False))
+#
+#        self.candidate_op = candidate_op
+#        self.refined_candidate_op = self.refine_C_stride(candidiate_op, in_channel=in_channel, out_channnel=out_channel, stride=stride)
+#        self.ops = self.build_op(self.refined_candidate_op)
+#
+#        self.num_alphas_each_op = []
+#        for op in candidate_op:
+#            self.num_alphas_each_op.append(
+#                 len(op.args['candidate_op']) if hasattr(op.args, 'candidate_op') else -1)
+#        self.num_op_alphas = sum(abs(x) for x in self.num_alphas_each_op)
+#
+#        self.act = get_act(act)
+#        if self.gumbel_channel: self.bn = nn.ModuleList([nn.BatchNorm2d(int(self.cout*e)) for e in candidate_ch]) if bn else [None for _ in candidate_ch]
+#        else: self.bn = nn.BatchNorm2d(self.cout) if bn else None
+#
+#        self.init_arch_param(independent_ch_arch_param, independent_op_arch_param)
+#
+#    def init_arch_param(self, ind_ch_alpha, ind_op_alpha):
+#        if self.num_op_alphas > 1 and ind_op_alpha:
+#            super().init_arch_param('op_alphas', len(self.num_op_alphas))
+#
+#        if len(self.candidate_ch) > 1 and ind_ch_alpha:
+#            super().init_arch_param('ch_alphas', len(self.candidate_ch))
+#
+#    def forward(self, x, op_alphas=None, ch_alphas=None):
+#        op_alphas = op_alphas if op_alphas is not None else (self.norm_arch_param(self.op_alphas, self.gumbel_op) if hasattr(self, 'op_alphas') else [1.])
+#        ch_alphas = ch_alphas if ch_alphas is not None else (self.norm_arch_param(self.ch_alphas, self.gumbel_channel) if hasattr(self, 'ch_alphas') else [1.])
+#        bn = self.get_norm_layer(ch_alphas, self.bn, self.gumbel_channel)
+#
+#        out, ptr = 0., 0
+#        for idx, (op, num_alphas_each_op) in enumerate(zip(op_alphas, self.ops, self.num_alphas_each_op)):
+#            if num_alphas_each_op > 0: 
+#                end_ptr = ptr + num_alphas_each_op
+#                out = out + op(x, op_alphas=op_alpha[ptr:end_ptr], ch_alphas=ch_alphas)
+#                ptr = end_ptr
+#            else: 
+#                out = out + op_alpha[ptr] * op(x)
+#                ptr += 1
+#
+#        if bn: out = bn(out)
+#        if self.act: out = self.act(out)
+#
+#        return out
+#
+#    @classmethod
+#    def genotype(self, cfg, op_alphas=None, ch_alphas=None, edge_alpha=None, num_reserved_op=None, num_reserved_ch=None, num_reserved_edge=None):
+#        num_reserved_op = self.num_reserved_op if num_reserved_op is None else num_reserved_op
+#        num_reserved_ch = self.num_reserved_ch if num_reserved_ch is None else num_reserved_ch
+#        assert num_reserved_op==1
+#        assert num_reserved_ch==1
+#
+#        new_cfg = deepcopy(cfg)
+#        # del unused variables
+#        need_key = inspect.signature(self.outOp.__init__).parameters.keys()
+#        for k in cfg.keys():
+#            if k not in need_key: del new_cfg['module_args'][k]
+#
+#        op_alphas = op_alphas if op_alphas is not None else (self.get_op_arch_param() if hasattr(self, 'op_alphas') else None)
+#        op_alphas_idx = self.get_reserved_idx(num_reserved_op, op_alphas)
+#        seen_num = 0
+#        for op_idx, num in enumerate(self.num_alphas_each_op):
+#            seen_num = seen_num + (num if num > 0 else 1)
+#            if seen_num > op_alphas_idx:
+#                break
+#
+#        new_cfg['module'] = self.outOp_name
+#        if num > 0: # (Sep)ConvBNAct_search
+#            select_op = self.candidate_op[op_idx]
+#            layer_cfg = self.get_layer(select_op.Optype).genotype(select_op.args, op_alphas=op_alphas, ch_alphas=None, edge_alphas=None, num_reserved_op=num_reserved_op)
+#            new_cfg['module_args']['op'] = OP(OPtype=layer_cfg['module'], args=layer_cfg['module_args'])
+#        else:
+#            new_cfg['module_args']['op'] = self.candidate_op[op_idx]
+#
+#        ch_alphas = ch_alphas if ch_alphas is not None else (self.get_ch_arch_param() if hasattr(self, 'ch_alphas') else None)
+#        if ch_alphas is not None:
+#            ch_alphas_idx = self.get_reserved_idx(num_reserved_ch, ch_alphas)
+#            new_cfg['module_args']['out_channel'] = cfg['module_args']['out_channel'] * cfg['module_args']['candidate_ch']
+#
+#        return new_cfg
+
+

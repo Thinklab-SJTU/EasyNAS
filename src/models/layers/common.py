@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from PIL import Image
 
 from .utils import autopad, gumbel_softmax, OP, get_act
-from .base import OpLayer
+from .base import OpBuilder
 
 __all__ = ["DWConvBNAct", "PoolBNAct", "ConvBNAct", "SepConvBNAct", "Identity"]
 
@@ -104,44 +104,29 @@ class SepConvBNAct(nn.Module):
         return x
 
 
-class SingleOpLayer(OpLayer):
-    def __init__(self, in_channel, out_channel, stride, op, act=nn.ReLU(), bn=True):
-        super(SingleOpLayer, self).__init__()
-        self.adjust_ch_op = OP(OPtype='ConvBNAct', args=dict(kernel=1, dilation=1, stride=1, bn=False, act=None))
-        refined_op = self.refine_C_stride(op, in_channel, out_channel, stride)
-        self.op = self.build_op(refined_op)
-        self.act = get_act(act)
-        self.bn = nn.BatchNorm2d(self.cout) if bn else None
-
-    def forward(self, x):
-       out = self.op(x)
-       if self.bn: out = self.bn(out)
-       if self.act: out = self.act(out)
-       return out
-        
-class FuseLayer(OpLayer):
+class FuseLayer(nn.Module):
     # Feature Fusion
-    def __init__(self, in_channels, out_channel, strides, ops, act=nn.ReLU(), bn=True, fuse_op=None):
+    def __init__(self, in_channels, out_channel, strides, ops, act=nn.ReLU(), bn=True, fuse_edge_func=sum, auto_refine=False, adjust_ch_op=None, upsample_op=None):
         super(FuseLayer, self).__init__()
         self.check_valid(in_channels, strides, ops)
 
-        refined_ops = self.refine_C_stride(ops, in_channels, out_channel, strides)
-        self.op = self.build_op(refined_ops)
-        self.act = get_act(act)
-        self.bn = nn.BatchNorm2d(self.cout) if bn else None
+        op_builder = OpBuilder(auto_refine=auto_refine, adjust_ch_op=adjust_ch_op, upsample_op=upsample_op)
 
-        if fuse_op is not None:
-            raise(ValueError("FuseLayer has not supported other fuse type except sum."))
+        self.edges = nn.ModuleList([])
+        for cin, s, op in zip(in_channels, strides, ops):
+            self.edges.append(op_builder.build_op(op, cin, out_channel, s))
+
+        self.act = get_act(act)
+        self.bn = nn.BatchNorm2d(out_channel) if bn else None
+        self.fuse_edge_func = fuse_edge_func
 
     def check_valid(self, in_channels, strides, ops):
-        assert(len(in_channels)==len(strides))
-        assert(len(in_channels)==len(ops))
+        if isinstance(ops, list):
+            assert(len(in_channels)==len(strides))
+            assert(len(in_channels)==len(ops))
 
     def forward(self, xs):
-       out = 0.
-       for idx, (op, x) in enumerate(zip(self.op, xs)):
-         if op is not None:
-           out += op(x)
+       out = self.fuse_edge_func(op(x) for op, x in zip(self.edges, xs))
        if self.bn: out = self.bn(out)
        if self.act: out = self.act(out)
 

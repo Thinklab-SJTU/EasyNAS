@@ -3,29 +3,6 @@ from collections import namedtuple
 
 from builder.utils import get_submodule_by_name as utils_get_submodule_by_name
 
-OP = namedtuple('OP', ['OPtype', 'args'])
-
-darts_candidate_op = (
-       OP(OPtype='ConvBNAct', args=dict(kernel=3, dilation=1, pad=None, group=1, bn=True, act=nn.ReLU())),
-       OP(OPtype='ConvBNAct', args=dict(kernel=5, dilation=1, pad=None, group=1, bn=True, act=nn.ReLU())),
-       OP(OPtype='ConvBNAct', args=dict(kernel=3, dilation=2, pad=None, group=1, bn=True, act=nn.ReLU())),
-       OP(OPtype='ConvBNAct', args=dict(kernel=5, dilation=2, pad=None, group=1, bn=True, act=nn.ReLU())),
-       OP(OPtype='PoolBNAct', args=dict(pool='max', kernel=3, pad=None, bn=True, act=nn.ReLU())),
-       OP(OPtype='PoolBNAct', args=dict(pool='avg', kernel=3, pad=None, bn=True, act=nn.ReLU())),
-       OP(OPtype=nn.Identity, args={}),
-                       )
-
-eautodet_candidate_op = (
-       OP(OPtype='SepConvBNAct_search', args=dict(
-                       candidate_op=[(1,1), (3,1), (5,1), (3,2)], 
-                       candidate_ch=[1.], 
-                       gumbel_op=False, gumbel_channel=True,
-                       bn=True, act=nn.SiLU(),
-                       independent_ch_arch_param=False,
-                       independent_op_arch_param=False)
-         ),
-)
-
 def get_act(act=True):
     if act is None or act is False: return None
     elif act is True: return nn.ReLU()

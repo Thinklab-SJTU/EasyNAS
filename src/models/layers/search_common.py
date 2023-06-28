@@ -1,12 +1,13 @@
 from copy import deepcopy
+import bisect
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from .utils import autopad, gumbel_softmax, darts_candidate_op, eautodet_candidate_op, OP, get_layer, get_act
-from .base import OpLayer
+from .base import OpBuilder
 
-__all__ = ["SearchLayer", "ConvBNAct_search", "SepConvBNAct_search", "ParallelOpLayer", "AFF"]
+__all__ = ["SearchLayer", "ConvBNAct_search", "SepConvBNAct_search", "AFF"]
 
 
 class SearchLayer(nn.Module):
@@ -27,8 +28,12 @@ class SearchLayer(nn.Module):
     def get_norm_layer(self, ch_alphas, bn, gumbel_channel=True):
         return bn[ch_alphas.argmax()] if gumbel_channel else bn
 
-    def init_arch_param(self, arch_name, num_item):
-        self.register_buffer(arch_name, torch.autograd.Variable(1e-3*torch.randn(len(self.kd)), requires_grad=True))
+    def init_arch_param(self, arch_name, *shape):
+        self.register_buffer(arch_name, torch.autograd.Variable(1e-3*torch.randn(*shape), requires_grad=True))
+
+    def set_arch_param(self, arch_name, arch_param):
+        if hasattr(self, arch_name): delattr(self, arch_name)
+        setattr(self, arch_name, arch_param)
 
     def get_arch_param(self):
         out = []
@@ -39,31 +44,40 @@ class SearchLayer(nn.Module):
 
     def get_op_arch_param(self):
         out = getattr(self, op_arch_param, None)
-#        for n, m in self.named_modules():
-#            if isinstance(m, SearchLayer):
-#                out.extend(m.get_op_arch_param())
         return out
 
     def get_ch_arch_param(self):
         out = getattr(self, ch_arch_param, None)
-#        for n, m in self.named_modules():
-#            if isinstance(m, SearchLayer):
-#                out.extend(m.get_ch_arch_param())
         return out
 
     def get_edge_arch_param(self):
         out = getattr(self, edge_arch_param, None)
-#        for n, m in self.named_modules():
-#            if isinstance(m, SearchLayer):
-#                out.extend(m.get_edge_arch_param())
         return out
 
     def norm_arch_param(self, alphas, gumbel=False):
         return gumbel_softmax(F.log_softmax(alphas, dim=-1), hard=True) if gumbel else nn.functional.softmax(alphas, dim=-1)
 
+    def init_output_yaml(self, arch_yaml, outOp_name=None):
+        new_arch = deepcopy(arch_yaml)
+        if outOp_name is not None:
+            outOp = get_layer(outOp_name)
+        else:
+            outOp_name, outOp = cls.outOp_name, cls.outOp
+        new_arch['submodule_name'] = outOp_name
+        # del unused variables
+        need_key = inspect.signature(outOp.__init__).parameters.keys()
+        for k in arch_yaml.keys():
+            if k not in need_key: del new_arch['args'][k]
+        return new_arch
+
+    def get_reserved_idx(self, num_reserved, weight):
+#        return weight.argmax(dim=-1).item() if num_reserved==1 else [x.item() for x in torch.topk(weight, k=num_reserved, dim=-1)[1]]
+        return [x.item() for x in torch.topk(weight, k=num_reserved, dim=-1)[1]]
+
     @classmethod
-    def genotype(cls, cfg, op_alphas=None, ch_alphas=None, edge_alpha=None, num_reserved_op=1, num_reserved_ch=1, num_reserved_edge=2):
-        raise(NotImplementedError(f"No implementation of function genotype for class {cls.__class__.__name__}"))
+    def genotype(cls, cfg, op_alphas, ch_alphas, edge_alpha, num_reserved_op=1, num_reserved_edge=2):
+        raise(NotImplementedError(f"No Implementation of genotype func for {cls}"))
+
 
 class ConvBNAct_search(SearchLayer):
     # Mixed Depthwise Conv https://arxiv.org/abs/1907.09595
@@ -177,32 +191,19 @@ class ConvBNAct_search(SearchLayer):
         out = act(out) if act is not None else out
         return out
 
-    def get_reserved_idx(self, num_reserved, weight):
-        return weight.argmax(dim=-1).item() if num_reserved==1 else [x.item() for x in torch.topk(weight, k=num_reserved, dim=-1)[1]]
-
     @classmethod
-    def genotype(cls, cfg, op_alphas=None, ch_alphas=None, edge_alpha=None, num_reserved_op=None, num_reserved_ch=None, num_reserved_edge=None):
-        num_reserved_op = cls.num_reserved_op if num_reserved_op is None else num_reserved_op
-        num_reserved_ch = cls.num_reserved_ch if num_reserved_ch is None else num_reserved_ch
+    def genotype(cls, cfg, op_alphas, ch_alphas, edge_alpha, num_reserved_op=1, num_reserved_edge=None):
         assert num_reserved_op==1
-        assert num_reserved_ch==1
 
-        new_cfg = deepcopy(cfg)
-        new_cfg['module'] = cls.outOp_name
-        # del unused variables
-        need_key = inspect.signature(cls.outOp.__init__).parameters.keys()
-        for k in cfg.keys():
-            if k not in need_key: del new_cfg['module_args'][k]
+        new_cfg = self.init_output_yaml(cfg)
 
-        ch_alphas = ch_alphas if ch_alphas is not None else (cls.get_ch_arch_param() if hasattr(cls, 'ch_alphas') else None)
         if ch_alphas is not None:
-            ch_alphas_idx = cls.get_reserved_idx(num_reserved_ch, ch_alphas)
-            new_cfg['module_args']['out_channel'] = cfg['module_args']['out_channel'] * cfg['module_args']['candidate_ch'][ch_alphas_idx]
+            ch_alphas_idx = cls.get_reserved_idx(1, ch_alphas)[0]
+            new_cfg['args']['out_channel'] = cfg['args']['out_channel'] * cfg['args']['candidate_ch'][ch_alphas_idx]
 
-        op_alphas = op_alphas if op_alphas is not None else (cls.get_op_arch_param() if hasattr(cls, 'op_alphas') else None)
         if op_alphas is not None:
             op_alphas_idx = cls.get_reserved_idx(num_reserved_op, op_alphas)
-            new_cfg['module_args']['kernel'], new_cfg['module_args']['dilation'] = cfg['module_args']['candidate_op'][op_alphas_idx]
+            new_cfg['args']['kernel'], new_cfg['args']['dilation'] = cfg['args']['candidate_op'][op_alphas_idx]
         return new_cfg
 
 
@@ -279,100 +280,16 @@ class SepConvBNAct_search(ConvBNAct_search):
 
 
 
-class ParallelOpLayer(SearchLayer, OpLayer):
-    def __init__(self, in_channel, out_channel, candidate_op=darts_candidate_op, candidate_ch=[1.], gumbel_op=False, gumbel_channel=True, stride=1, act=nn.ReLU(), bn=True, independent_ch_arch_param=True, independent_op_arch_param=True):
-        super(ParallelOpLayer, self).__init__()
-        self.set_outOp("SingleOpLayer")
-        self.candidate_op = candidate_op
-        self.candidate_ch = candidate_ch
-        self.gumbel_op = gumbel_op 
-        self.gumbel_channel = gumbel_channel and len(candidate_ch)>1
-
-        self.adjust_ch_op = OP(OPtype='ConvBNAct_search', args=dict(candidate_op=[(1,1)], candidate_ch=candidate_ch, gumbel_channel=gumbel_channel, stride=1, bn=False, act=None, independent_ch_arch_param=False))
-
-        self.candidate_op = candidate_op
-        self.refined_candidate_op = self.refine_C_stride(candidiate_op, in_channel=in_channel, out_channnel=out_channel, stride=stride)
-        self.ops = self.build_op(self.refined_candidate_op)
-
-        self.num_alphas_each_op = []
-        for op in candidate_op:
-            self.num_alphas_each_op.append(
-                 len(op.args['candidate_op']) if hasattr(op.args, 'candidate_op') else -1)
-        self.num_op_alphas = sum(abs(x) for x in self.num_alphas_each_op)
-
-        self.act = get_act(act)
-        if self.gumbel_channel: self.bn = nn.ModuleList([nn.BatchNorm2d(int(self.cout*e)) for e in candidate_ch]) if bn else [None for _ in candidate_ch]
-        else: self.bn = nn.BatchNorm2d(self.cout) if bn else None
-
-        self.init_arch_param(independent_ch_arch_param, independent_op_arch_param)
-
-    def init_arch_param(self, ind_ch_alpha, ind_op_alpha):
-        if self.num_op_alphas > 1 and ind_op_alpha:
-            super().init_arch_param('op_alphas', len(self.num_op_alphas))
-
-        if len(self.candidate_ch) > 1 and ind_ch_alpha:
-            super().init_arch_param('ch_alphas', len(self.candidate_ch))
-
-    def forward(self, x, op_alphas=None, ch_alphas=None):
-        op_alphas = op_alphas if op_alphas is not None else (self.norm_arch_param(self.op_alphas, self.gumbel_op) if hasattr(self, 'op_alphas') else [1.])
-        ch_alphas = ch_alphas if ch_alphas is not None else (self.norm_arch_param(self.ch_alphas, self.gumbel_channel) if hasattr(self, 'ch_alphas') else [1.])
-        bn = self.get_norm_layer(ch_alphas, self.bn, self.gumbel_channel)
-
-        out, ptr = 0., 0
-        for idx, (op, num_alphas_each_op) in enumerate(zip(op_alphas, self.ops, self.num_alphas_each_op)):
-            if num_alphas_each_op > 0: 
-                end_ptr = ptr + num_alphas_each_op
-                out = out + op(x, op_alphas=op_alpha[ptr:end_ptr], ch_alphas=ch_alphas)
-                ptr = end_ptr
-            else: 
-                out = out + op_alpha[ptr] * op(x)
-                ptr += 1
-
-        if bn: out = bn(out)
-        if self.act: out = self.act(out)
-
-        return out
-
-    @classmethod
-    def genotype(self, cfg, op_alphas=None, ch_alphas=None, edge_alpha=None, num_reserved_op=None, num_reserved_ch=None, num_reserved_edge=None):
-        num_reserved_op = self.num_reserved_op if num_reserved_op is None else num_reserved_op
-        num_reserved_ch = self.num_reserved_ch if num_reserved_ch is None else num_reserved_ch
-        assert num_reserved_op==1
-        assert num_reserved_ch==1
-
-        new_cfg = deepcopy(cfg)
-        # del unused variables
-        need_key = inspect.signature(self.outOp.__init__).parameters.keys()
-        for k in cfg.keys():
-            if k not in need_key: del new_cfg['module_args'][k]
-
-        op_alphas = op_alphas if op_alphas is not None else (self.get_op_arch_param() if hasattr(self, 'op_alphas') else None)
-        op_alphas_idx = self.get_reserved_idx(num_reserved_op, op_alphas)
-        seen_num = 0
-        for op_idx, num in enumerate(self.num_alphas_each_op):
-            seen_num = seen_num + (num if num > 0 else 1)
-            if seen_num > op_alphas_idx:
-                break
-
-        new_cfg['module'] = self.outOp_name
-        if num > 0: # (Sep)ConvBNAct_search
-            select_op = self.candidate_op[op_idx]
-            layer_cfg = self.get_layer(select_op.Optype).genotype(select_op.args, op_alphas=op_alphas, ch_alphas=None, edge_alphas=None, num_reserved_op=num_reserved_op)
-            new_cfg['module_args']['op'] = OP(OPtype=layer_cfg['module'], args=layer_cfg['module_args'])
-        else:
-            new_cfg['module_args']['op'] = self.candidate_op[op_idx]
-
-        ch_alphas = ch_alphas if ch_alphas is not None else (self.get_ch_arch_param() if hasattr(self, 'ch_alphas') else None)
-        if ch_alphas is not None:
-            ch_alphas_idx = self.get_reserved_idx(num_reserved_ch, ch_alphas)
-            new_cfg['module_args']['out_channel'] = cfg['module_args']['out_channel'] * cfg['module_args']['candidate_ch']
-
-        return new_cfg
-
-
-class AFF(SearchLayer, OpLayer):
+class AFF(SearchLayer):
     # Auto-Feature Fusion
-    def __init__(self, in_channels, out_channel, strides, candidate_op=darts_candidate_op, candidate_ch=[1.], gumbel_op=False, gumbel_channel=True, gumbel_edge=False, act=nn.ReLU(), bn=True, independent_ch_arch_param=True, independent_op_arch_param=True, independent_edge_arch_param=True):
+    #self.adjust_ch_op = OP(OPtype='ConvBNAct_search', args=dict(candidate_op=[(1,1)], candidate_ch=candidate_ch, gumbel_channel=gumbel_channel, stride=1, bn=False, act=None, independent_ch_arch_param=False))
+    def __init__(self, in_channels, out_channel, strides, 
+    candidate_op=darts_candidate_op, gumbel_op=False, 
+    auto_refine=False, adjust_ch_op=None, up_sample_op=None, 
+    candidate_ch=[1.], gumbel_channel=True, 
+    gumbel_edge=False, 
+    act=nn.ReLU(), bn=True, 
+    independent_ch_arch_param=True, independent_op_arch_param=True, independent_edge_arch_param=True):
         """
         strides: a list indicating the scale for each edge. Whether to up-sampling or down-sampling, and how much the degree is
         """
@@ -390,71 +307,97 @@ class AFF(SearchLayer, OpLayer):
         self.candidate_op = candidate_op
         self.candidate_ch = candidate_ch
 
+        op_builder = OpBuilder(
+              auto_refine=auto_refine,
+              adjust_ch_op=adjust_ch_op,
+              upsample_op=upsample_op
+        )
         self.m = nn.ModuleList([])
         for cin, s in zip(in_channels, strides):
-            self.m.append(ParallelOpLayer(cin, out_channel, candidate_op, candidate_ch, 
-                          gumbel_op, gumbel_channel,
-                          stride=s, act=None, bn=False,
-                          independent_ch_arch_param=False,
-                          independent_op_arch_param=independent_op_arch_param))
-        self.init_arch_param(independent_ch_arch_param, independent_edge_arch_param)
+            self.m.append(op_builder.build_op(candidate_op, cin, out_channel, s))
+#            self.m.append(ParallelOpLayer(cin, out_channel, candidate_op, candidate_ch, 
+#                          gumbel_op, gumbel_channel,
+#                          stride=s, act=None, bn=False,
+#                          independent_ch_arch_param=False,
+#                          independent_op_arch_param=independent_op_arch_param))
+        self.init_arch_param(independent_op_arch_param, independent_ch_arch_param, independent_edge_arch_param)
+        self.num_alphas_each_op = []
+        for op in candidate_op:
+            self.num_alphas_each_op.append(
+                 len(op.args['candidate_op']) if hasattr(op.args, 'candidate_op') else -1)
+        self.num_op_alphas = sum(abs(x) for x in self.num_alphas_each_op)
+
         self.act = get_act(act)
         if self.gumbel_channel: self.bn = nn.ModuleList([nn.BatchNorm2d(int(self.cout*e)) for e in candidate_ch]) if bn else [None for _ in candidate_ch]
         else: self.bn = nn.BatchNorm2d(self.cout) if bn else None
 
-    def init_arch_param(self, ind_ch_alpha, ind_edge_alpha):
+    def init_arch_param(self, ind_op_alpha, ind_ch_alpha, ind_edge_alpha):
+        if len(self.candidate_op) > 1 and ind_op_arch:
+            super().init_arch_param('op_alphas', len(self.cin), len(self.candidate_op))
         if len(self.candidate_ch) > 1 and ind_ch_arch:
             super().init_arch_param('ch_alphas', len(self.candidate_ch))
-        if ind_edge_alpha:
+        if len(self.cin) > 1 and ind_edge_alpha:
             super().init_arch_param('edge_alphas', len(self.cin))
 
     def check_valid(self, in_channels, strides):
         assert(len(in_channels)==len(strides))
 
+    def forward_edge(self, x, edge_module, op_alphas, ch_alphas):
+        out, ptr = 0., 0
+        for idx, (op, num_alphas_each_op) in enumerate(zip(op_alphas, self.ops, self.num_alphas_each_op)):
+            if num_alphas_each_op > 0: 
+                end_ptr = ptr + num_alphas_each_op
+                out = out + op(x, op_alphas=op_alpha[ptr:end_ptr], ch_alphas=ch_alphas)
+                ptr = end_ptr
+            else: 
+                out = out + op_alpha[ptr] * op(x)
+                ptr += 1
+
+        return out
+
     def forward(self, xs, op_alphas=None, ch_alphas=None, edge_alpha=None):
+        op_alphas = op_alphas if op_alphas is not None else (self.norm_arch_param(self.op_alphas, self.gumbel_op) if hasattr(self, 'op_alphas') else [1.])
         ch_alphas = ch_alphas if ch_alphas is not None else (self.norm_arch_param(self.ch_alphas, self.gumbel_channel) if hasattr(self, 'ch_alphas') else [1.])
         edge_alphas = edge_alphas if edge_alphas is not None else (self.norm_arch_param(self.edge_alphas, self.gumbel_edge) if hasattr(self, 'edge_alphas') else [1.]*len(self.cin))
         bn = self.get_norm_layer(ch_alphas, self.bn, self.gumbel_channel)
 
         out = 0.
-        for x, m, edge_alpha in zip(xs, self.m, edge_alphas):
-            out = out + m(x, op_alphas=op_alphas, ch_alphas=ch_alphas) * edge_alpha
+        for x, m, edge_alpha, edge_op_alphas in zip(xs, self.m, edge_alphas, op_alphas):
+            out = out + self.forward_edge(x, m, edge_op_alphas, ch_alphas) * edge_alpha
 
         if bn: out = bn(out)
         if self.act: out = self.act(out)
 
         return out
 
+    def genotype_edge(cls, op_alphas, num_reserved_op=1):
+        op_alphas_idx = self.get_reserved_idx(num_reserved_op, op_alphas)
+        num_alphas_before = reduce(lambda x,y: x+[x[-1]+abs(y)] if isinstance(x, list) else [abs(x),abs(x)+abs(y)], self.num_alphas_each_op)
+        op_idx = bisect.bisect_right(num_alphas_before, op_alphas_idx)
+        if self.num_alphas_each_op[op_idx] > 0: # (Sep)ConvBNAct_search
+            select_op = self.candidate_op[op_idx]
+            layer_cfg = self.get_layer(select_op.Optype).genotype(select_op.args, op_alphas=op_alphas, ch_alphas=None, edge_alphas=None, num_reserved_op=num_reserved_op)
+            return OP(OPtype=layer_cfg['submodule_name'], args=layer_cfg['args'])
+        else:
+            return self.candidate_op[op_idx]
+
     @classmethod
-    def genotype(self, cfg, op_alphas=None, ch_alphas=None, edge_alpha=None, num_reserved_op=None, num_reserved_ch=None, num_reserved_edge=None):
-        num_reserved_op = self.num_reserved_op if num_reserved_op is None else num_reserved_op
-        num_reserved_ch = self.num_reserved_ch if num_reserved_ch is None else num_reserved_ch
+    def genotype(cls, cfg, op_alphas, ch_alphas, edge_alpha, num_reserved_op=1, num_reserved_edge=2):
         assert num_reserved_op==1
-        assert num_reserved_ch==1
+        new_cfg = cls.init_output_yaml(cfg)
 
-        new_cfg = deepcopy(cfg)
-        # del unused variables
-        need_key = inspect.signature(self.outOp.__init__).parameters.keys()
-        for k in cfg.keys():
-            if k not in need_key: del new_cfg['module_args'][k]
-
-        edge_alphas = edge_alphas if edge_alphas is not None else (self.get_edge_arch_param() if hasattr(self, 'edge_alphas') else None)
-        new_cfg['module'] = self.outOp_name
-        if edge_alphas is not None:
-            edge_alphas_idx = self.get_reserved_idx(num_reserved_edge, edge_alphas)
-            new_cfg['input_idx'] = [cfg['input_idx'][idx] for idx in edge_alphas_idx]
-            new_cfg['module_args']['ops'], new_cfg['module_args']['strides'] = [], []
-            for idx in edge_alphas_idx:
-                edge_cfg = self.m[idx].genotype({'module_args': {'candidate_op': candidate_op}}, 
-                                     ch_alphas=None)
-                new_cfg['module_args']['ops'].append(OP(OPtype=edge_cfg['module'], args=edge_cfg['module_args']))
-                new_cfg['module_args']['strides'].append(self.strides[idx])
-
-        ch_alphas = ch_alphas if ch_alphas is not None else (self.get_ch_arch_param() if hasattr(self, 'ch_alphas') else None)
         if ch_alphas is not None:
-            ch_alphas_idx = self.get_reserved_idx(num_reserved_ch, ch_alphas)
-            new_cfg['module_args']['out_channel'] = cfg['module_args']['out_channel'] * cfg['module_args']['candidate_ch']
+            ch_alphas_idx = cls.get_reserved_idx(1, ch_alphas)[0]
+            new_cfg['args']['out_channel'] = cfg['args']['out_channel'] * cfg['args']['candidate_ch'][ch_alphas_idx]
 
+        if edge_alphas is not None:
+            edge_alphas_idx = cls.get_reserved_idx(num_reserved_edge, edge_alphas)
+            new_cfg['input_idx'] = [cfg['input_idx'][idx] for idx in edge_alphas_idx]
+            new_cfg['args']['ops'], new_cfg['args']['strides'] = [], []
+            for idx in edge_alphas_idx:
+                edge_op = self.genotype_edge(op_alphas[idx], num_reserved_op)
+                new_cfg['args']['ops'].append(edge_op)
+                new_cfg['args']['strides'].append(cls.strides[idx])
         return new_cfg
 
  

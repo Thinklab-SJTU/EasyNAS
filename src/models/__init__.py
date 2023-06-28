@@ -1,2 +1,2 @@
-from .model import BaseModel # , SearchModel
+from .model import BaseModel, SearchModel
 from . import layers

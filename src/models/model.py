@@ -1,6 +1,7 @@
 import sys
 import inspect
 from copy import deepcopy
+from functools import partial
 import logging
 log_format = '%(asctime)s %(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format=log_format, datefmt='%m/%d %I:%M:%S %p')
@@ -70,6 +71,7 @@ class BaseModel(nn.Module):
         for i, v in enumerate(arch_list):
             in_idx = v['input_idx']
             num_repeat = max(round(v.get('num_repeat', 0) * gd), 1) 
+            v['num_repeat'] = num_repeat
             is_outlayer = v.get('is_outlayer', False)
             layer = get_layer(v['layer'])
             args = v['args']
@@ -94,12 +96,11 @@ class BaseModel(nn.Module):
                 if 'in_channel' in args and 'out_channel' in args: 
                     args['in_channel'] = cout
                 m_ = nn.Sequential(*[m_] + [layer(**args) for _ in range(num_repeat-1)])
-#            m_ = nn.Sequential(*[layer(**args) for _ in range(num_repeat)]) if num_repeat > 1 else layer(**args)  # layer
 
             num_param = sum([x.numel() for x in m_.parameters()])  # number params
             self.logger.info('%3s%10s%10s%10.0f  %-20s%-40s' % (i, in_idx, num_repeat, num_param, v['layer'], args))  # print
 
-            m_.idx, m_.in_idx, m_.type, m_.np, m_.arch_yaml = i, in_idx, v['layer'], num_param, deepcopy(v)  # attach index, 'from' index, type, number params
+            m_.idx, m_.in_idx, m_.type, m_.np, m_.arch_yaml = i, in_idx, layer, num_param, deepcopy(v)  # attach index, 'from' index, type, number params
 
             save.extend(x % i for x in ([in_idx] if isinstance(in_idx, int) else in_idx) if x != -1)  # append to savelist
             layers.append(m_)
@@ -108,24 +109,118 @@ class BaseModel(nn.Module):
             ch.append(cout)
         return nn.Sequential(*layers), sorted(set(save))
 
-#class SearchModel(BaseModel):
-#    def __init__(self, cfg, output_ch, input_ch=3, input_size=None, log_path=None, init_func=None, local_rank=-1):
-#        super(SearchModel, self).__init__(cfg, output_ch, input_ch=3, input_size=None, log_path=None, init_func=None, local_rank=-1)
-#
-#    def genotype(self):
-#        out_cfg = deepcopy(self.cfg)
-#        new_arch = []
-#        for cfg, (name, layer) in zip(out_cfg['architecture'], self.model.named_children()):
-#            new_arch.append(self.genotype_layer(layer, cfg))
-#        out_cfg['architecture'] = new_arch
-#        self.display_genotype(out_cfg)
-#        return out_cfg
-#
-#    def genotype_layer(self, layer, cfg):
-#        if isinstance(layer, SearchLayer):
-#            return layer.genotype(cfg)
-#        elif isinstance(layer, nn.Sequential):
-#            for n, l in layer.named_children():
-#                self.genotype_layer(l, cfg)
-#        else: return cfg
-           
+class SearchModel(BaseModel):
+    def __init__(self, cfg, output_ch, input_ch=3, input_size=None, log_path=None, init_func=None, local_rank=-1):
+        super(SearchModel, self).__init__(cfg, output_ch, input_ch=3, input_size=None, log_path=None, init_func=None, local_rank=-1)
+        self.arch_param_list = self.init_arch_param()
+        self.info_arch()
+
+    def set_arch_param_layer(self, layer, ch_alphas, op_alphas, edge_alphas):
+        if ch_alphas is not None: layer.set_arch_param('ch_alphas', ch_alphas)
+        if op_alphas is not None: layer.set_arch_param('op_alphas', op_alphas)
+        if edge_alphas is not None: layer.set_arch_param('edge_alphas', edge_alphas)
+        return {
+            'ch_alphas': layer.get_ch_arch_param(),
+            'op_alphas': layer.get_op_arch_param(),
+            'edge_alphas': layer.get_edge_arch_param()
+        }
+
+    def init_arch_param(self):
+        arch_param_list = []
+        for i, m_ in enumerate(self.model):
+            layer, arch_yaml = m_.type, m_.arch_yaml
+            if issubclass(layer, SearchLayer):
+                arch_param_idx = arch_yaml.get('arch_param_idx', None)
+                arch_yaml['ch_arch_param_idx'] = arch_yaml.get('ch_arch_param_idx', arch_param_idx)
+                arch_yaml['op_arch_param_idx'] = arch_yaml.get('op_arch_param_idx', arch_param_idx)
+                arch_yaml['edge_arch_param_idx'] = arch_yaml.get('edge_arch_param_idx', arch_param_idx)
+                # TODO: What if arch_param_idx is a repeated module?
+                set_arch_param = partial(
+                      self.set_arch_param_layer,
+                      ch_alphas=arch_param_list[arch_yaml.get('ch_arch_param_idx')]['ch_alphas'],
+                      op_alphas=arch_param_list[arch_yaml.get('op_arch_param_idx')]['op_alphas'],
+                      edge_alphas=arch_param_list[arch_yaml.get('edge_arch_param_idx')]['edge_alphas']
+                )
+                num_repeat = arch_yaml.get('num_repeat', 1)
+                if num_repeat > 1:
+                    if arch_yaml.get('repeat_arch', False):
+                        arch_param_list.append(set_arch_param(m_[0]))
+                        for l in range(1, num_repeat):
+                            self.set_arch_param_layer(m_[l], **arch_param_list[-1])
+                    else:
+                        arch_param_list.append(
+                              [set_arch_param(m_[l]) for l in range(num_repeat)]
+                        )
+
+                else:
+                    arch_param_list.append(set_arch_param(m_))
+
+            else:
+                arch_param_list.append(None)
+        return arch_param_list
+
+    def get_arch_param_layer(self, arch_yaml, p):
+        arch_param = {}
+        if arch_yaml.get('ch_arch_param_idx') is not None: 
+            arch_param['ch_alphas'] = "Idx {%d}"%arch_yaml.get('ch_arch_param_idx')
+            assert(p['ch_alphas'] == self.arch_param_list[arch_yaml.get('ch_arch_param_idx')]['ch_alphas'])
+        else: arch_param['ch_alphas'] = p['ch_alphas']
+        if arch_yaml.get('op_arch_param_idx') is not None: 
+            arch_param['op_alphas'] = "Idx {%d}"%arch_yaml.get('op_arch_param_idx')
+            assert(p['op_alphas'] == self.arch_param_list[arch_yaml.get('op_arch_param_idx')]['op_alphas'])
+        else: arch_param['op_alphas'] = p['op_alphas']
+        if arch_yaml.get('edge_arch_param_idx') is not None: 
+            arch_param['edge_alphas'] = "Idx {%d}"%arch_yaml.get('edge_arch_param_idx')
+            assert(p['edge_alphas'] == self.arch_param_list[arch_yaml.get('edge_arch_param_idx')]['edge_alphas'])
+        else: arch_param['edge_alphas'] = p['edge_alphas']
+        return arch_param
+
+    def info_arch(self):
+        self.logger.info("="*20+"\n Search Layers")
+        self.logger.info('%3s%20s%10s%10s  %-40s' % ('idx', 'layer', 'repeat', 'repeat_arch', 'arch_parameters'))
+        for i, (m_, p) in zip(self.model, self.arch_param_list):
+            if p is not None:
+                assert(issubclass(m_.type, SearchLayer))
+                arch_yaml = m_.arch_yaml
+                num_repeat = arch_yaml.get('num_repeat', 1)
+                repeat_arch = arch_yaml.get('repeat_arch', False)
+                if num_repeat == 1 or repeat_arch:
+                    arch_param = self.get_arch_param_layer(arch_yaml, p)
+                else:
+                    assert isinstance(p, list)
+                    arch_param = [self.get_arch_param_layer(arch_yanl, p[l]) for l in range(num_repeat)]
+
+                self.logger.info('%3s%20s%10s%10s  %-40s' % (i, m_.type, num_repeat, repeat_arch, arch_param))
+
+        self.logger.info("="*20)
+
+    def genotype(self):
+        out_model_yaml = {
+            'submodule_name': 'BaseModel',
+            'output_ch': self.output_ch,
+            'input_ch': self.input_ch,
+            'depth_multiple': 1.,
+            'width_multiple': 1.,
+            'log_path': self.log_path
+            }
+
+        new_arch = []
+
+        for i, (m_, p) in enumerate(zip(self.model, self.arch_param_list)):
+            if issubclass(m_, SearchLayer):
+                if isinstance(m_, nn.Sequential):
+                    if m_.arch_yaml.get('repeat_arch', False):
+                        new_arch.append(m_[0].genotype(m_.arch_yaml, **p))
+                    else:
+                        for l, tmp_m in enumerate(m_):
+                            tmp_arch = tmp_m.genotype(m_.arch_yaml, **p[l])
+                            tmp_arch['num_repeat'] = 1
+                            new_arch.append(tmp_arch)
+                else:
+                    new_arch.append(m_.genotyp(m_.arch_yaml, **p))
+
+            else:
+                new_arch.append(m_.arch_yaml)
+        out_model_yaml['architecture'] = new_arch
+        return out_model_yaml
+
