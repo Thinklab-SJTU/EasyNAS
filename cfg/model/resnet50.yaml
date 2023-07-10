@@ -3,7 +3,7 @@ args:
   log_path: model.log
   depth_multiple: 1.0
   width_multiple: 1.0
-  output_ch: &num_classes 1000
+  output_ch: &output_ch 1000
   architecture:
     - input_idx: -1
       submodule_name: ConvBNAct
@@ -79,4 +79,4 @@ args:
       is_outlayer: True
       args:
         in_features: 2048
-        out_features: *num_classes
+        out_features: *output_ch

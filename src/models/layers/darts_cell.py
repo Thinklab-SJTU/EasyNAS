@@ -4,9 +4,10 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 #from mish_cuda import MishCuda as Mish
 
+from .base import SearchModule, darts_candidate_op
+from .common import ConvBNAct
+from .search_common import AFF
 from .utils import get_act
-from .search_common import AFF, ConvBNAct
-from .base import SearchModule
 
 class FactorizedReduce(nn.Module):
 
@@ -28,9 +29,9 @@ class FactorizedReduce(nn.Module):
     return out
 
 class Cell(nn.Module):
-  def __init__(self, in_channels, out_channel, strides, 
+  def __init__(self, in_channel, out_channel, strides, 
                ops, edges, multiplier,
-               act=nn.ReLU(), bn=True)
+               act=nn.ReLU(), bn=True):
       super(Cell, self).__init__()
       self._steps = len(op)
       self.edges = edges
@@ -43,14 +44,14 @@ class Cell(nn.Module):
               reduction = False
               break
       self.preprocess = nn.ModuleList([])
-      for cin, s in zip(in_channels, strides):
+      for cin, s in zip(in_channel, strides):
           self.preprocess.append(FactorizedReduce(cin, C, act=act) if not reduction and s==2 else ConvBNAct(cin, C, kernel=1, stride=1, act=act, bn=True))
 
       self._ops = nn.ModuleList()
-      tmp_cins, tmp_strides = [C for _ in range(len(in_channels))], strides.copy()
+      tmp_cins, tmp_strides = [C for _ in range(len(in_channel))], strides.copy()
       for i in range(self._steps):
           ops['args'].update(
-              in_channels=in_channels=[tmp_cins[e] for e in edges[i]],
+              in_channel=[tmp_cins[e] for e in edges[i]],
               out_channel=C,
               strides=[tmp_strides[e] for e in edges[i]],
           )
@@ -70,7 +71,7 @@ class Cell(nn.Module):
 
 
 class Cell_search(SearchModule):
-    def __init__(self, in_channels, out_channel, strides, 
+    def __init__(self, in_channel, out_channel, strides, 
                  steps=4, multiplier=4,
                  candidate_op=darts_candidate_op, gumbel_op=False, gumbel_edge=False, 
                  act=nn.ReLU(), bn=True,
@@ -87,13 +88,13 @@ class Cell_search(SearchModule):
                 reduction = False
                 break
         self.preprocess = nn.ModuleList([])
-        for cin, s in zip(in_channels, strides):
+        for cin, s in zip(in_channel, strides):
             self.preprocess.append(FactorizedReduce(cin, C, act=act) if not reduction and s==2 else ConvBNAct(cin, C, kernel=1, stride=1, act=act, bn=True))
 
         self._ops = nn.ModuleList()
-        tmp_cins, tmp_strides = [C for _ in range(len(in_channels))], strides.copy()
+        tmp_cins, tmp_strides = [C for _ in range(len(in_channel))], strides.copy()
         for i in range(self._steps):
-            self._ops.append(AFF(in_channels=tmp_cins,
+            self._ops.append(AFF(in_channel=tmp_cins,
                                  out_channel=C,
                                  strides=tmp_strides,
                                  candidate_op=candidate_op,
@@ -102,7 +103,7 @@ class Cell_search(SearchModule):
                                  act=act, bn=bn,
                                  ))
             tmp_cins.append(C)
-            strides.append(1)
+            tmp_strides.append(1)
 
     def forward(self, inputs):
         xs = []

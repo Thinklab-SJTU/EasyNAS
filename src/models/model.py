@@ -79,8 +79,8 @@ class BaseModel(nn.Module):
             if 'num_repeat' in args.keys(): args['num_repeat'] = max(round(args['num_repeat'] * gd), 1)
 
             cin = [ch[idx] for idx in in_idx] if isinstance(in_idx, (list, tuple)) else ch[in_idx]
-            arg_names = inspect.getfullargspec(layer.__init__)
-            if 'in_channel' in arg_names.args:
+            arg_names = inspect.getfullargspec(layer.__init__).args
+            if 'in_channel' in arg_names:
                 args['in_channel'] = cin
             cout = args.get('out_channel', None)
             if cout:
@@ -119,7 +119,7 @@ class SearchModel(BaseModel, SearchModule):
         self.init_arch_parameters()
         self.info_arch()
 
-    def init_arch_prameters(self):
+    def init_arch_parameters(self):
         for i, m_ in enumerate(self.model):
             layer, arch_yaml = m_.type, m_.arch_yaml
             if issubclass(layer, SearchModule):
@@ -137,11 +137,12 @@ class SearchModel(BaseModel, SearchModule):
                     for l in range(1, num_repeat):
                         m_[l].set_arch_parameters(m_[0], recurse=True)
 
+
     def info_arch(self): 
         self.logger.info("="*20+"\n Search Layers") 
         self.logger.info('%3s%20s%10s%10s  %-40s' % ('idx', 'layer', 'repeat', 'repeat_arch', 'arch_parameters')) 
         for i, m_ in enumerate(self.model): 
-            if issubclass(m_.type, SearchModule) 
+            if issubclass(m_.type, SearchModule):
                 arch_yaml = m_.arch_yaml 
                 num_repeat = arch_yaml.get('num_repeat', 1) 
                 repeat_arch = arch_yaml.get('repeat_arch', False) 

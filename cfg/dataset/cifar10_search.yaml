@@ -23,7 +23,6 @@ dataloader:
     portion: 0.5
     dataloader_args:
       batch_size: 64
-      sampler: None
       pin_memory: True
       num_workers: 4
   search_val:
@@ -31,7 +30,6 @@ dataloader:
     portion: 0.5
     dataloader_args:
       batch_size: 64
-      sampler: None
       pin_memory: True
       num_workers: 4
   val:

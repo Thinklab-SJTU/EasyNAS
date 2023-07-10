@@ -7,8 +7,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from PIL import Image
 
-from .utils import autopad, gumbel_softmax, OP, get_act
-from .base import OpBuilder
+from .utils import autopad, gumbel_softmax, get_act
+from .base import OpBuilder 
 
 __all__ = ["DWConvBNAct", "PoolBNAct", "ConvBNAct", "SepConvBNAct", "Identity"]
 
@@ -19,8 +19,10 @@ def DWConvBNAct(in_channel, out_channel, kernel=1, dilation=1, stride=1, group=1
 
 
 class PoolBNAct(nn.Module):
-    def __init__(self, kernel, stride=1, pool='max', pad=None, bn=True, act=nn.ReLU()): 
+    def __init__(self, kernel, out_channel=None, stride=1, pool='max', pad=None, bn=True, act=nn.ReLU()): 
         super(PoolBNAct, self).__init__()
+        if bn: assert out_channel is not None
+
         if isinstance(pool, nn.Module): 
             pool_op = pool
         elif pool == 'max':

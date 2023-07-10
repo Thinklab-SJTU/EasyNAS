@@ -14,7 +14,7 @@ def create_criterion(cfg: dict):
 def create_scheduler(cfg: dict):
     return get_submodule_by_name(cfg.get('submodule_name'), search_path='torch.optim.lr_scheduler')(**cfg.get('args', {}))
 
-def create_model(cfg: dict, num_classes, input_size=None, root_path=None, local_rank=-1):
+def create_model(cfg: dict, input_size=None, root_path=None, local_rank=-1):
     if root_path and cfg['args'].get('log_path', None):
         cfg['args']['log_path'] = os.path.join(root_path, cfg['args']['log_path'])
     model = get_submodule_by_name(cfg.get('submodule_name'), search_path=['src.models'])

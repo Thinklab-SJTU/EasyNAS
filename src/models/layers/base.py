@@ -1,3 +1,5 @@
+from collections import namedtuple
+from copy import deepcopy
 import inspect
 import torch
 import torch.nn as nn
@@ -13,7 +15,7 @@ darts_candidate_op = (
        OP_CFG(submodule_name='ConvBNAct', args=dict(kernel=5, dilation=2, pad=None, group=1, bn=True, act=nn.ReLU())),
        OP_CFG(submodule_name='PoolBNAct', args=dict(pool='max', kernel=3, pad=None, bn=True, act=nn.ReLU())),
        OP_CFG(submodule_name='PoolBNAct', args=dict(pool='avg', kernel=3, pad=None, bn=True, act=nn.ReLU())),
-       OP_CFG(submodule_name=nn.Identity, args={}),
+       OP_CFG(submodule_name='torch.nn.Identity', args={}),
                        )
 
 eautodet_candidate_op = (
@@ -67,31 +69,29 @@ class SearchModule(nn.Module):
         setattr(self, arch_name, arch_param)
         self._arch_parameters[arch_name] = arch_param
 
-    #TODO
     def set_arch_parameters(self, module_or_dict, recurse=True, memo=None):
         if memo is None:
             memo = set()
-        if module_or_dict in memo: return 
-        memo.add(module_or_dict)
-
         if isinstance(module_or_dict, dict):
             for na, np in module_or_dict.items():
-                assert hasattr(na in self._arch_parameters)
+                assert hasattr(self, na) and na in self._arch_parameters
                 del self._arch_parameters[na]
                 self._arch_parameters[na] = np
                 delattr(self, na)
                 setattr(self, na, np)
 
-        elif isinstance(module_or_dict, nn.Module):
-            if isinstance(module_or_dict, SearchModule):
-                self.set_arch_paremeters(module_or_dict._arch_parameters)
+        elif isinstance(module_or_dict, SearchModule):
+            if module_or_dict in memo: return 
+            memo.add(module_or_dict)
+            self.set_arch_parameters(module_or_dict._arch_parameters)
             if recurse:
-                for (dist_name, dist_module), (src_name, src_module) in zip(self.named_children(prefix="", remove_duplicate=True), module_or_dict.named_children(prefix="", remove_duplicate=True)):
-                    assert dist_name == src_name
-                    if dist_module not in memo:
-                        dist_module.set_arch_parameters(src_module, memo=memo)
+                src_named_modules = {k: v for k, v in module_or_dict.named_modules(prefix="") if isinstance(v, SearchModule)}
+                for dist_name, dist_module in self.named_modules(prefix=""):
+                    if dist_module not in memo and isinstance(dist_module, SearchModule):
+                        assert dist_name in src_named_modules
+                        dist_module.set_arch_parameters(src_named_modules[dist_name], memo=memo)
 
-    def arch_parameters(self, recurse=True)
+    def arch_parameters(self, recurse=True):
         for name, param in self.named_arch_parameters(recurse=recurse):
             yield param
 
@@ -117,7 +117,7 @@ class OpBuilder(object):
     def __init__(self, auto_refine=False, adjust_ch_op=None, upsample_op=None): 
         self.auto_refine = auto_refine
         self.adjust_ch_op = OP_CFG(submodule_name='ConvBNAct', args=dict(kernel=1, dilation=1, bn=False, act=None)) if adjust_ch_op is None else adjust_ch_op
-        self.upsample_op = OP_CFG(submodule_name=nn.Upsampling, args=dict(size=None, scale_factor=None, mode='nearest', align_corners=None)) if upsample_op is None else upsample_op
+        self.upsample_op = OP_CFG(submodule_name=nn.Upsample, args=dict(size=None, scale_factor=None, mode='nearest', align_corners=None)) if upsample_op is None else upsample_op
 
     def refine_C_stride(self, op_config, in_channel, out_channel, stride, **update_args):
         if isinstance(op_config, OP_CFG):
@@ -127,28 +127,22 @@ class OpBuilder(object):
         if isinstance(out_channel, int): out_channel = (out_channel,)*len(op_config)
         if isinstance(stride, int): stride = (stride,) + (1,)*len(op_config)
         for idx, (cin, cout, s, op) in enumerate(zip(in_channel, out_channel, stride, op_config)):
-            if isinstance(op, [tuple, list]):
-                Warning("Sequential op will only automatically refine in_channel, out_channel for the last op, and stride for the first op")
-                refined_op = list(deepcopy(op))
-                refined_op[0].args.update(stride=s)
-                refined_op[-1].args.update(in_channel=cin)
-                refined_op[-1].args.update(out_channel=cout)
-                assert len(update_args) == 0
-            elif isinstance(op, OP_CFG):
+            if isinstance(op, OP_CFG):
                 refined_op = deepcopy(op)
                 up_s, s = int(1./s), max(1, s)
                 adjust_ch = False
                 tmp_update_args = {}
                 for k, v in update_args:
-                    tmp_update_args[k] = v[idx] if isinstance(v, [list, tuple]) else v
-                arg_names = inspect.getfullargspec(get_layer(refined_op.submodule_name).__init__)
-                if 'in_channel' in arg_names and 'out_channel' in arg_names: 
-                    refined_op.args.update(in_channel=cin, out_channel=cout, stride=s, **tmp_update_args)
-                else:
-                    refined_op.args.update(stride=s, **tmp_update_args)
-                    if cin != cout:
-                        Warning("Input channel should be the same as output channel. Otherwise, you should set auto_refine as True")
-                        adjust_ch = True
+                    tmp_update_args[k] = v[idx] if isinstance(v, (list, tuple)) else v
+                refined_op.args.update(stride=s, **tmp_update_args)
+                arg_names = inspect.getfullargspec(get_layer(refined_op.submodule_name).__init__).args
+                if 'in_channel' in arg_names: 
+                    refined_op.args.update(in_channel=cin)
+                if 'out_channel' in arg_names: 
+                    refined_op.args.update(out_channel=cout)
+                if cin != cout and ('in_channel' not in arg_names or 'out_channel' not in arg_names):
+                    Warning("Input channel should be the same as output channel. Otherwise, you should set auto_refine as True")
+                    adjust_ch = True
                 refined_op = [refined_op]
                 if self.auto_refine and up_s > 1: 
                     upsample_op = deepcopy(self.upsample_op)
@@ -158,6 +152,13 @@ class OpBuilder(object):
                     adjust_ch_op = deepcopy(self.adjust_ch_op)
                     adjust_ch_op.args.update(in_channel=cin, out_channel=cout)
                     refined_op.append(adjust_ch_op)
+            elif isinstance(op, (tuple, list)):
+                Warning("Sequential op will only automatically refine in_channel, out_channel for the last op, and stride for the first op")
+                refined_op = list(deepcopy(op))
+                refined_op[0].args.update(stride=s)
+                refined_op[-1].args.update(in_channel=cin)
+                refined_op[-1].args.update(out_channel=cout)
+                assert len(update_args) == 0
 
             refined_op_config.append(tuple(refined_op))
         return tuple(refined_op_config)
@@ -165,22 +166,22 @@ class OpBuilder(object):
     def _build_op(self, op_config):
         ops = nn.ModuleList([])
         for config in op_config:
-            if isinstance(config, [tuple, list]):
+            if isinstance(config, OP_CFG):
+                module = get_layer(config.submodule_name) 
+                op = module(**config.args)
+            elif isinstance(config, (tuple, list)):
                 op = nn.Sequential()
                 for idx, sub_config in enumerate(config):
                     module = get_layer(sub_config.submodule_name) 
-                    op.add_module(idx, module(**sub_config.args))
-            elif isinstance(config, OP_CFG):
-                module = get_layer(config.submodule_name) 
-                op = module(**config.args)
+                    op.add_module(str(idx), module(**sub_config.args))
             else: 
                 raise(TypeError("op_config should be either OP_CFG or sequence"))
             ops.append(op)
         return ops
 
-    def build_op(self, op_config, in_channel, out_channel, stride, **update_args)
+    def build_op(self, op_config, in_channel, out_channel, stride, **update_args):
         op_config = self.refine_C_stride(op_config, in_channel, out_channel, stride, **update_args)
-        return self.build_op(op_config)
+        return self._build_op(op_config)
 
 
 

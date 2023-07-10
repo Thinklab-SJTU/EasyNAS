@@ -34,7 +34,7 @@ def main():
     cfg = parse_cfg(args.cfg)
     if args.local_rank in [0, -1]:
         for k, v in cfg.items():
-            print(k, v)
+            print("\n", k, v)
         if cfg.get('root_path', None):
             os.makedirs(cfg.get('root_path'), exist_ok=True)
 
@@ -45,8 +45,8 @@ def main():
 
     # parse model
     print("Building model")
-    assert cfg['data']['num_classes'] == cfg['model']['args']['output_ch']
-    model = create_model(cfg['model'], num_classes=cfg['data']['num_classes'], input_size=cfg['data'].get('input_size', None), local_rank=args.local_rank)
+#    assert cfg['data']['num_classes'] == cfg['model']['args']['output_ch']
+    model = create_model(cfg['model'], input_size=cfg['data'].get('input_size', None), local_rank=args.local_rank)
 
     # parse criterion
     print("Building criterion")

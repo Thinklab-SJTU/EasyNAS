@@ -1,6 +1,6 @@
 #!/bin/sh
 
-cfg=cfg/imagenet_mobilenetv2.yaml
+cfg=cfg/cifar10_darts.yaml
 
 gpu=( $@ )
 gpu_num=$#

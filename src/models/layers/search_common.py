@@ -4,8 +4,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .utils import autopad, gumbel_softmax, darts_candidate_op, eautodet_candidate_op, OP, get_layer, get_act
-from .base import OpBuilder, SearchModule
+from .utils import autopad, gumbel_softmax, get_layer, get_act
+from .base import darts_candidate_op, OP_CFG, OpBuilder, SearchModule
 
 __all__ = ["ConvBNAct_search", "SepConvBNAct_search", "AFF", "SPP_search"]
 
@@ -283,8 +283,8 @@ class SepConvBNAct_search(ConvBNAct_search):
 
 class AFF(SearchLayer):
     # Auto-Feature Fusion
-    #self.adjust_ch_op = OP(submodule_name='ConvBNAct_search', args=dict(candidate_op=[(1,1)], candidate_ch=candidate_ch, gumbel_channel=gumbel_channel, stride=1, bn=False, act=None, independent_ch_arch_param=False))
-    def __init__(self, in_channels, out_channel, strides, 
+    #self.adjust_ch_op = OP_CFG(submodule_name='ConvBNAct_search', args=dict(candidate_op=[(1,1)], candidate_ch=candidate_ch, gumbel_channel=gumbel_channel, stride=1, bn=False, act=None, independent_ch_arch_param=False))
+    def __init__(self, in_channel, out_channel, strides, 
     candidate_op=darts_candidate_op, gumbel_op=False, 
     auto_refine=False, adjust_ch_op=None, up_sample_op=None, 
     candidate_ch=[1.], gumbel_channel=True, 
@@ -296,8 +296,8 @@ class AFF(SearchLayer):
         """
         super(AFF, self).__init__()
 
-        self.check_valid(in_channels, strides)
-        self.cin = in_channels
+        self.check_valid(in_channel, strides)
+        self.cin = in_channel
         self.cout = out_channel
         self.strides = strides
         self.candidate_ch = candidate_ch
@@ -310,10 +310,10 @@ class AFF(SearchLayer):
         op_builder = OpBuilder(
               auto_refine=auto_refine,
               adjust_ch_op=adjust_ch_op,
-              upsample_op=upsample_op
+              upsample_op=up_sample_op
         )
         self.m = nn.ModuleList([])
-        for cin, s in zip(in_channels, strides):
+        for cin, s in zip(in_channel, strides):
             self.m.append(op_builder.build_op(candidate_op, cin, out_channel, s))
 #            self.m.append(ParallelOpLayer(cin, out_channel, candidate_op, candidate_ch, 
 #                          gumbel_op, gumbel_channel,
@@ -332,15 +332,15 @@ class AFF(SearchLayer):
         else: self.bn = nn.BatchNorm2d(self.cout) if bn else None
 
     def init_arch_parameters(self, ind_op_alpha, ind_ch_alpha, ind_edge_alpha):
-        if len(self.candidate_op) > 1 and ind_op_arch:
+        if len(self.candidate_op) > 1 and ind_op_alpha:
             super().init_arch_parameters('op_alphas', len(self.cin), len(self.candidate_op))
-        if len(self.candidate_ch) > 1 and ind_ch_arch:
+        if len(self.candidate_ch) > 1 and ind_ch_alpha:
             super().init_arch_parameters('ch_alphas', len(self.candidate_ch))
         if len(self.cin) > 1 and ind_edge_alpha:
             super().init_arch_parameters('edge_alphas', len(self.cin))
 
-    def check_valid(self, in_channels, strides):
-        assert(len(in_channels)==len(strides))
+    def check_valid(self, in_channel, strides):
+        assert(len(in_channel)==len(strides))
 
     def forward_edge(self, x, edge_module, op_alphas, ch_alphas):
         out, ptr = 0., 0
@@ -377,7 +377,7 @@ class AFF(SearchLayer):
         if self.num_alphas_each_op[op_idx] > 0: # (Sep)ConvBNAct_search
             select_op = self.candidate_op[op_idx]
             layer_cfg = self.get_layer(select_op.Optype).genotype(select_op.args, op_alphas=op_alphas, ch_alphas=None, edge_alphas=None, num_reserved_op=num_reserved_op)
-            return OP(submodule_name=layer_cfg['submodule_name'], args=layer_cfg['args'])
+            return OP_CFG(submodule_name=layer_cfg['submodule_name'], args=layer_cfg['args'])
         else:
             return self.candidate_op[op_idx]
 
