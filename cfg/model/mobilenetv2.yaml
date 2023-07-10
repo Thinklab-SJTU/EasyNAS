@@ -6,7 +6,7 @@ args:
   output_ch: &num_classes 1000
   architecture:
     - input_idx: -1
-      layer: ConvBNAct
+      submodule_name: ConvBNAct
       args: 
         out_channel: 32
         kernel: 3
@@ -17,7 +17,7 @@ args:
         bn: True
   
     - input_idx: -1
-      layer: InvertedResidual
+      submodule_name: InvertedResidual
       num_repeat: 1
       args:
         out_channel: 16
@@ -26,7 +26,7 @@ args:
         expand_ratio: 1
   
     - input_idx: -1
-      layer: InvertedResidual
+      submodule_name: InvertedResidual
       num_repeat: 1
       args:
         out_channel: 24
@@ -34,7 +34,7 @@ args:
         stride: 2
         expand_ratio: 6
     - input_idx: -1
-      layer: InvertedResidual
+      submodule_name: InvertedResidual
       num_repeat: 1
       args:
         out_channel: 24
@@ -43,7 +43,7 @@ args:
         expand_ratio: 6
   
     - input_idx: -1
-      layer: InvertedResidual
+      submodule_name: InvertedResidual
       num_repeat: 1
       args:
         out_channel: 32
@@ -51,7 +51,7 @@ args:
         stride: 2
         expand_ratio: 6
     - input_idx: -1
-      layer: InvertedResidual
+      submodule_name: InvertedResidual
       num_repeat: 2
       args:
         out_channel: 32
@@ -60,7 +60,7 @@ args:
         expand_ratio: 6
         
     - input_idx: -1
-      layer: InvertedResidual
+      submodule_name: InvertedResidual
       num_repeat: 1
       args:
         out_channel: 64
@@ -68,7 +68,7 @@ args:
         stride: 2
         expand_ratio: 6
     - input_idx: -1
-      layer: InvertedResidual
+      submodule_name: InvertedResidual
       num_repeat: 3
       args:
         out_channel: 64
@@ -77,7 +77,7 @@ args:
         expand_ratio: 6
   
     - input_idx: -1
-      layer: InvertedResidual
+      submodule_name: InvertedResidual
       num_repeat: 3
       args:
         out_channel: 96
@@ -86,7 +86,7 @@ args:
         expand_ratio: 6
         
     - input_idx: -1
-      layer: InvertedResidual
+      submodule_name: InvertedResidual
       num_repeat: 3
       args:
         out_channel: 160
@@ -95,7 +95,7 @@ args:
         expand_ratio: 6
   
     - input_idx: -1
-      layer: InvertedResidual
+      submodule_name: InvertedResidual
       num_repeat: 1
       args:
         out_channel: 160
@@ -103,7 +103,7 @@ args:
         stride: 2
         expand_ratio: 6
     - input_idx: -1
-      layer: InvertedResidual
+      submodule_name: InvertedResidual
       num_repeat: 2
       args:
         out_channel: 160
@@ -112,7 +112,7 @@ args:
         expand_ratio: 6
   
     - input_idx: -1
-      layer: InvertedResidual
+      submodule_name: InvertedResidual
       num_repeat: 1
       args:
         out_channel: 320
@@ -121,7 +121,7 @@ args:
         expand_ratio: 6
   
     - input_idx: -1
-      layer: ConvBNAct
+      submodule_name: ConvBNAct
       args: 
         out_channel: 1280
         kernel: 1
@@ -131,17 +131,17 @@ args:
         act: torch.nn.ReLU6
         bn: True
     - input_idx: -1
-      layer: GlobalPoolBNAct
+      submodule_name: GlobalPoolBNAct
       args:
         pool: avg
         bn: False
         act: False
     - input_idx: -1
-      layer: torch.nn.Dropout
+      submodule_name: torch.nn.Dropout
       args:
         p: 0.2
     - input_idx: -1
-      layer: torch.nn.Linear
+      submodule_name: torch.nn.Linear
       is_outlayer: True
       args:
         in_features: 1280

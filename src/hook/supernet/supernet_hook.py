@@ -1,28 +1,38 @@
+from builder import get_submodule_by_name, create_criterion
 from ..hook import HOOK, execute_period, OptHOOK
 
 def DARTSHOOK(HOOK):
-    def __init__(self, priority=0, optimizer, dataloader, criterion, update_freq=1, accumulate_gradient=1):
+    def __init__(self, optimizer_cfg, dataloader_name, criterion_cfg=None, update_freq=1, accumulate_gradient=1, priority=0, save_root=None):
         self.priority = priority
-        self.optimizer_hook = OptHOOK(optimizer, accumulate_gradient)
-        self.dataloader = dataloader
-        self.dataiter = iter(self.dataloader)
-        self.criterion = criterion
+        self.optimizer_cfg = optimizer_cfg
+        self.dataloader_name = dataloader_name
+        self.criterion_cfg = criterion_cfg
         self.update_freq = update_freq  
+        self.accumulate_gradient = accumulate_gradient
+        self.save_root = save_root
+        if self.save_root: 
+            os.makedirs(self.save_root, exist_ok=True)
 
 #    def _initialize_arch_param(arch_params):
 #        for p in arch_params:
 #            torch.nn.init.normal_(p, mean=0.0, std=1e-6)
-#
-#    def before_run(self, runner):
-#        arch_parameters = runner.model.get_arch_param()
-#        self._initialize_arch_param(arch_param)
 
-    def step(self, runner):
+    def before_run(self, runner):
+        self.optimizer_cfg['args']['params'] = runner.model.arch_parameters()
+#        self._initialize_arch_param(arch_param)
+        optimizer = get_submodule_by_name(self.optimizer_cfg.get('submodule_name'), search_path=('torch.optim',))(**self.optimizer_cfg['args'])
+        self.optimizer_hook = OptHOOK(optimizer, self.accumulate_gradient)
+        if self.criterion_cfg is not None:
+            create_criterion(self.criterion_cfg)
+        else:
+            self.criterion = runner.criterion
+        self.dataiter = iter(runner.dataloaders[self.dataloader_name])
+
+    def backward_arch_param(self, runner):
         arch_param = runner.model.get_arch_param()
         input_valid, target_valid = self.dataiter.next()
         logits = runner.model(input_valid)
         loss = self.criterion(logits, target_valid)
-        loss.backward()
 
         grads =  torch.autograd.grad(loss, arch_param, grad_outputs=torch.ones_like(loss), allow_unused=True)
         for v, g in zip(arch_param, grads):
@@ -41,10 +51,17 @@ def DARTSHOOK(HOOK):
     @execute_period("update_freq")
     def before_train_iter(self, runner):
         self.optimizer_hook.before_train_iter(runner)
-        self.step(runner)
+        self.backward_arch_param(runner)
         self.optimizer_hook.after_train_iter(runner)
 
     def after_train_epoch(self, runner):
         arch_param = runner.model.get_arch_param()
-        self.runner.model.discretize()
+        out_model_yaml = self.runner.model.discretize(depth_multiple=3, width_multiple=2.25)
+        yaml_file = os.path.join(self.save_root, "%d.yaml"%runner.info.current_epoch)
+        with open(yaml_file, encoding='utf-8', mode='w') as f:
+            try:
+                yaml.dump(data=model_yaml, stream=f, allow_unicode=True)
+            except Exception as e:
+                print(e)
+        runner.model.info_arch()
 

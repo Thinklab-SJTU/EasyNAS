@@ -44,12 +44,11 @@ class EvalAccHOOK(HOOK):
         runner.info.results.val.top1 = self.val_top1.avg
         runner.info.results.val.top5 = self.val_top5.avg
 
-#    def after_train_epoch(self, runner):
-#        self.loss.synchronize_between_processes()
-#        self.top1.synchronize_between_processes()
-#        self.top5.synchronize_between_processes()
-#        self.val_loss.synchronize_between_processes()
-#        self.val_top1.synchronize_between_processes()
-#        self.val_top5.synchronize_between_processes()
+    def after_val_epoch(self, runner):
+        best_top1 = runner.info.results.val.get('best_top1', 0)
+        runner.info.results.is_best = best_top1 < runner.info.results.val.top1
+        if runner.info.results.is_best:
+            runner.info.results.val.best_top1 = runner.info.results.val.top1
+        
 
 

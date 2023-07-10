@@ -1,24 +1,24 @@
+num_classes: 10
+input_size: 32
 dataset:
   train:
-    submodule_name: CIFAR10
-    module_name: dataset.datasets
+    submodule_name: src.datasets.CIFAR10
     dataset_args:
       root: ./data/
       train: True
       download: True
       transform: default
   val:
-    submodule_name: CIFAR10
-    module_name: dataset.datasets
+    submodule_name: src.datasets.CIFAR10
     pakcage_path: 
     dataset_args:
       root: ./data/
-      train: True
+      train: False
       download: True
       transform: default
 
 dataloader:
-  search_train:
+  train:
     dataset_name: train
     portion: 0.5
     dataloader_args:
@@ -34,4 +34,10 @@ dataloader:
       sampler: None
       pin_memory: True
       num_workers: 4
-
+  val:
+    dataset_name: val
+    use_dist: False
+    dataloader_args:
+      batch_size: 96
+      pin_memory: True
+      num_workers: 4

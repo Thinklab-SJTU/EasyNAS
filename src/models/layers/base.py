@@ -4,20 +4,20 @@ import torch.nn as nn
 
 from .utils import get_layer
 
-OP_CFG = namedtuple('OP_CFG', ['OPtype', 'args'])
+OP_CFG = namedtuple('OP_CFG', ['submodule_name', 'args'])
 
 darts_candidate_op = (
-       OP_CFG(OPtype='ConvBNAct', args=dict(kernel=3, dilation=1, pad=None, group=1, bn=True, act=nn.ReLU())),
-       OP_CFG(OPtype='ConvBNAct', args=dict(kernel=5, dilation=1, pad=None, group=1, bn=True, act=nn.ReLU())),
-       OP_CFG(OPtype='ConvBNAct', args=dict(kernel=3, dilation=2, pad=None, group=1, bn=True, act=nn.ReLU())),
-       OP_CFG(OPtype='ConvBNAct', args=dict(kernel=5, dilation=2, pad=None, group=1, bn=True, act=nn.ReLU())),
-       OP_CFG(OPtype='PoolBNAct', args=dict(pool='max', kernel=3, pad=None, bn=True, act=nn.ReLU())),
-       OP_CFG(OPtype='PoolBNAct', args=dict(pool='avg', kernel=3, pad=None, bn=True, act=nn.ReLU())),
-       OP_CFG(OPtype=nn.Identity, args={}),
+       OP_CFG(submodule_name='ConvBNAct', args=dict(kernel=3, dilation=1, pad=None, group=1, bn=True, act=nn.ReLU())),
+       OP_CFG(submodule_name='ConvBNAct', args=dict(kernel=5, dilation=1, pad=None, group=1, bn=True, act=nn.ReLU())),
+       OP_CFG(submodule_name='ConvBNAct', args=dict(kernel=3, dilation=2, pad=None, group=1, bn=True, act=nn.ReLU())),
+       OP_CFG(submodule_name='ConvBNAct', args=dict(kernel=5, dilation=2, pad=None, group=1, bn=True, act=nn.ReLU())),
+       OP_CFG(submodule_name='PoolBNAct', args=dict(pool='max', kernel=3, pad=None, bn=True, act=nn.ReLU())),
+       OP_CFG(submodule_name='PoolBNAct', args=dict(pool='avg', kernel=3, pad=None, bn=True, act=nn.ReLU())),
+       OP_CFG(submodule_name=nn.Identity, args={}),
                        )
 
 eautodet_candidate_op = (
-       OP_CFG(OPtype='SepConvBNAct_search', args=dict(
+       OP_CFG(submodule_name='SepConvBNAct_search', args=dict(
                        candidate_op=[(1,1), (3,1), (5,1), (3,2)], 
                        candidate_ch=[1.], 
                        gumbel_op=False, gumbel_channel=True,
@@ -27,11 +27,97 @@ eautodet_candidate_op = (
          ),
 )
 
+class SearchModule(nn.Module):
+    def __init__(self):
+        super(SearchModule, self).__init__()
+        self._arch_parameters = {}
+
+    def set_outOp(self, name=None):
+        setattr(self, 'outOp_name', self.__class__.__name__.rstrip("_search") if name is None else name)
+        setattr(self, 'outOp', get_layer(self.outOp_name))
+
+    def init_output_yaml(self, arch_yaml=None, outOp_name=None, input_idx=-1, **kwargs):
+        if arch_yaml is None:
+            new_arch = {
+                'submodule_name': outOp_name,
+                'input_idx': input_idx,
+                'args': {k: deepcopy(v) for k, v in inspect.signature(self.__init__).parameters.items()}}
+        else:
+            new_arch = deepcopy(arch_yaml)
+            new_arch['submodule_name'] = outOp_name
+            new_arch['input_idx'] = input_idx
+        for k, v in kwargs.items():
+            assert k in new_arch
+            new_arch['args'][k] = v
+
+        if outOp_name is not None:
+            outOp = get_layer(outOp_name)
+        else:
+            outOp_name, outOp = self.outOp_name, self.outOp
+        # del unused variables
+        need_key = inspect.signature(outOp.__init__).parameters.keys()
+        for k in new_arch['args'].keys():
+            if k not in need_key: del new_arch['args'][k]
+
+        return new_arch
+
+    def init_arch_parameters(self, arch_name, *shape):
+        arch_param = 1e-3*torch.randn(*shape, requires_grad=True)
+        if arch_name in self._arch_parameters: del self._arch_parameters[arch_name]
+        setattr(self, arch_name, arch_param)
+        self._arch_parameters[arch_name] = arch_param
+
+    #TODO
+    def set_arch_parameters(self, module_or_dict, recurse=True, memo=None):
+        if memo is None:
+            memo = set()
+        if module_or_dict in memo: return 
+        memo.add(module_or_dict)
+
+        if isinstance(module_or_dict, dict):
+            for na, np in module_or_dict.items():
+                assert hasattr(na in self._arch_parameters)
+                del self._arch_parameters[na]
+                self._arch_parameters[na] = np
+                delattr(self, na)
+                setattr(self, na, np)
+
+        elif isinstance(module_or_dict, nn.Module):
+            if isinstance(module_or_dict, SearchModule):
+                self.set_arch_paremeters(module_or_dict._arch_parameters)
+            if recurse:
+                for (dist_name, dist_module), (src_name, src_module) in zip(self.named_children(prefix="", remove_duplicate=True), module_or_dict.named_children(prefix="", remove_duplicate=True)):
+                    assert dist_name == src_name
+                    if dist_module not in memo:
+                        dist_module.set_arch_parameters(src_module, memo=memo)
+
+    def arch_parameters(self, recurse=True)
+        for name, param in self.named_arch_parameters(recurse=recurse):
+            yield param
+
+    def named_arch_parameters(self, prefix='', recurse=True, remove_duplicate=True):
+        gen = self._named_members(
+            lambda module: module._arch_parameters.items() if issubclass(module, SearchModule) else {},
+            prefix=prefix, recurse=recurse, remove_duplicate=remove_duplicate)
+        yield from gen
+
+    def norm_arch_parameters(self, alphas, gumbel=False):
+        return gumbel_softmax(F.log_softmax(alphas, dim=-1), hard=True) if gumbel else nn.functional.softmax(alphas, dim=-1)
+
+    def get_reserved_idx(self, num_reserved, weight):
+        return [x.item() for x in torch.topk(weight, k=num_reserved, dim=-1)[1]]
+
+    def discretize(self):
+        raise(NotImplementedError(f"No Implementation of genotype func for {self}"))
+
+    def forward(self, x):
+        raise(NotImplementedError("No implementation"))
+
 class OpBuilder(object):
     def __init__(self, auto_refine=False, adjust_ch_op=None, upsample_op=None): 
         self.auto_refine = auto_refine
-        self.adjust_ch_op = OP_CFG(OPtype='ConvBNAct', args=dict(kernel=1, dilation=1, bn=False, act=None)) if adjust_ch_op is None else adjust_ch_op
-        self.upsample_op = OP_CFG(OPtype=nn.Upsampling, args=dict(size=None, scale_factor=None, mode='nearest', align_corners=None)) if upsample_op is None else upsample_op
+        self.adjust_ch_op = OP_CFG(submodule_name='ConvBNAct', args=dict(kernel=1, dilation=1, bn=False, act=None)) if adjust_ch_op is None else adjust_ch_op
+        self.upsample_op = OP_CFG(submodule_name=nn.Upsampling, args=dict(size=None, scale_factor=None, mode='nearest', align_corners=None)) if upsample_op is None else upsample_op
 
     def refine_C_stride(self, op_config, in_channel, out_channel, stride, **update_args):
         if isinstance(op_config, OP_CFG):
@@ -55,7 +141,7 @@ class OpBuilder(object):
                 tmp_update_args = {}
                 for k, v in update_args:
                     tmp_update_args[k] = v[idx] if isinstance(v, [list, tuple]) else v
-                arg_names = inspect.getfullargspec(get_layer(refined_op.OPtype).__init__)
+                arg_names = inspect.getfullargspec(get_layer(refined_op.submodule_name).__init__)
                 if 'in_channel' in arg_names and 'out_channel' in arg_names: 
                     refined_op.args.update(in_channel=cin, out_channel=cout, stride=s, **tmp_update_args)
                 else:
@@ -82,10 +168,10 @@ class OpBuilder(object):
             if isinstance(config, [tuple, list]):
                 op = nn.Sequential()
                 for idx, sub_config in enumerate(config):
-                    module = get_layer(sub_config.OPtype) 
+                    module = get_layer(sub_config.submodule_name) 
                     op.add_module(idx, module(**sub_config.args))
             elif isinstance(config, OP_CFG):
-                module = get_layer(config.OPtype) 
+                module = get_layer(config.submodule_name) 
                 op = module(**config.args)
             else: 
                 raise(TypeError("op_config should be either OP_CFG or sequence"))
@@ -122,7 +208,7 @@ class OpLayer(nn.Module):
 #        self.gumbel_op = gumbel_op 
 #        self.gumbel_channel = gumbel_channel and len(candidate_ch)>1
 #
-#        self.adjust_ch_op = OP(OPtype='ConvBNAct_search', args=dict(candidate_op=[(1,1)], candidate_ch=candidate_ch, gumbel_channel=gumbel_channel, stride=1, bn=False, act=None, independent_ch_arch_param=False))
+#        self.adjust_ch_op = OP(submodule_name='ConvBNAct_search', args=dict(candidate_op=[(1,1)], candidate_ch=candidate_ch, gumbel_channel=gumbel_channel, stride=1, bn=False, act=None, independent_ch_arch_param=False))
 #
 #        self.candidate_op = candidate_op
 #        self.refined_candidate_op = self.refine_C_stride(candidiate_op, in_channel=in_channel, out_channnel=out_channel, stride=stride)
@@ -192,7 +278,7 @@ class OpLayer(nn.Module):
 #        if num > 0: # (Sep)ConvBNAct_search
 #            select_op = self.candidate_op[op_idx]
 #            layer_cfg = self.get_layer(select_op.Optype).genotype(select_op.args, op_alphas=op_alphas, ch_alphas=None, edge_alphas=None, num_reserved_op=num_reserved_op)
-#            new_cfg['module_args']['op'] = OP(OPtype=layer_cfg['module'], args=layer_cfg['module_args'])
+#            new_cfg['module_args']['op'] = OP(submodule_name=layer_cfg['module'], args=layer_cfg['module_args'])
 #        else:
 #            new_cfg['module_args']['op'] = self.candidate_op[op_idx]
 #

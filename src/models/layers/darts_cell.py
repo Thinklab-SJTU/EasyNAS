@@ -4,298 +4,124 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 #from mish_cuda import MishCuda as Mish
 
-from models.operations import *
+from .utils import get_act
+from .search_common import AFF, ConvBNAct
+from .base import SearchModule
 
+class FactorizedReduce(nn.Module):
 
-class MixedOp(nn.Module):
+  def __init__(self, C_in, C_out, affine=True, act=True):
+    super(FactorizedReduce, self).__init__()
+    assert C_out % 2 == 0
+    self.conv_1 = nn.Conv2d(C_in, C_out // 2, 1, stride=2, padding=0, bias=False)
+    self.conv_2 = nn.Conv2d(C_in, C_out // 2, 1, stride=2, padding=0, bias=False) 
+    self.bn = nn.BatchNorm2d(C_out, affine=affine)
+    self.act = get_act(act)
+#    self.act = nn.ReLU(inplace=False) if act else nn.Identity()
+#    self.act = nn.SiLU() if act else nn.Identity()
+#    self.act = Mish() if act else nn.Identity()
 
-  def __init__(self, C, stride):
-    super(MixedOp, self).__init__()
-    self._ops = nn.ModuleList()
-    for primitive in PRIMITIVES:
-      op = OPS[primitive](C, stride, False)
-      if 'pool' in primitive:
-        op = nn.Sequential(op, nn.BatchNorm2d(C, affine=False))
-      self._ops.append(op)
-
-  def forward(self, x, weights):
-    return sum(w * op(x) for w, op in zip(weights, self._ops))
-
-  def forward_single(self, x, weights):
-    index = weights.max(-1, keepdim=True)[1].item()
-    return weights[index] * self._ops[index](x)
-
-class Search_cell(nn.Module):
-    def __init__(self, steps, multiplier, C_prev_prev, C_prev, C, reduction, reduction_prev, gumbel_op=False):
-        super(Search_cell, self).__init__()
-        self.reduction = reduction
-        self._multiplier = multiplier
-        self.gumbel_op = gumbel_op
-
-        self.preprocess0 = None
-        if C_prev_prev is not None:
-          self.num_input = 2
-          if reduction_prev:
-            self.preprocess0 = FactorizedReduce(C_prev_prev, C, affine=False, act=True)
-          else:
-            self.preprocess0 = ReLUConvBN(C_prev_prev, C, 1, 1, 0, act=True)
-        else: 
-          self.num_input = 1
-        self.preprocess1 = ReLUConvBN(C_prev, C, 1, 1, 0, act=True)
-        self._steps = steps
-
-        self._ops = nn.ModuleList()
-        self._bns = nn.ModuleList()
-        for i in range(self._steps):
-          for j in range(self.num_input+i):
-            stride = 2 if reduction and j < self.num_input else 1
-            op = MixedOp(C, stride)
-            self._ops.append(op)
-        self.final_act = nn.ReLU(inplace=False)
-#        self.final_act = nn.SiLU()
-#        self.final_act = Mish()
-
-    def forward(self, inputs, weights):
-        assert(len(inputs)<=2)
-        if len(inputs)==2:
-          s0, s1 = inputs
-          s0 = self.preprocess0(s0)
-          s1 = self.preprocess1(s1)
-          states = [s0, s1]
-        else:
-          s1 = inputs[0]
-          s1 = self.preprocess1(s1)
-          states = [s1]
-
-        offset = 0
-        for i in range(self._steps):
-          if self.gumbel_op:
-            s = sum([self._ops[offset+j].forward_single(h, weights[offset+j]) for j, h in enumerate(states)])
-          else:
-            s = sum([self._ops[offset+j](h, weights[offset+j]) for j, h in enumerate(states)])
-          offset += len(states)
-          states.append(s)
-#        return torch.cat(states[-self._multiplier:], dim=1)
-        return self.final_act(torch.cat(states[-self._multiplier:], dim=1))
+  def forward(self, x):
+    out = torch.cat([self.conv_1(out), self.conv_2(out[:,:,1:,1:])], dim=1)
+    out = self.bn(out)
+    out = self.act(x)
+    return out
 
 class Cell(nn.Module):
+  def __init__(self, in_channels, out_channel, strides, 
+               ops, edges, multiplier,
+               act=nn.ReLU(), bn=True)
+      super(Cell, self).__init__()
+      self._steps = len(op)
+      self.edges = edges
+      self._multiplier = multiplier
+      C = out_channel // multiplier
 
-  def __init__(self, genotype, concat, C_prev_prev, C_prev, C, reduction, reduction_prev):
-    super(Cell, self).__init__()
-    print(C_prev_prev, C_prev, C)
+      reduction = True
+      for s in strides:
+          if s==1: 
+              reduction = False
+              break
+      self.preprocess = nn.ModuleList([])
+      for cin, s in zip(in_channels, strides):
+          self.preprocess.append(FactorizedReduce(cin, C, act=act) if not reduction and s==2 else ConvBNAct(cin, C, kernel=1, stride=1, act=act, bn=True))
 
-    if C_prev_prev is not None:
-      self.num_input = 2
-      if reduction_prev:
-        self.preprocess0 = FactorizedReduce(C_prev_prev, C, act=True)
-      else:
-        self.preprocess0 = ReLUConvBN(C_prev_prev, C, 1, 1, 0, act=True)
-    else:
-      self.preprocess0 = None
-      self.num_input = 1
-    self.preprocess1 = ReLUConvBN(C_prev, C, 1, 1, 0, act=True)
-    
-    op_names, indices = zip(*genotype)
-    concat = concat
-    self._compile(C, op_names, indices, concat, reduction)
-    self.final_act = nn.ReLU(inplace=False)
-#    self.final_act = Mish()
-
-  def _compile(self, C, op_names, indices, concat, reduction):
-    assert len(op_names) == len(indices)
-    self._steps = len(op_names) // 2
-    self._concat = concat
-    self.multiplier = len(concat)
-
-    self._ops = nn.ModuleList()
-    for name, index in zip(op_names, indices):
-      stride = 2 if reduction and index < self.num_input else 1
-      op = OPS[name](C, stride, True)
-      self._ops += [op]
-    self._indices = indices
-
-  def forward(self, inputs, drop_prob=0.0):
-    assert(len(inputs)<=2)
-    if len(inputs)==2:
-      s0, s1 = inputs
-      s0 = self.preprocess0(s0)
-      s1 = self.preprocess1(s1)
-      states = [s0, s1]
+      self._ops = nn.ModuleList()
+      tmp_cins, tmp_strides = [C for _ in range(len(in_channels))], strides.copy()
       for i in range(self._steps):
-        h1 = states[self._indices[2*i]]
-        h2 = states[self._indices[2*i+1]]
-        op1 = self._ops[2*i]
-        op2 = self._ops[2*i+1]
-        h1 = op1(h1)
-        h2 = op2(h2)
-        if self.training and drop_prob > 0.:
-          if not isinstance(op1, Identity):
-            h1 = drop_path(h1, drop_prob)
-          if not isinstance(op2, Identity):
-            h2 = drop_path(h2, drop_prob)
-        s = h1 + h2
-        states += [s]
-    else:
-      s1 = inputs[0]
-      s1 = self.preprocess1(s1)
-      states = [s1]
-      for i in range(self._steps):
-        h1 = states[self._indices[i]]
-        op1 = self._ops[i]
-        h1 = op1(h1)
-        if self.training and drop_prob > 0.:
-          if not isinstance(op1, Identity):
-            h1 = drop_path(h1, drop_prob)
-        s = h1
-        states += [s]
+          ops['args'].update(
+              in_channels=in_channels=[tmp_cins[e] for e in edges[i]],
+              out_channel=C,
+              strides=[tmp_strides[e] for e in edges[i]],
+          )
+          self._ops.append(get_layer(ops[i]['submodule_name'])(**ops[i]['args']))
+          tmp_cins.append(C)
+          strides.append(1)
 
-    return self.final_act(torch.cat([states[i] for i in self._concat], dim=1))
+  def forward(self, inputs):
+      xs = []
+      for x, pre_op in zip(inputs, self.preprocess):
+          xs.append(pre_op(x))
 
-def genotype(alphas, steps, multiplier, num_input=2):
-    def _parse(weights):
-      gene = []
-      n = num_input
-      start = 0
-      try:
-        none_idx = PRIMITIVES.index('none')
-      except:
-        none_idx = -1
-      for i in range(steps):
-        end = start + n
-        W = weights[start:end].copy()
-        edges = sorted(range(i + num_input), key=lambda x: -max(W[x][k] for k in range(len(W[x])) if k != none_idx))[:num_input]
-        for j in edges:
-          k_best = None
-          for k in range(len(W[j])):
-            if k != none_idx:
-              if k_best is None or W[j][k] > W[j][k_best]:
-                k_best = k
-          gene.append((PRIMITIVES[k_best], j))
-        start = end
-        n += 1
-      return gene
+      for op, edge in enumerate(self._ops, self.edges):
+          xs.append(op([xs[e] for e in edge]))
+      return torch.cat(xs[-self._multiplier:], dim=1)
 
-    geno = _parse(F.softmax(alphas, dim=-1).data.cpu().numpy())
 
-    concat = list(range(2+steps-multiplier, steps+2))
-    return geno, concat
 
-class Cells_search(nn.Module):
-    def __init__(self, steps, multiplier, C_prev_prev, C_prev, C, reduction, reduction_prev, N=1, gumbel_op=False):
-        super(Cells_search, self).__init__()
+class Cell_search(SearchModule):
+    def __init__(self, in_channels, out_channel, strides, 
+                 steps=4, multiplier=4,
+                 candidate_op=darts_candidate_op, gumbel_op=False, gumbel_edge=False, 
+                 act=nn.ReLU(), bn=True,
+                 independent_ch_arch_param=True, independent_op_arch_param=True, independent_edge_arch_param=True):
+
+        super(Cell_search, self).__init__()
         self._steps = steps
-        self.gumbel_op = gumbel_op
-        self.cells = nn.ModuleList()
-        C_curr = C
-        self.num_input = 1 if C_prev_prev==None else 2
-        for i in range(N):
-          cell = Search_cell(steps, multiplier, C_prev_prev, C_prev, C_curr, reduction, reduction_prev, gumbel_op)
-          C_prev_prev, C_prev = C_prev, multiplier*C_curr
-          if self.num_input==1: C_prev_prev = None
-          reduction_prev = reduction
-          reduction = False
-          self.cells.append(cell)
+        self._multiplier = multiplier
+        C = out_channel // multiplier
 
-        k = sum(1 for i in range(self._steps) for n in range(self.num_input+i))
-        self.register_buffer('alphas', torch.autograd.Variable(1e-3*torch.randn(k, len(PRIMITIVES)), requires_grad=True))
+        reduction = True
+        for s in strides:
+            if s==1: 
+                reduction = False
+                break
+        self.preprocess = nn.ModuleList([])
+        for cin, s in zip(in_channels, strides):
+            self.preprocess.append(FactorizedReduce(cin, C, act=act) if not reduction and s==2 else ConvBNAct(cin, C, kernel=1, stride=1, act=act, bn=True))
 
-    def forward(self, x):
-        assert(len(x)==self.num_input)
-        if self.gumbel_op: weights = gumbel_softmax(F.log_softmax(self.alphas, dim=-1), hard=True)
-        else: weights = F.softmax(self.alphas, dim=-1)
-        if self.num_input == 2:
-          s0, s1 = x[:2]
-          for cell in self.cells:
-            s0, s1 = s1, cell([s0,s1], weights)
-        else:
-          s1 = x[-1]
-          for cell in self.cells:
-            s1 = cell([s1], weights)
-            
-        return s1
+        self._ops = nn.ModuleList()
+        tmp_cins, tmp_strides = [C for _ in range(len(in_channels))], strides.copy()
+        for i in range(self._steps):
+            self._ops.append(AFF(in_channels=tmp_cins,
+                                 out_channel=C,
+                                 strides=tmp_strides,
+                                 candidate_op=candidate_op,
+                                 gumbel_op=gumbel_op,
+                                 gumbel_edge=gumbel_edge,
+                                 act=act, bn=bn,
+                                 ))
+            tmp_cins.append(C)
+            strides.append(1)
 
-    def get_alphas(self):
-        alphas = self.get_op_alphas()
-        return alphas
+    def forward(self, inputs):
+        xs = []
+        for x, pre_op in zip(inputs, self.preprocess):
+            xs.append(pre_op(x))
 
-    def get_op_alphas(self):
-        alphas = [self.alphas]
-        return alphas
+        for op in self._ops:
+            xs.append(op(xs))
+        return torch.cat(xs[-self._multiplier:], dim=1)
 
-    def get_ch_alphas(self):
-        return [None]
 
-class Cells_search_merge(nn.Module):
-    def __init__(self, steps, multiplier, C_prev_prev, C_prev, C, reduction, reduction_prev, N=1, gumbel_op=False):
-        super(Cells_search_merge, self).__init__()
-        self._steps = steps
-        self.gumbel_op = gumbel_op
-        self.cells = nn.ModuleList()
-        C_curr = C
-        self.num_input = 1 if C_prev_prev==None else 2
-        for i in range(N):
-          cell = Search_cell_merge(steps, multiplier, C_prev_prev, C_prev, C_curr, reduction, reduction_prev, gumbel_op)
-          C_prev_prev, C_prev = C_prev, multiplier*C_curr
-          if self.num_input==1: C_prev_prev = None
-          reduction_prev = reduction
-          reduction = False
-          self.cells.append(cell)
+    def discretize(self, cfg, op_alphas=None, ch_alphas=None, edge_alphas=None, num_reserved_op=1, num_reserved_edge=2):
+        args = {'ops': [], 'edges': []}
+        for i in range(self._steps):
+            op = self._ops[i].discretize()
+            edge = op.pop('input_idx')
+            args['ops'].append(op)
+            args['edges'].append(edge)
+        new_cfg = self.init_output_yaml(cfg, outOp_name="Cell", input_idx=[-2,-1], **args)
 
-        k = sum(1 for i in range(self._steps) for n in range(self.num_input+i))
-        self.register_buffer('alphas', torch.autograd.Variable(1e-3*torch.randn(k, len(PRIMITIVES)), requires_grad=True))
 
-    def forward(self, x):
-        assert(len(x)==self.num_input)
-        if self.gumbel_op: weights = gumbel_softmax(F.log_softmax(self.alphas, dim=-1), hard=True)
-        else: weights = F.softmax(self.alphas, dim=-1)
-        if self.num_input == 2:
-#          s0, s1 = x[:2]
-          for cell in self.cells:
-#            s0, s1 = s1, cell([s0,s1], weights)
-             s1 = cell(x[-2:], weights)
-             x.append(s1)
-        else:
-          s1 = x[-1]
-          for cell in self.cells:
-            s1 = cell([s1], weights)
-            
-        return s1
-
-    def get_alphas(self):
-        alphas = self.get_op_alphas()
-        return alphas
-
-    def get_op_alphas(self):
-        alphas = [self.alphas]
-        return alphas
-
-    def get_ch_alphas(self):
-        return [None]
-    
-class Cells(nn.Module):
-    def __init__(self, genotype, concat, C_prev_prev, C_prev, C, reduction, reduction_prev, N=1, drop_path_prob=0.0):
-        super(Cells, self).__init__()
-        self.drop_path_prob = drop_path_prob
-        self.cells = nn.ModuleList()
-        C_curr = C
-        self.num_input = 1 if C_prev_prev==None else 2
-        for i in range(N):
-          cell = Cell(genotype, concat, C_prev_prev, C_prev, C_curr, reduction, reduction_prev)
-          C_prev_prev, C_prev = C_prev, cell.multiplier*C_curr
-          if self.num_input==1: C_prev_prev = None
-          reduction_prev = reduction
-          reduction = False
-          self.cells.append(cell)
-
-    def forward(self, x):
-        assert(len(x)==self.num_input)
-        if self.num_input == 2:
-          s0, s1 = x[:2]
-          for cell in self.cells:
-            s0, s1 = s1, cell([s0,s1], self.drop_path_prob)
-        else:
-          s1 = x[-1]
-          for cell in self.cells:
-            s1 = cell([s1], self.drop_path_prob)
-        return s1
 
