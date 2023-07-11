@@ -7,6 +7,7 @@ from src.hook import HOOK, OptHOOK
 class Trainer(object):
     def __init__(self, dataloaders:dict, model, criterion, optimizer, lr_scheduler, hooks: List[HOOK]=[], local_rank=-1, sync_bn=False, amp=False):
 
+        self.dataloaders = dataloaders
         self.train_loader, self.val_loader, self.test_loader = dataloaders.get('train', None), dataloaders.get('val', None), dataloaders.get('test', None)
         assert self.train_loader is not None
 
@@ -20,11 +21,12 @@ class Trainer(object):
 #            # convert BN to SyncBN
             if sync_bn:
                 model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
-            model = model.to(self.device)
+#            model = model.to(self.device)
             self.model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[self.local_rank], output_device=self.local_rank)
 #            model_without_ddp = model.module
         else:
-            self.model = model.to(self.device)
+            self.model = model
+#            self.model = model.to(self.device)
 
         self.criterion = criterion.to(self.device)
         self.start_epoch = 0

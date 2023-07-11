@@ -15,7 +15,7 @@ darts_candidate_op = (
        OP_CFG(submodule_name='ConvBNAct', args=dict(kernel=5, dilation=2, pad=None, group=1, bn=True, act=nn.ReLU())),
        OP_CFG(submodule_name='PoolBNAct', args=dict(pool='max', kernel=3, pad=None, bn=True, act=nn.ReLU())),
        OP_CFG(submodule_name='PoolBNAct', args=dict(pool='avg', kernel=3, pad=None, bn=True, act=nn.ReLU())),
-       OP_CFG(submodule_name='torch.nn.Identity', args={}),
+#       OP_CFG(submodule_name='torch.nn.Identity', args={}),
                        )
 
 eautodet_candidate_op = (
@@ -64,10 +64,40 @@ class SearchModule(nn.Module):
         return new_arch
 
     def init_arch_parameters(self, arch_name, *shape):
-        arch_param = 1e-3*torch.randn(*shape, requires_grad=True)
+#        arch_param = 1e-3*torch.randn(*shape, requires_grad=True)
+        arch_param = torch.normal(mean=0, std=1e-6, size=shape, requires_grad=True)
         if arch_name in self._arch_parameters: del self._arch_parameters[arch_name]
         setattr(self, arch_name, arch_param)
         self._arch_parameters[arch_name] = arch_param
+
+    def apply_arch_parameters(self, fn, recurse=True, memo=None):
+        if memo is None:
+            memo = set()
+        memo.add(self)
+        for key, param in self._arch_parameters.items():
+            if param is None:
+                continue
+            # Tensors stored in modules are graph leaves, and we don't want to
+            # track autograd history of `param_applied`, so we have to use
+            # `with torch.no_grad():`
+            with torch.no_grad():
+                param_applied = fn(param)
+            assert param.is_leaf
+            out_param = param_applied.requires_grad_(param.requires_grad)
+            self._arch_parameters[key] = out_param
+
+            if param.grad is not None:
+                with torch.no_grad():
+                    grad_applied = fn(param.grad)
+                assert param.grad.is_leaf
+                out_param.grad = grad_applied.requires_grad_(param.grad.requires_grad)
+
+        if recurse:
+            for module in self.modules():
+                if isinstance(module, SearchModule) and module not in memo:
+                    module.apply_arch_parameters(fn, memo)
+
+
 
     def set_arch_parameters(self, module_or_dict, recurse=True, memo=None):
         if memo is None:
@@ -97,8 +127,10 @@ class SearchModule(nn.Module):
 
     def named_arch_parameters(self, prefix='', recurse=True, remove_duplicate=True):
         gen = self._named_members(
-            lambda module: module._arch_parameters.items() if issubclass(module, SearchModule) else {},
-            prefix=prefix, recurse=recurse, remove_duplicate=remove_duplicate)
+            lambda module: module._arch_parameters.items() if isinstance(module, SearchModule) else {},
+            prefix=prefix, recurse=recurse,
+#            remove_duplicate=remove_duplicate
+            )
         yield from gen
 
     def norm_arch_parameters(self, alphas, gumbel=False):
@@ -125,7 +157,7 @@ class OpBuilder(object):
         refined_op_config = []
         if isinstance(in_channel, int): in_channel = (in_channel,)*len(op_config)
         if isinstance(out_channel, int): out_channel = (out_channel,)*len(op_config)
-        if isinstance(stride, int): stride = (stride,) + (1,)*len(op_config)
+        if isinstance(stride, int): stride = (stride,)*len(op_config)
         for idx, (cin, cout, s, op) in enumerate(zip(in_channel, out_channel, stride, op_config)):
             if isinstance(op, OP_CFG):
                 refined_op = deepcopy(op)

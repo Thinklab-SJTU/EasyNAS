@@ -1,7 +1,11 @@
-from builder import get_submodule_by_name, create_criterion
-from ..hook import HOOK, execute_period, OptHOOK
+import os
+import torch
 
-def DARTSHOOK(HOOK):
+from builder import get_submodule_by_name, create_criterion
+from ..hook import HOOK, execute_period 
+from .. import OptHOOK
+
+class DARTSHOOK(HOOK):
     def __init__(self, optimizer_cfg, dataloader_name, criterion_cfg=None, update_freq=1, accumulate_gradient=1, priority=0, save_root=None):
         self.priority = priority
         self.optimizer_cfg = optimizer_cfg
@@ -20,17 +24,27 @@ def DARTSHOOK(HOOK):
     def before_run(self, runner):
         self.optimizer_cfg['args']['params'] = runner.model.arch_parameters()
 #        self._initialize_arch_param(arch_param)
-        optimizer = get_submodule_by_name(self.optimizer_cfg.get('submodule_name'), search_path=('torch.optim',))(**self.optimizer_cfg['args'])
-        self.optimizer_hook = OptHOOK(optimizer, self.accumulate_gradient)
+        self.optimizer = get_submodule_by_name(self.optimizer_cfg.get('submodule_name'), search_path=('torch.optim',))(**self.optimizer_cfg['args'])
+        self.optimizer_hook = OptHOOK(self.optimizer, self.accumulate_gradient)
         if self.criterion_cfg is not None:
-            create_criterion(self.criterion_cfg)
+            self.criterion = create_criterion(self.criterion_cfg)
         else:
             self.criterion = runner.criterion
-        self.dataiter = iter(runner.dataloaders[self.dataloader_name])
+        self.dataloader = runner.dataloaders[self.dataloader_name]
+        self.dataiter = iter(self.dataloader)
 
     def backward_arch_param(self, runner):
-        arch_param = runner.model.get_arch_param()
-        input_valid, target_valid = self.dataiter.next()
+        arch_param = runner.model.arch_parameters()
+        try:
+            input_valid, target_valid = self.dataiter.next()
+        except StopIteration:
+            self.dataiter = iter(self.dataloader)
+            input_valid, target_valid = self.dataiter.next()
+        except Exception as e:
+            raise(e)
+
+        target_valid = target_valid.to(runner.device, non_blocking=True)
+        input_valid = input_valid.to(runner.device, non_blocking=True)
         logits = runner.model(input_valid)
         loss = self.criterion(logits, target_valid)
 
@@ -45,13 +59,15 @@ def DARTSHOOK(HOOK):
             if not (g is None):
               v.grad.data.add_(g.data)
 
-    def before_train_epoch(self, runner)
-        self.dataiter = iter(self.dataloader)
+#    def before_train_epoch(self, runner):
+#        self.dataiter = iter(self.dataloader)
 
     @execute_period("update_freq")
     def before_train_iter(self, runner):
         self.optimizer_hook.before_train_iter(runner)
         self.backward_arch_param(runner)
+#        self.optimizer.step()
+#        self.optimizer.zero_grad()
         self.optimizer_hook.after_train_iter(runner)
 
     def after_train_epoch(self, runner):

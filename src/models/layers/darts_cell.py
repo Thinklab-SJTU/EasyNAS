@@ -23,9 +23,9 @@ class FactorizedReduce(nn.Module):
 #    self.act = Mish() if act else nn.Identity()
 
   def forward(self, x):
-    out = torch.cat([self.conv_1(out), self.conv_2(out[:,:,1:,1:])], dim=1)
+    out = torch.cat([self.conv_1(x), self.conv_2(x[:,:,1:,1:])], dim=1)
     out = self.bn(out)
-    out = self.act(x)
+    out = self.act(out)
     return out
 
 class Cell(nn.Module):
@@ -92,7 +92,7 @@ class Cell_search(SearchModule):
             self.preprocess.append(FactorizedReduce(cin, C, act=act) if not reduction and s==2 else ConvBNAct(cin, C, kernel=1, stride=1, act=act, bn=True))
 
         self._ops = nn.ModuleList()
-        tmp_cins, tmp_strides = [C for _ in range(len(in_channel))], strides.copy()
+        tmp_cins, tmp_strides = [C for _ in range(len(in_channel))], strides.copy() if reduction else [1 for _ in range(len(strides))]
         for i in range(self._steps):
             self._ops.append(AFF(in_channel=tmp_cins,
                                  out_channel=C,

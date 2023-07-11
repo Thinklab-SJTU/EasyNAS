@@ -2,16 +2,18 @@ import torch
 from ..hook import HOOK, execute_period
 
 class OptHOOK(HOOK):
-    def __init__(self, accumulate_gradient=1, grad_clip=None, priority=0):
+    def __init__(self, optimizer=None, accumulate_gradient=1, grad_clip=None, priority=0):
         self.priority = priority
         self.accumulate_gradient = accumulate_gradient
+        self.optimizer = optimizer
         self.grad_clip = grad_clip
 
     def initialize(self, ckpt_opt): 
         self.optimizer.load_state_dict(ckpt_opt)
 
     def before_run(self, runner):
-        self.optimizer = runner.optimizer
+        if self.optimizer is None:
+            self.optimizer = runner.optimizer
         self.amp = runner.amp
         self.optimizer.zero_grad()
 
@@ -24,7 +26,6 @@ class OptHOOK(HOOK):
         if self.grad_clip:
             torch.nn.utils.clip_grad_norm_(runner.model.parameters(), self.grad_clip)
         scaler = getattr(runner, 'scaler', None)
-        loss = runner.info.train_bs_loss
         if scaler:
             scaler.step(self.optimizer)
             scaler.update()

@@ -6,6 +6,7 @@ import logging
 log_format = '%(asctime)s %(message)s'
 logging.basicConfig(stream=sys.stdout, level=logging.INFO, format=log_format, datefmt='%m/%d %I:%M:%S %p')
 
+import numpy as np
 import torch
 import torch.nn as nn
 import thop
@@ -27,6 +28,8 @@ def get_outchannel(cin, layer_name, args):
 class BaseModel(nn.Module):
     def __init__(self, architecture, output_ch, input_ch=3, input_size=None, depth_multiple=1., width_multiple=1., width_divisible=1, log_path=None, init_func=None, local_rank=-1):
         super(BaseModel, self).__init__()
+        self.device = torch.device('cuda', max(local_rank, 0))
+
         self.logger = logging.getLogger('model_builder')
         if log_path and local_rank in [-1, 0]:
             fh = logging.FileHandler(log_path)
@@ -46,6 +49,7 @@ class BaseModel(nn.Module):
         else: self.apply(default_init_weights)
 
         self.info(input_size)
+        self.to(self.device)
 
 
     def info(self, input_size=None):
@@ -134,27 +138,47 @@ class SearchModel(BaseModel, SearchModule):
                     else:
                         m_.set_arch_parameters(module, recurse=True)
                 elif arch_yaml.get('repeat_arch', False) and num_repeat > 1:
+                    m_[0].apply_arch_parameters(lambda x: x.to(self.device))
                     for l in range(1, num_repeat):
                         m_[l].set_arch_parameters(m_[0], recurse=True)
+                else:
+                    if num_repeat > 1:
+                        for l in range(num_repeat):
+                            m[l].apply_arch_parameters(lambda x: x.to(self.device))
+                    else:
+                        m_.apply_arch_parameters(lambda x: x.to(self.device))
 
 
     def info_arch(self): 
-        self.logger.info("="*20+"\n Search Layers") 
-        self.logger.info('%3s%20s%10s%10s  %-40s' % ('idx', 'layer', 'repeat', 'repeat_arch', 'arch_parameters')) 
+        self.logger.info("="*10+"Search Layers arch_parameters"+"="*10) 
+        self.logger.info('%3s%20s%10s%20s  %-40s' % ('idx', 'layer', 'repeat', 'repeat_arch', 'arch_parameters')) 
+        hash_param = {}
         for i, m_ in enumerate(self.model): 
             if issubclass(m_.type, SearchModule):
                 arch_yaml = m_.arch_yaml 
                 num_repeat = arch_yaml.get('num_repeat', 1) 
                 repeat_arch = arch_yaml.get('repeat_arch', False) 
-                self.logger.info('%3s%20s%10s%10s' % (i, m_.type, num_repeat, repeat_arch)) 
-                if num_repeat == 1: 
+                self.logger.info('%3s%20s%10s%20s' % (i, arch_yaml['submodule_name'], num_repeat, repeat_arch)) 
+                if num_repeat == 1 or repeat_arch: 
                     for name, v in m_.named_arch_parameters(recurse=True):
-                        self.logger(name, v)
+                        if v in hash_param: 
+                            self.logger.info(f"{name} is the same as {hash_param[v]}")
+                        else:
+                            self.logger.info(name)
+                            self.logger.info(v.cpu().data.numpy())
+                            hash_param[v] = f"Layer{i}:{name}"
+#                        self.logger.info('%10s  %-40s' % (name, v.data.numpy().tolist()))
                 else: 
                     for l in range(num_repeat):
                         for name, v in m_[l].named_arch_parameters(recurse=True):
-                            self.logger(name, v)
-        self.logger.info("="*20)
+                            if v in hash_param: 
+                                self.logger.info(f"{name} is the same as {hash_param[v]}")
+                            else:
+                                self.logger.info(name)
+                                self.logger.info(v.data.numpy())
+                                hash_param[v] = f"Layer{i}:repeat{l}:{name}"
+#                            self.logger.info('%10s  %-40s' % (name, v.data.numpy().tolist()))
+        self.logger.info("="*40)
 
     def discretize(self, outOp_name='BaseModel', depth_multiple=1., width_multiple=1.):
         new_cfg = self.init_output_yaml(outOp_name=outOp_name, depth_multiple=depth_multiple, width_multiple=width_multiple)

@@ -344,18 +344,18 @@ class AFF(SearchLayer):
 
     def forward_edge(self, x, edge_module, op_alphas, ch_alphas):
         out, ptr = 0., 0
-        for idx, (op, num_alphas_each_op) in enumerate(zip(op_alphas, self.ops, self.num_alphas_each_op)):
+        for idx, (op, num_alphas_each_op) in enumerate(zip(edge_module, self.num_alphas_each_op)):
             if num_alphas_each_op > 0: 
                 end_ptr = ptr + num_alphas_each_op
-                out = out + op(x, op_alphas=op_alpha[ptr:end_ptr], ch_alphas=ch_alphas)
+                out = out + op(x, op_alphas=op_alphas[ptr:end_ptr], ch_alphas=ch_alphas)
                 ptr = end_ptr
             else: 
-                out = out + op_alpha[ptr] * op(x)
+                out = out + op_alphas[ptr] * op(x)
                 ptr += 1
 
         return out
 
-    def forward(self, xs, op_alphas=None, ch_alphas=None, edge_alpha=None):
+    def forward(self, xs, op_alphas=None, ch_alphas=None, edge_alphas=None):
         op_alphas = op_alphas if op_alphas is not None else (self.norm_arch_param(self.op_alphas, self.gumbel_op) if hasattr(self, 'op_alphas') else [1.])
         ch_alphas = ch_alphas if ch_alphas is not None else (self.norm_arch_param(self.ch_alphas, self.gumbel_channel) if hasattr(self, 'ch_alphas') else [1.])
         edge_alphas = edge_alphas if edge_alphas is not None else (self.norm_arch_param(self.edge_alphas, self.gumbel_edge) if hasattr(self, 'edge_alphas') else [1.]*len(self.cin))

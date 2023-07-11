@@ -1,12 +1,10 @@
 import os
 import yaml
 from copy import deepcopy
-from .utils import CfgLoader, parse_cfg
 
+from .utils import CfgLoader, parse_cfg, get_submodule_by_name
 from .dataloader import create_dataloader 
 from .optimizer import create_optimizer
-
-from .utils import get_submodule_by_name
 
 def create_criterion(cfg: dict):
     return get_submodule_by_name(cfg.get('submodule_name'), search_path='torch.nn.criterion')(**cfg.get('args', {}))
