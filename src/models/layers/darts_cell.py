@@ -4,29 +4,22 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 #from mish_cuda import MishCuda as Mish
 
-from .base import SearchModule, darts_candidate_op
-from .common import ConvBNAct
+from .base import SearchModule
+from .search_space import get_search_space, darts
+from .common import ConvBNAct, FactorizedReduce
 from .search_common import AFF
 from .utils import get_act
 
-class FactorizedReduce(nn.Module):
+class darts_identity(nn.Module):
+    def __init__(self, in_channel, out_channel, stride, affine=True, act=True):
+        super(darts_identity, self).__init__()
+        if stride == 1:
+            self.op = nn.Identity()
+        else: self.op = FactorizedReduce(in_channel, out_channel, stride, affine, act)
+    
+    def forward(self, x):
+        return self.op(x)
 
-  def __init__(self, C_in, C_out, affine=True, act=True):
-    super(FactorizedReduce, self).__init__()
-    assert C_out % 2 == 0
-    self.conv_1 = nn.Conv2d(C_in, C_out // 2, 1, stride=2, padding=0, bias=False)
-    self.conv_2 = nn.Conv2d(C_in, C_out // 2, 1, stride=2, padding=0, bias=False) 
-    self.bn = nn.BatchNorm2d(C_out, affine=affine)
-    self.act = get_act(act)
-#    self.act = nn.ReLU(inplace=False) if act else nn.Identity()
-#    self.act = nn.SiLU() if act else nn.Identity()
-#    self.act = Mish() if act else nn.Identity()
-
-  def forward(self, x):
-    out = torch.cat([self.conv_1(x), self.conv_2(x[:,:,1:,1:])], dim=1)
-    out = self.bn(out)
-    out = self.act(out)
-    return out
 
 class Cell(nn.Module):
   def __init__(self, in_channel, out_channel, strides, 
@@ -45,10 +38,10 @@ class Cell(nn.Module):
               break
       self.preprocess = nn.ModuleList([])
       for cin, s in zip(in_channel, strides):
-          self.preprocess.append(FactorizedReduce(cin, C, act=act) if not reduction and s==2 else ConvBNAct(cin, C, kernel=1, stride=1, act=act, bn=True))
+          self.preprocess.append(FactorizedReduce(cin, C, stride=2, act=act) if not reduction and s==2 else ConvBNAct(cin, C, kernel=1, stride=1, act=act, bn=True))
 
       self._ops = nn.ModuleList()
-      tmp_cins, tmp_strides = [C for _ in range(len(in_channel))], strides.copy()
+      tmp_cins, tmp_strides = [C for _ in range(len(in_channel))], strides.copy() if reduction else [1 for _ in range(len(strides))]
       for i in range(self._steps):
           ops['args'].update(
               in_channel=[tmp_cins[e] for e in edges[i]],
@@ -73,7 +66,7 @@ class Cell(nn.Module):
 class Cell_search(SearchModule):
     def __init__(self, in_channel, out_channel, strides, 
                  steps=4, multiplier=4,
-                 candidate_op=darts_candidate_op, gumbel_op=False, gumbel_edge=False, 
+                 candidate_op=darts, gumbel_op=False, gumbel_edge=False, 
                  act=nn.ReLU(), bn=True,
                  independent_ch_arch_param=True, independent_op_arch_param=True, independent_edge_arch_param=True):
 
@@ -89,8 +82,9 @@ class Cell_search(SearchModule):
                 break
         self.preprocess = nn.ModuleList([])
         for cin, s in zip(in_channel, strides):
-            self.preprocess.append(FactorizedReduce(cin, C, act=act) if not reduction and s==2 else ConvBNAct(cin, C, kernel=1, stride=1, act=act, bn=True))
+            self.preprocess.append(FactorizedReduce(cin, C, stride=2, act=act) if not reduction and s==2 else ConvBNAct(cin, C, kernel=1, stride=1, act=act, bn=True))
 
+        candidate_op = get_search_space(candidate_op)
         self._ops = nn.ModuleList()
         tmp_cins, tmp_strides = [C for _ in range(len(in_channel))], strides.copy() if reduction else [1 for _ in range(len(strides))]
         for i in range(self._steps):
@@ -122,7 +116,8 @@ class Cell_search(SearchModule):
             edge = op.pop('input_idx')
             args['ops'].append(op)
             args['edges'].append(edge)
-        new_cfg = self.init_output_yaml(cfg, outOp_name="Cell", input_idx=[-2,-1], **args)
+        new_cfg = self.init_output_yaml(cfg, outOp_name="Cell", input_idx=cfg['input_idx'], **args)
+        return new_cfg
 
 
 

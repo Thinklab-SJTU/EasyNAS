@@ -1,7 +1,7 @@
 import torch
 from torch import nn as nn
 
-from .common import ConvBNAct, SepConvBNAct, GlobalPoolBNAct, PoolBNAct, FuseLayer
+from .common import ConvBNAct, SepConvBNAct, GlobalPoolBNAct, PoolBNAct, FuseLayer, FactorizedReduce
 from .search_common import ConvBNAct_search, SepConvBNAct_search, AFF
 from .darts_cell import Cell, Cell_search
 from .resnet import BasicBlock, Bottleneck

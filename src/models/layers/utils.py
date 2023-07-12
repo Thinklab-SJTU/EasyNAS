@@ -79,7 +79,7 @@ def gumbel_softmax(logits, temperature=1, hard=False):
 
 submodule_map = {}
 def get_layer(layer_name):
-    return utils_get_submodule_by_name(layer_name, search_path=['src.models.layers', 'torch.nn'], loaded_submodule=submodule_map)
+    return utils_get_submodule_by_name(layer_name, search_path=['src.models.layers', 'src.models', 'torch.nn'], loaded_submodule=submodule_map)
 
 #    submodule_name = submodule_name.split('.')
 #    if len(submodule_name) == 1:

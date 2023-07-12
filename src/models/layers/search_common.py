@@ -1,11 +1,13 @@
 from copy import deepcopy
 import bisect
+from functools import reduce
+from itertools import accumulate
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from .utils import autopad, gumbel_softmax, get_layer, get_act
-from .base import darts_candidate_op, OP_CFG, OpBuilder, SearchModule
+from .base import  OP_CFG, OpBuilder, SearchModule
 
 __all__ = ["ConvBNAct_search", "SepConvBNAct_search", "AFF", "SPP_search"]
 
@@ -175,8 +177,8 @@ class ConvBNAct_search(SearchModule):
     def forward(self, x, op_alphas=None, ch_alphas=None):
         Cin = x.size(1)
         bias = self.bias
-        op_alphas = op_alphas if op_alphas is not None else (self.norm_arch_param(self.op_alphas, self.gumbel_op) if hasattr(self, 'op_alphas') else [1.])
-        ch_alphas = ch_alphas if ch_alphas is not None else (self.norm_arch_param(self.ch_alphas, self.gumbel_channel) if hasattr(self, 'ch_alphas') else [1.])
+        op_alphas = op_alphas if op_alphas is not None else (self.norm_arch_parameters(self.op_alphas, self.gumbel_op) if hasattr(self, 'op_alphas') else [1.])
+        ch_alphas = ch_alphas if ch_alphas is not None else (self.norm_arch_parameters(self.ch_alphas, self.gumbel_channel) if hasattr(self, 'ch_alphas') else [1.])
         bn = self.get_norm_layer(ch_alphas, self.bn, self.gumbel_channel)
                                    
         merge_kernel = self.get_merge_kernel(self.weight, op_alphas, merge=self.merge_kernel) if len(self.kd>1) else (self.weight if self.merge_kernel else self.weight[0])
@@ -245,8 +247,8 @@ class SepConvBNAct_search(ConvBNAct_search):
     def forward(self, x, op_alphas=None, ch_alphas=None):
         Cin = x.size(1)
         bias = self.bias
-        op_alphas = op_alphas if op_alphas is not None else (self.norm_arch_param(self.op_alphas, self.gumbel_op) if hasattr(self, 'op_alphas') else [1.])
-        ch_alphas = ch_alphas if ch_alphas is not None else (self.norm_arch_param(self.ch_alphas, self.gumbel_channel) if hasattr(self, 'ch_alphas') else [1.])
+        op_alphas = op_alphas if op_alphas is not None else (self.norm_arch_parameters(self.op_alphas, self.gumbel_op) if hasattr(self, 'op_alphas') else [1.])
+        ch_alphas = ch_alphas if ch_alphas is not None else (self.norm_arch_parameters(self.ch_alphas, self.gumbel_channel) if hasattr(self, 'ch_alphas') else [1.])
         bn = self.get_norm_layer(ch_alphas, self.bn, self.gumbel_channel)
 
         if self.merge_kernel:
@@ -281,11 +283,11 @@ class SepConvBNAct_search(ConvBNAct_search):
 
 
 
-class AFF(SearchLayer):
+class AFF(SearchModule):
     # Auto-Feature Fusion
     #self.adjust_ch_op = OP_CFG(submodule_name='ConvBNAct_search', args=dict(candidate_op=[(1,1)], candidate_ch=candidate_ch, gumbel_channel=gumbel_channel, stride=1, bn=False, act=None, independent_ch_arch_param=False))
     def __init__(self, in_channel, out_channel, strides, 
-    candidate_op=darts_candidate_op, gumbel_op=False, 
+    candidate_op, gumbel_op=False, 
     auto_refine=False, adjust_ch_op=None, up_sample_op=None, 
     candidate_ch=[1.], gumbel_channel=True, 
     gumbel_edge=False, 
@@ -356,9 +358,9 @@ class AFF(SearchLayer):
         return out
 
     def forward(self, xs, op_alphas=None, ch_alphas=None, edge_alphas=None):
-        op_alphas = op_alphas if op_alphas is not None else (self.norm_arch_param(self.op_alphas, self.gumbel_op) if hasattr(self, 'op_alphas') else [1.])
-        ch_alphas = ch_alphas if ch_alphas is not None else (self.norm_arch_param(self.ch_alphas, self.gumbel_channel) if hasattr(self, 'ch_alphas') else [1.])
-        edge_alphas = edge_alphas if edge_alphas is not None else (self.norm_arch_param(self.edge_alphas, self.gumbel_edge) if hasattr(self, 'edge_alphas') else [1.]*len(self.cin))
+        op_alphas = op_alphas if op_alphas is not None else (self.norm_arch_parameters(self.op_alphas, self.gumbel_op) if hasattr(self, 'op_alphas') else [1.])
+        ch_alphas = ch_alphas if ch_alphas is not None else (self.norm_arch_parameters(self.ch_alphas, self.gumbel_channel) if hasattr(self, 'ch_alphas') else [1.])
+        edge_alphas = edge_alphas if edge_alphas is not None else (self.norm_arch_parameters(self.edge_alphas, self.gumbel_edge) if hasattr(self, 'edge_alphas') else [1.]*len(self.cin))
         bn = self.get_norm_layer(ch_alphas, self.bn, self.gumbel_channel)
 
         out = 0.
@@ -371,21 +373,23 @@ class AFF(SearchLayer):
         return out
 
     def discretize_edge(self, op_alphas, num_reserved_op=1):
-        op_alphas_idx = self.get_reserved_idx(num_reserved_op, op_alphas)
-        num_alphas_before = reduce(lambda x,y: x+[x[-1]+abs(y)] if isinstance(x, list) else [abs(x),abs(x)+abs(y)], self.num_alphas_each_op)
+        assert num_reserved_op == 1
+        op_alphas_idx = self.get_reserved_idx(num_reserved_op, op_alphas)[0]
+#        num_alphas_before = reduce(lambda x,y: x+[x[-1]+abs(y)] if isinstance(x, list) else [abs(x),abs(x)+abs(y)], self.num_alphas_each_op)
+        num_alphas_before = list(accumulate(abs(x) for x in self.num_alphas_each_op))
         op_idx = bisect.bisect_right(num_alphas_before, op_alphas_idx)
         if self.num_alphas_each_op[op_idx] > 0: # (Sep)ConvBNAct_search
             select_op = self.candidate_op[op_idx]
-            layer_cfg = self.get_layer(select_op.Optype).genotype(select_op.args, op_alphas=op_alphas, ch_alphas=None, edge_alphas=None, num_reserved_op=num_reserved_op)
+            layer_cfg = self.get_layer(select_op.Optype).discretize(select_op.args, op_alphas=op_alphas, ch_alphas=None, edge_alphas=None, num_reserved_op=num_reserved_op)
             return OP_CFG(submodule_name=layer_cfg['submodule_name'], args=layer_cfg['args'])
         else:
             return self.candidate_op[op_idx]
 
-    def discretize(self, cfg=None, op_alphas=None, ch_alphas=None, edge_alpha=None, num_reserved_op=1, num_reserved_edge=2):
+    def discretize(self, cfg=None, op_alphas=None, ch_alphas=None, edge_alphas=None, num_reserved_op=1, num_reserved_edge=2):
         assert num_reserved_op==1
 
         args = {}
-        if ch_alphas is None: ch_alphas = self.ch_alphas
+        ch_alphas = getattr(self, 'ch_alphas', None) if ch_alphas is None else ch_alphas
         if ch_alphas is not None:
             ch_alphas_idx = self.get_reserved_idx(1, ch_alphas)[0]
             if cfg is not None:
@@ -393,19 +397,21 @@ class AFF(SearchLayer):
             else:
                 args['out_channel'] = self.cout * self.candidate_ch[ch_alphas_idx]
 
+        if op_alphas is None: op_alphas = self.op_alphas
         if edge_alphas is None: edge_alphas = self.edge_alphas
         if edge_alphas is not None:
             edge_alphas_idx = self.get_reserved_idx(num_reserved_edge, edge_alphas)
-            args['ops'], args['strides'] = [], []
-            for idx in edge_alphas_idx:
-                edge_op = self.discretize_edge(op_alphas[idx], num_reserved_op)
-                args['ops'].append(edge_op)
-                args['strides'].append(self.strides[idx])
+        else: edge_alphas_idx = list(range(len(op_alphas)))
+        args['ops'], args['strides'] = [], []
+        for idx in edge_alphas_idx:
+            edge_op = self.discretize_edge(op_alphas[idx], num_reserved_op)
+            args['ops'].append(edge_op)
+            args['strides'].append(self.strides[idx])
         new_cfg = self.init_output_yaml(cfg, outOp_name='FuseLayer', input_idx=edge_alphas_idx, **args)
         return new_cfg
 
  
-class SPP_search(SearchLayer):
+class SPP_search(SearchModule):
     # Spatial pyramid pooling layer used in YOLOv3-SPP
     def __init__(self, in_channel, out_channel, kernel=(5, 9, 13)):
         super(SPP_search, self).__init__()

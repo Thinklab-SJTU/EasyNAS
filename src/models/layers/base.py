@@ -8,26 +8,6 @@ from .utils import get_layer
 
 OP_CFG = namedtuple('OP_CFG', ['submodule_name', 'args'])
 
-darts_candidate_op = (
-       OP_CFG(submodule_name='ConvBNAct', args=dict(kernel=3, dilation=1, pad=None, group=1, bn=True, act=nn.ReLU())),
-       OP_CFG(submodule_name='ConvBNAct', args=dict(kernel=5, dilation=1, pad=None, group=1, bn=True, act=nn.ReLU())),
-       OP_CFG(submodule_name='ConvBNAct', args=dict(kernel=3, dilation=2, pad=None, group=1, bn=True, act=nn.ReLU())),
-       OP_CFG(submodule_name='ConvBNAct', args=dict(kernel=5, dilation=2, pad=None, group=1, bn=True, act=nn.ReLU())),
-       OP_CFG(submodule_name='PoolBNAct', args=dict(pool='max', kernel=3, pad=None, bn=True, act=nn.ReLU())),
-       OP_CFG(submodule_name='PoolBNAct', args=dict(pool='avg', kernel=3, pad=None, bn=True, act=nn.ReLU())),
-#       OP_CFG(submodule_name='torch.nn.Identity', args={}),
-                       )
-
-eautodet_candidate_op = (
-       OP_CFG(submodule_name='SepConvBNAct_search', args=dict(
-                       candidate_op=[(1,1), (3,1), (5,1), (3,2)], 
-                       candidate_ch=[1.], 
-                       gumbel_op=False, gumbel_channel=True,
-                       bn=True, act=nn.SiLU(),
-                       independent_ch_arch_param=False,
-                       independent_op_arch_param=False)
-         ),
-)
 
 class SearchModule(nn.Module):
     def __init__(self):
@@ -39,18 +19,15 @@ class SearchModule(nn.Module):
         setattr(self, 'outOp', get_layer(self.outOp_name))
 
     def init_output_yaml(self, arch_yaml=None, outOp_name=None, input_idx=-1, **kwargs):
+#            arch_yaml = {
+#                'args': {k: getattr(self, k) for k in inspect.signature(self.__init__).parameters.keys() if hassttr(self, k)}
+#                }
         if arch_yaml is None:
-            new_arch = {
-                'submodule_name': outOp_name,
-                'input_idx': input_idx,
-                'args': {k: deepcopy(v) for k, v in inspect.signature(self.__init__).parameters.items()}}
+            new_arch = dict(submodule_name=outOp_name, input_idx=input_idx, args={})
         else:
             new_arch = deepcopy(arch_yaml)
             new_arch['submodule_name'] = outOp_name
             new_arch['input_idx'] = input_idx
-        for k, v in kwargs.items():
-            assert k in new_arch
-            new_arch['args'][k] = v
 
         if outOp_name is not None:
             outOp = get_layer(outOp_name)
@@ -58,8 +35,13 @@ class SearchModule(nn.Module):
             outOp_name, outOp = self.outOp_name, self.outOp
         # del unused variables
         need_key = inspect.signature(outOp.__init__).parameters.keys()
-        for k in new_arch['args'].keys():
-            if k not in need_key: del new_arch['args'][k]
+        if arch_yaml is not None:
+            for k in arch_yaml['args'].keys():
+                if k not in need_key: del new_arch['args'][k]
+
+        for k, v in kwargs.items():
+            assert k in need_key
+            new_arch['args'][k] = v
 
         return new_arch
 
@@ -136,6 +118,9 @@ class SearchModule(nn.Module):
     def norm_arch_parameters(self, alphas, gumbel=False):
         return gumbel_softmax(F.log_softmax(alphas, dim=-1), hard=True) if gumbel else nn.functional.softmax(alphas, dim=-1)
 
+    def get_norm_layer(self, ch_alphas, bn, gumbel_channel=True):
+        return bn[ch_alphas.argmax()] if gumbel_channel else bn
+
     def get_reserved_idx(self, num_reserved, weight):
         return [x.item() for x in torch.topk(weight, k=num_reserved, dim=-1)[1]]
 
@@ -159,8 +144,8 @@ class OpBuilder(object):
         if isinstance(out_channel, int): out_channel = (out_channel,)*len(op_config)
         if isinstance(stride, int): stride = (stride,)*len(op_config)
         for idx, (cin, cout, s, op) in enumerate(zip(in_channel, out_channel, stride, op_config)):
+            refined_op = deepcopy(op)
             if isinstance(op, OP_CFG):
-                refined_op = deepcopy(op)
                 up_s, s = int(1./s), max(1, s)
                 adjust_ch = False
                 tmp_update_args = {}
@@ -186,11 +171,12 @@ class OpBuilder(object):
                     refined_op.append(adjust_ch_op)
             elif isinstance(op, (tuple, list)):
                 Warning("Sequential op will only automatically refine in_channel, out_channel for the last op, and stride for the first op")
-                refined_op = list(deepcopy(op))
+                refined_op = list(refined_op)
                 refined_op[0].args.update(stride=s)
                 refined_op[-1].args.update(in_channel=cin)
                 refined_op[-1].args.update(out_channel=cout)
                 assert len(update_args) == 0
+            else: raise(ValueError(f"No implementation for op as type {type(op)}"))
 
             refined_op_config.append(tuple(refined_op))
         return tuple(refined_op_config)

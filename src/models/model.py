@@ -39,6 +39,7 @@ class BaseModel(nn.Module):
 
         self.output_ch = output_ch
         self.input_ch = input_ch
+        self.log_path = log_path
         self.arch_list = architecture
         self.gw = width_multiple
         self.gd = depth_multiple
@@ -75,8 +76,10 @@ class BaseModel(nn.Module):
         layers, save, out_ch = [], [], ch[-1]  # layers, savelist, ch out
         for i, v in enumerate(arch_list):
             in_idx = v['input_idx']
-            num_repeat = max(round(v.get('num_repeat', 0) * gd), 1) 
-            v['num_repeat'] = num_repeat
+            if 'num_repeat' in v:
+                v['num_repeat'] = num_repeat = max(round(v.get('num_repeat') * gd), 1) 
+            else:
+                num_repeat = 1
             is_outlayer = v.get('is_outlayer', False)
             layer = get_layer(v['submodule_name'])
             args = v['args']
@@ -181,11 +184,18 @@ class SearchModel(BaseModel, SearchModule):
         self.logger.info("="*40)
 
     def discretize(self, outOp_name='BaseModel', depth_multiple=1., width_multiple=1.):
-        new_cfg = self.init_output_yaml(outOp_name=outOp_name, depth_multiple=depth_multiple, width_multiple=width_multiple)
+        out_model_yaml = self.init_output_yaml(
+                outOp_name=outOp_name, 
+                depth_multiple=depth_multiple, 
+                width_multiple=width_multiple,
+                output_ch=self.output_ch,
+                input_ch=self.input_ch,
+                log_path=self.log_path
+                )
 
         new_arch = []
         for i, m_ in enumerate(self.model):
-            if issubclass(m_, SearchModule):
+            if issubclass(m_.type, SearchModule):
                 if isinstance(m_, nn.Sequential):
                     if m_.arch_yaml.get('repeat_arch', False):
                         new_arch.append(m_[0].discretize(m_.arch_yaml))

@@ -10,7 +10,7 @@ from PIL import Image
 from .utils import autopad, gumbel_softmax, get_act
 from .base import OpBuilder 
 
-__all__ = ["DWConvBNAct", "PoolBNAct", "ConvBNAct", "SepConvBNAct", "Identity"]
+__all__ = ["DWConvBNAct", "PoolBNAct", "ConvBNAct", "SepConvBNAct", "Identity", "FuseLayer", "FactorizedReduce"]
 
 
 def DWConvBNAct(in_channel, out_channel, kernel=1, dilation=1, stride=1, group=1, act=True):
@@ -198,6 +198,23 @@ class Concat(nn.Module):
 
     def forward(self, x):
         return torch.cat(x, self.d)
+
+class FactorizedReduce(nn.Module):
+
+  def __init__(self, in_channel, out_channel, stride=2, affine=True, act=True):
+    super(FactorizedReduce, self).__init__()
+    assert out_channel % 2 == 0
+    self.conv_1 = nn.Conv2d(in_channel, out_channel // 2, 1, stride=stride, padding=0, bias=False)
+    self.conv_2 = nn.Conv2d(in_channel, out_channel // 2, 1, stride=stride, padding=0, bias=False) 
+    self.bn = nn.BatchNorm2d(out_channel, affine=affine)
+    self.act = get_act(act)
+    self.stride=stride
+
+  def forward(self, x):
+    out = torch.cat([self.conv_1(x), self.conv_2(x[:,:,1:,1:])], dim=1)
+    out = self.bn(out)
+    out = self.act(out)
+    return out
 
 
 

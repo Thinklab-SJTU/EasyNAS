@@ -1,5 +1,7 @@
 import os
 import torch
+import json
+import yaml
 
 from builder import get_submodule_by_name, create_criterion
 from ..hook import HOOK, execute_period 
@@ -64,6 +66,8 @@ class DARTSHOOK(HOOK):
 
     @execute_period("update_freq")
     def before_train_iter(self, runner):
+        self.after_train_epoch(runner)
+        assert 0
         self.optimizer_hook.before_train_iter(runner)
         self.backward_arch_param(runner)
 #        self.optimizer.step()
@@ -71,13 +75,16 @@ class DARTSHOOK(HOOK):
         self.optimizer_hook.after_train_iter(runner)
 
     def after_train_epoch(self, runner):
-        arch_param = runner.model.get_arch_param()
-        out_model_yaml = self.runner.model.discretize(depth_multiple=3, width_multiple=2.25)
-        yaml_file = os.path.join(self.save_root, "%d.yaml"%runner.info.current_epoch)
+        arch_param = {k:v.data.cpu().numpy().tolist() for k, v in runner.model.named_arch_parameters()}
+        alpha_file = os.path.join(self.save_root, "alpha_%d.json"%runner.info.current_epoch)
+        with open(alpha_file, 'w') as f:
+          json.dump(arch_param, f)
+        out_model_yaml = runner.model.discretize(depth_multiple=3, width_multiple=2.25)
+        yaml_file = os.path.join(self.save_root, "architecture_%d.yaml"%runner.info.current_epoch)
         with open(yaml_file, encoding='utf-8', mode='w') as f:
             try:
-                yaml.dump(data=model_yaml, stream=f, allow_unicode=True)
+                yaml.dump(data=out_model_yaml, stream=f, allow_unicode=True)
             except Exception as e:
-                print(e)
+                raise(e)
         runner.model.info_arch()
 

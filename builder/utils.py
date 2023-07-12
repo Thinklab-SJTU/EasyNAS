@@ -6,6 +6,8 @@ from functools import partial
 import yaml
 import importlib
 
+#import src.models.layers.base.OP_CFG
+
 def _get_submodule(submodule_name: str, module_name: str='dataset.datasets', package_path: str=None):
 #    print(importlib.util.find_spec("dataset.datasets"))
 #    module = importlib.import_module('dataset.datasets')
@@ -18,8 +20,10 @@ def _get_submodule(submodule_name: str, module_name: str='dataset.datasets', pac
         try:
             submodule= getattr(module, submodule_name)
             return submodule
+        except AttributeError:
+            raise(ImportError(e))
         except Exception as e:
-            print(e)
+            raise(e)
     else:
         raise(ImportError(f"[{module_name}] is not found in the package [{package_path}]"))
 
@@ -95,6 +99,9 @@ class CfgLoader(yaml.SafeLoader):
     def construct_python_tuple(self, node):
         return tuple(self.construct_sequence(node))
 
+#    def construct_OP_CFG(self, node):
+#        return OP_CFG(self.construct_sequence(node))
+
     def join(self, node):
         return ''.join([str(i) for i in self.construct_sequence(node)])
 
@@ -113,6 +120,9 @@ class CfgLoader(yaml.SafeLoader):
 CfgLoader.add_constructor(
     u'tag:yaml.org,2002:python/tuple',
     CfgLoader.construct_python_tuple)
+#CfgLoader.add_constructor(
+#    u'!!python/object/new:src.models.layers.base.OP_CFG',
+#    CfgLoader.construct_OP_CFG)
 CfgLoader.add_constructor('!join', CfgLoader.join)
 CfgLoader.add_constructor('!get_module', CfgLoader.get_module)
 
