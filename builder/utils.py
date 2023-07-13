@@ -2,11 +2,11 @@ import sys
 import os
 sys.path.append(os.getcwd())
 from functools import partial
+from easydict import EasyDict as edict
 
 import yaml
 import importlib
 
-#import src.models.layers.base.OP_CFG
 
 def _get_submodule(submodule_name: str, module_name: str='dataset.datasets', package_path: str=None):
 #    print(importlib.util.find_spec("dataset.datasets"))
@@ -99,9 +99,6 @@ class CfgLoader(yaml.SafeLoader):
     def construct_python_tuple(self, node):
         return tuple(self.construct_sequence(node))
 
-#    def construct_OP_CFG(self, node):
-#        return OP_CFG(self.construct_sequence(node))
-
     def join(self, node):
         return ''.join([str(i) for i in self.construct_sequence(node)])
 
@@ -115,16 +112,19 @@ class CfgLoader(yaml.SafeLoader):
 #            return module(**name_args[1])
         else:
             return module
-
-
+    def construct_python_edict(self, node):
+        return edict(self.construct_mapping(node))
 CfgLoader.add_constructor(
     u'tag:yaml.org,2002:python/tuple',
     CfgLoader.construct_python_tuple)
-#CfgLoader.add_constructor(
-#    u'!!python/object/new:src.models.layers.base.OP_CFG',
-#    CfgLoader.construct_OP_CFG)
 CfgLoader.add_constructor('!join', CfgLoader.join)
 CfgLoader.add_constructor('!get_module', CfgLoader.get_module)
+CfgLoader.add_constructor('!edict', CfgLoader.construct_python_edict)
+
+class CfgDumper(yaml.SafeDumper):
+    def represent_python_edict(self, data):
+        return self.represent_mapping('!edict', dict(data))
+CfgDumper.add_representer(edict, CfgDumper.represent_python_edict)
 
 if __name__ == '__main__':
   doc = yaml.dump(tuple("foo bar baaz".split()))

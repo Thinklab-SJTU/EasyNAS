@@ -2,12 +2,13 @@ from copy import deepcopy
 import bisect
 from functools import reduce
 from itertools import accumulate
+from easydict import EasyDict as edict
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from .utils import autopad, gumbel_softmax, get_layer, get_act
-from .base import  OP_CFG, OpBuilder, SearchModule
+from .base import  OpBuilder, SearchModule
 
 __all__ = ["ConvBNAct_search", "SepConvBNAct_search", "AFF", "SPP_search"]
 
@@ -285,7 +286,7 @@ class SepConvBNAct_search(ConvBNAct_search):
 
 class AFF(SearchModule):
     # Auto-Feature Fusion
-    #self.adjust_ch_op = OP_CFG(submodule_name='ConvBNAct_search', args=dict(candidate_op=[(1,1)], candidate_ch=candidate_ch, gumbel_channel=gumbel_channel, stride=1, bn=False, act=None, independent_ch_arch_param=False))
+    #self.adjust_ch_op = edict(submodule_name='ConvBNAct_search', args=dict(candidate_op=[(1,1)], candidate_ch=candidate_ch, gumbel_channel=gumbel_channel, stride=1, bn=False, act=None, independent_ch_arch_param=False))
     def __init__(self, in_channel, out_channel, strides, 
     candidate_op, gumbel_op=False, 
     auto_refine=False, adjust_ch_op=None, up_sample_op=None, 
@@ -381,7 +382,7 @@ class AFF(SearchModule):
         if self.num_alphas_each_op[op_idx] > 0: # (Sep)ConvBNAct_search
             select_op = self.candidate_op[op_idx]
             layer_cfg = self.get_layer(select_op.Optype).discretize(select_op.args, op_alphas=op_alphas, ch_alphas=None, edge_alphas=None, num_reserved_op=num_reserved_op)
-            return OP_CFG(submodule_name=layer_cfg['submodule_name'], args=layer_cfg['args'])
+            return edict(submodule_name=layer_cfg['submodule_name'], args=layer_cfg['args'])
         else:
             return self.candidate_op[op_idx]
 

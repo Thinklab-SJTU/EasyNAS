@@ -1,12 +1,13 @@
 from collections import namedtuple
 from copy import deepcopy
 import inspect
+from easydict import EasyDict as edict
 import torch
 import torch.nn as nn
 
 from .utils import get_layer
 
-OP_CFG = namedtuple('OP_CFG', ['submodule_name', 'args'])
+#OP_CFG = namedtuple('OP_CFG', ['submodule_name', 'args'])
 
 
 class SearchModule(nn.Module):
@@ -133,11 +134,11 @@ class SearchModule(nn.Module):
 class OpBuilder(object):
     def __init__(self, auto_refine=False, adjust_ch_op=None, upsample_op=None): 
         self.auto_refine = auto_refine
-        self.adjust_ch_op = OP_CFG(submodule_name='ConvBNAct', args=dict(kernel=1, dilation=1, bn=False, act=None)) if adjust_ch_op is None else adjust_ch_op
-        self.upsample_op = OP_CFG(submodule_name=nn.Upsample, args=dict(size=None, scale_factor=None, mode='nearest', align_corners=None)) if upsample_op is None else upsample_op
+        self.adjust_ch_op = edict(submodule_name='ConvBNAct', args=dict(kernel=1, dilation=1, bn=False, act=None)) if adjust_ch_op is None else adjust_ch_op
+        self.upsample_op = edict(submodule_name=nn.Upsample, args=dict(size=None, scale_factor=None, mode='nearest', align_corners=None)) if upsample_op is None else upsample_op
 
     def refine_C_stride(self, op_config, in_channel, out_channel, stride, **update_args):
-        if isinstance(op_config, OP_CFG):
+        if isinstance(op_config, edict):
             op_config = [op_config]
         refined_op_config = []
         if isinstance(in_channel, int): in_channel = (in_channel,)*len(op_config)
@@ -145,7 +146,7 @@ class OpBuilder(object):
         if isinstance(stride, int): stride = (stride,)*len(op_config)
         for idx, (cin, cout, s, op) in enumerate(zip(in_channel, out_channel, stride, op_config)):
             refined_op = deepcopy(op)
-            if isinstance(op, OP_CFG):
+            if isinstance(op, edict):
                 up_s, s = int(1./s), max(1, s)
                 adjust_ch = False
                 tmp_update_args = {}
@@ -184,7 +185,7 @@ class OpBuilder(object):
     def _build_op(self, op_config):
         ops = nn.ModuleList([])
         for config in op_config:
-            if isinstance(config, OP_CFG):
+            if isinstance(config, edict):
                 module = get_layer(config.submodule_name) 
                 op = module(**config.args)
             elif isinstance(config, (tuple, list)):
@@ -193,7 +194,7 @@ class OpBuilder(object):
                     module = get_layer(sub_config.submodule_name) 
                     op.add_module(str(idx), module(**sub_config.args))
             else: 
-                raise(TypeError("op_config should be either OP_CFG or sequence"))
+                raise(TypeError("op_config should be either easydict or sequence"))
             ops.append(op)
         return ops
 

@@ -3,7 +3,7 @@ import torch
 import json
 import yaml
 
-from builder import get_submodule_by_name, create_criterion
+from builder import get_submodule_by_name, create_criterion, CfgDumper
 from ..hook import HOOK, execute_period 
 from .. import OptHOOK
 
@@ -66,8 +66,8 @@ class DARTSHOOK(HOOK):
 
     @execute_period("update_freq")
     def before_train_iter(self, runner):
-        self.after_train_epoch(runner)
-        assert 0
+#        self.after_train_epoch(runner)
+#        assert 0
         self.optimizer_hook.before_train_iter(runner)
         self.backward_arch_param(runner)
 #        self.optimizer.step()
@@ -83,7 +83,7 @@ class DARTSHOOK(HOOK):
         yaml_file = os.path.join(self.save_root, "architecture_%d.yaml"%runner.info.current_epoch)
         with open(yaml_file, encoding='utf-8', mode='w') as f:
             try:
-                yaml.dump(data=out_model_yaml, stream=f, allow_unicode=True)
+                yaml.dump(data=out_model_yaml, stream=f, allow_unicode=True, Dumper=CfgDumper, default_flow_style=False)
             except Exception as e:
                 raise(e)
         runner.model.info_arch()

@@ -23,7 +23,7 @@ class darts_identity(nn.Module):
 
 class Cell(nn.Module):
   def __init__(self, in_channel, out_channel, strides, 
-               ops, edges, multiplier,
+               cell_ops, edges, multiplier,
                act=nn.ReLU(), bn=True):
       super(Cell, self).__init__()
       self._steps = len(op)
@@ -43,12 +43,12 @@ class Cell(nn.Module):
       self._ops = nn.ModuleList()
       tmp_cins, tmp_strides = [C for _ in range(len(in_channel))], strides.copy() if reduction else [1 for _ in range(len(strides))]
       for i in range(self._steps):
-          ops['args'].update(
+          cell_ops[i]['args'].update(
               in_channel=[tmp_cins[e] for e in edges[i]],
               out_channel=C,
               strides=[tmp_strides[e] for e in edges[i]],
           )
-          self._ops.append(get_layer(ops[i]['submodule_name'])(**ops[i]['args']))
+          self._ops.append(get_layer(cell_ops[i]['submodule_name'])(**cell_ops[i]['args']))
           tmp_cins.append(C)
           strides.append(1)
 
@@ -110,11 +110,11 @@ class Cell_search(SearchModule):
 
 
     def discretize(self, cfg, op_alphas=None, ch_alphas=None, edge_alphas=None, num_reserved_op=1, num_reserved_edge=2):
-        args = {'ops': [], 'edges': []}
+        args = {'cell_ops': [], 'edges': []}
         for i in range(self._steps):
             op = self._ops[i].discretize()
             edge = op.pop('input_idx')
-            args['ops'].append(op)
+            args['cell_ops'].append(op)
             args['edges'].append(edge)
         new_cfg = self.init_output_yaml(cfg, outOp_name="Cell", input_idx=cfg['input_idx'], **args)
         return new_cfg

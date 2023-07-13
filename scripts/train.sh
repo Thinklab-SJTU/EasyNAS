@@ -27,7 +27,7 @@ case $Answer in
 #        echo "Start the process. Log file is saved to logs/${NAME}.log"
         CUDA_VISIBLE_DEVICES=$gpustr ${START_CMD} app/train.py \
 		--cfg ${cfg} \
-#        	> logs/test.log 2>&1 &
+        	> logs/darts.log 2>&1 &
         ;;
     No|no|N|n)
         echo "The process is killed!"
