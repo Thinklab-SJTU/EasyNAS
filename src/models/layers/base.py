@@ -49,7 +49,9 @@ class SearchModule(nn.Module):
     def init_arch_parameters(self, arch_name, *shape):
 #        arch_param = 1e-3*torch.randn(*shape, requires_grad=True)
         arch_param = torch.normal(mean=0, std=1e-6, size=shape, requires_grad=True)
-        if arch_name in self._arch_parameters: del self._arch_parameters[arch_name]
+        if arch_name in self._arch_parameters: 
+            del self._arch_parameters[arch_name]
+            delattr(self, arch_name)
         setattr(self, arch_name, arch_param)
         self._arch_parameters[arch_name] = arch_param
 
@@ -65,9 +67,14 @@ class SearchModule(nn.Module):
             # `with torch.no_grad():`
             with torch.no_grad():
                 param_applied = fn(param)
+#            param.data = param_applied
+#            out_param = param
             assert param.is_leaf
             out_param = param_applied.requires_grad_(param.requires_grad)
             self._arch_parameters[key] = out_param
+            if hasattr(self, key): 
+                delattr(self, key)
+                setattr(self, key, out_param)
 
             if param.grad is not None:
                 with torch.no_grad():
@@ -146,12 +153,12 @@ class OpBuilder(object):
         if isinstance(stride, int): stride = (stride,)*len(op_config)
         for idx, (cin, cout, s, op) in enumerate(zip(in_channel, out_channel, stride, op_config)):
             refined_op = deepcopy(op)
+            tmp_update_args = {}
+            for k, v in update_args:
+                tmp_update_args[k] = v[idx] if isinstance(v, (list, tuple)) else v
             if isinstance(op, edict):
                 up_s, s = int(1./s), max(1, s)
                 adjust_ch = False
-                tmp_update_args = {}
-                for k, v in update_args:
-                    tmp_update_args[k] = v[idx] if isinstance(v, (list, tuple)) else v
                 refined_op.args.update(stride=s, **tmp_update_args)
                 arg_names = inspect.getfullargspec(get_layer(refined_op.submodule_name).__init__).args
                 if 'in_channel' in arg_names: 
@@ -161,25 +168,27 @@ class OpBuilder(object):
                 if cin != cout and ('in_channel' not in arg_names or 'out_channel' not in arg_names):
                     Warning("Input channel should be the same as output channel. Otherwise, you should set auto_refine as True")
                     adjust_ch = True
-                refined_op = [refined_op]
                 if self.auto_refine and up_s > 1: 
                     upsample_op = deepcopy(self.upsample_op)
                     upsample_op.args.update(scale_factor=up_s)
+                    refined_op = [refined_op]
                     refined_op.append(upsample_op)
                 if self.auto_refine and adjust_ch: 
                     adjust_ch_op = deepcopy(self.adjust_ch_op)
                     adjust_ch_op.args.update(in_channel=cin, out_channel=cout)
+                    if isinstance(refined_op, edict):
+                        refined_op = [refined_op]
                     refined_op.append(adjust_ch_op)
             elif isinstance(op, (tuple, list)):
-                Warning("Sequential op will only automatically refine in_channel, out_channel for the last op, and stride for the first op")
+                Warning("Sequential op will set the out_channel of last op as cout, and set the out_channel and in_channel of other ops as cin; set stride of first op as stride and set others' as 1.")
                 refined_op = list(refined_op)
-                refined_op[0].args.update(stride=s)
-                refined_op[-1].args.update(in_channel=cin)
-                refined_op[-1].args.update(out_channel=cout)
-                assert len(update_args) == 0
+                refined_op[0].args.update(stride=s, in_channel=cin, out_channel=cin, **tmp_update_args)
+                for i in range(1, len(op)-1):
+                    refined_op[i].args.update(stride=1, in_channel=cin, out_channel=cin, **tmp_update_args)
+                refined_op[-1].args.update(in_channel=cin, out_channel=cout, stride=1, **tmp_update_args)
             else: raise(ValueError(f"No implementation for op as type {type(op)}"))
 
-            refined_op_config.append(tuple(refined_op))
+            refined_op_config.append(refined_op)
         return tuple(refined_op_config)
 
     def _build_op(self, op_config):

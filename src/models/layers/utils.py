@@ -9,8 +9,22 @@ def get_act(act=True):
     elif isinstance(act, nn.Module): return act
     elif isinstance(act, str): 
         return utils_get_submodule_by_name(act)()
+    elif isinstance(act, dict): 
+        return utils_get_submodule_by_name(act['name'])(**act['args'])
     else:
         raise(TypeError(f"No Implementation for act func as {act}"))
+
+def get_norm(norm, *args, **kwargs):
+    if norm is None or norm is False: return None
+    elif isinstance(norm, nn.Module): return norm
+    elif isinstance(norm, dict):
+        norm['args'].update(kwargs)
+        return utils_get_submodule_by_name(norm['name'])(*args, **norm['args'])
+#    elif norm is True: return nn.BatchNorm2d(*args, **kwargs)
+#    elif isinstance(norm, str): 
+#        return utils_get_submodule_by_name(norm, search_path=['torch.nn'])(*args, **kwargs)
+    else:
+        raise(TypeError(f"No Implementation for normalization func as {norm}"))
 
 
 def autopad(k, p=None, d=1):  # kernel, padding

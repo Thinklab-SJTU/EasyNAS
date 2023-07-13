@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .utils import autopad, gumbel_softmax, get_layer, get_act
+from .utils import autopad, gumbel_softmax, get_layer, get_act, get_norm
 from .base import  OpBuilder, SearchModule
 
 __all__ = ["ConvBNAct_search", "SepConvBNAct_search", "AFF", "SPP_search"]
@@ -84,9 +84,9 @@ class SearchLayer(SearchModule):
 
 class ConvBNAct_search(SearchModule):
     # Mixed Depthwise Conv https://arxiv.org/abs/1907.09595
-    def __init__(self, in_channel, out_channel, candidate_op=[(1,1), (3,1), (5,1), (3,2)], candidate_ch=[1.], gumbel_op=False, gumbel_channel=True, stride=1, pad=None, group=1, act=True, bn=True, independent_ch_arch_param=True, independent_op_arch_param=True, bias=False, merge_kernel=True):
+    def __init__(self, in_channel, out_channel, candidate_op=[(1,1), (3,1), (5,1), (3,2)], candidate_ch=[1.], gumbel_op=False, gumbel_channel=True, stride=1, pad=None, group=1, act=True, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=True)), independent_ch_arch_param=True, independent_op_arch_param=True, bias=False, merge_kernel=True):
         # k=0 means zero op; d=0 means skip-connection
-        super(Conv_search, self).__init__()
+        super(ConvBNAct_search, self).__init__()
         self.merge_kernel = merge_kernel
         self.kd = candidate_op
         self.candidate_ch = candidate_ch
@@ -109,8 +109,9 @@ class ConvBNAct_search(SearchModule):
                 self.bias.append(self.init_bias(cout_max, self.weight[-1]))
 
         self.act = get_act(act)
-        if self.gumbel_channel: self.bn = nn.ModuleList([nn.BatchNorm2d(int(self.cout*e)) for e in candidate_ch]) if bn else [None for _ in candidate_ch]
-        else: self.bn = nn.BatchNorm2d(self.cout) if bn else None
+
+        if self.gumbel_channel: self.bn = nn.ModuleList([get_norm(bn, int(self.cout*e)) for e in candidate_ch]) 
+        else: self.bn = get_norm(bn, self.cout)
 
         self.init_arch_parameters(independent_ch_arch_param, independent_op_arch_param)
 
@@ -182,7 +183,7 @@ class ConvBNAct_search(SearchModule):
         ch_alphas = ch_alphas if ch_alphas is not None else (self.norm_arch_parameters(self.ch_alphas, self.gumbel_channel) if hasattr(self, 'ch_alphas') else [1.])
         bn = self.get_norm_layer(ch_alphas, self.bn, self.gumbel_channel)
                                    
-        merge_kernel = self.get_merge_kernel(self.weight, op_alphas, merge=self.merge_kernel) if len(self.kd>1) else (self.weight if self.merge_kernel else self.weight[0])
+        merge_kernel = self.get_merge_kernel(self.weight, op_alphas, merge=self.merge_kernel) if len(self.kd)>1 else (self.weight if self.merge_kernel else self.weight[0])
 
         if Cin != merge_kernel.size(1): merge_kernel = merge_kernel[:,:Cin,:,:]
         if len(self.candidate_ch) > 1:
@@ -191,7 +192,7 @@ class ConvBNAct_search(SearchModule):
         out = torch.nn.functional.conv2d(x, merge_kernel, stride=self.stride, padding=self.padding, dilation=1, groups=self.group)
         out = out + bias.view(1,-1,1,1) if bias is not None else out
         out = bn(out) if bn is not None else out
-        out = act(out) if act is not None else out
+        out = self.act(out) if self.act is not None else out
         return out
 
     def discretize(self, cfg=None, op_alphas=None, ch_alphas=None, edge_alpha=None, num_reserved_op=1, num_reserved_edge=None):
@@ -214,9 +215,9 @@ class ConvBNAct_search(SearchModule):
 class SepConvBNAct_search(ConvBNAct_search):
     def init_weight(self, cout, cin, kernel):
         kernel = [kernel, kernel] if isinstance(kernel, int) else kernel
-        point_w = torch.Tensor(cin, 1, ks, ks)
+        point_w = torch.Tensor(cout, cin, 1, 1)
         torch.nn.init.kaiming_normal_(point_w, mode='fan_in')
-        depth_w = torch.Tensor(cout, cin, *kernel)
+        depth_w = torch.Tensor(cin, 1, *kernel)
         torch.nn.init.kaiming_normal_(depth_w, mode='fan_in')
         return nn.ParameterDict({
             'point_weight': nn.Parameter(point_w), 
@@ -253,7 +254,7 @@ class SepConvBNAct_search(ConvBNAct_search):
         bn = self.get_norm_layer(ch_alphas, self.bn, self.gumbel_channel)
 
         if self.merge_kernel:
-            merge_kernel = self.get_merge_kernel(self.weight, op_alphas, merge=True) if len(self.kd>1) else self.weight['depth_weight']
+            merge_kernel = self.get_merge_kernel(self.weight, op_alphas, merge=True) if len(self.kd)>1 else self.weight['depth_weight']
             if Cin != merge_kernel.size(1): merge_kernel = merge_kernel[:Cin,:,:,:]
             out = torch.nn.functional.conv2d(x, merge_kernel, stride=self.stride, padding=self.padding, dilation=1, groups=Cin)
             # out channel for point-wise conv
@@ -279,7 +280,7 @@ class SepConvBNAct_search(ConvBNAct_search):
                 out += op_alphas_norm[i] * (tmp_out + bias.view(1,-1,1,1) if bias is not None else tmp_out)
 
         out = bn(out) if bn is not None else out
-        out = act(out) if act is not None else out
+        out = self.act(out) if self.act is not None else out
         return out
 
 
@@ -292,7 +293,7 @@ class AFF(SearchModule):
     auto_refine=False, adjust_ch_op=None, up_sample_op=None, 
     candidate_ch=[1.], gumbel_channel=True, 
     gumbel_edge=False, 
-    act=nn.ReLU(), bn=True, 
+    act=nn.ReLU(), bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=True)), 
     independent_ch_arch_param=True, independent_op_arch_param=True, independent_edge_arch_param=True):
         """
         strides: a list indicating the scale for each edge. Whether to up-sampling or down-sampling, and how much the degree is
@@ -323,20 +324,20 @@ class AFF(SearchModule):
 #                          stride=s, act=None, bn=False,
 #                          independent_ch_arch_param=False,
 #                          independent_op_arch_param=independent_op_arch_param))
-        self.init_arch_parameters(independent_op_arch_param, independent_ch_arch_param, independent_edge_arch_param)
         self.num_alphas_each_op = []
         for op in candidate_op:
             self.num_alphas_each_op.append(
                  len(op.args['candidate_op']) if hasattr(op.args, 'candidate_op') else -1)
         self.num_op_alphas = sum(abs(x) for x in self.num_alphas_each_op)
+        self.init_arch_parameters(independent_op_arch_param, independent_ch_arch_param, independent_edge_arch_param)
 
         self.act = get_act(act)
-        if self.gumbel_channel: self.bn = nn.ModuleList([nn.BatchNorm2d(int(self.cout*e)) for e in candidate_ch]) if bn else [None for _ in candidate_ch]
-        else: self.bn = nn.BatchNorm2d(self.cout) if bn else None
+        if self.gumbel_channel: self.bn = nn.ModuleList([get_norm(bn, int(self.cout*e)) for e in candidate_ch]) 
+        else: self.bn = get_norm(bn, self.cout)
 
     def init_arch_parameters(self, ind_op_alpha, ind_ch_alpha, ind_edge_alpha):
         if len(self.candidate_op) > 1 and ind_op_alpha:
-            super().init_arch_parameters('op_alphas', len(self.cin), len(self.candidate_op))
+            super().init_arch_parameters('op_alphas', len(self.cin), self.num_op_alphas)
         if len(self.candidate_ch) > 1 and ind_ch_alpha:
             super().init_arch_parameters('ch_alphas', len(self.candidate_ch))
         if len(self.cin) > 1 and ind_edge_alpha:
@@ -417,8 +418,8 @@ class SPP_search(SearchModule):
     def __init__(self, in_channel, out_channel, kernel=(5, 9, 13)):
         super(SPP_search, self).__init__()
         c_ = in_channel // 2  # hidden channels
-        self.cv1 = ConvBNAct_search(in_channel, out_channel, candidate_op=[(1,1)], candidate_ch=[1.], stride=1, act=nn.SiLU(), bn=True, merge_kernel=True)
-        self.cv2 = ConvBNAct(c_ * (len(k) + 1), out_channel, kernel=1, dilation=1, stride=1, act=nn.SiLU(), bn=True)
+        self.cv1 = ConvBNAct_search(in_channel, out_channel, candidate_op=[(1,1)], candidate_ch=[1.], stride=1, act=nn.SiLU(), bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=True)), merge_kernel=True)
+        self.cv2 = ConvBNAct(c_ * (len(k) + 1), out_channel, kernel=1, dilation=1, stride=1, act=nn.SiLU(), bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=True)))
 
         self.m = nn.ModuleList([nn.MaxPool2d(kernel_size=x, stride=1, padding=x // 2) for x in kernel])
 

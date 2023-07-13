@@ -168,7 +168,8 @@ class SearchModel(BaseModel, SearchModule):
                             self.logger.info(f"{name} is the same as {hash_param[v]}")
                         else:
                             self.logger.info(name)
-                            self.logger.info(v.cpu().data.numpy())
+#                            self.logger.info(v.cpu().data.numpy())
+                            self.logger.info(torch.softmax(v, dim=-1).cpu().data.numpy())
                             hash_param[v] = f"Layer{i}:{name}"
 #                        self.logger.info('%10s  %-40s' % (name, v.data.numpy().tolist()))
                 else: 
@@ -210,6 +211,7 @@ class SearchModel(BaseModel, SearchModule):
             else:
                 new_arch.append(m_.arch_yaml)
         out_model_yaml['architecture'] = new_arch
+
         return out_model_yaml
 
 

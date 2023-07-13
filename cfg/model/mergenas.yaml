@@ -1,4 +1,4 @@
-ss: &ss darts
+ss: &ss mergenas
 submodule_name: src.models.SearchModel
 args:
   log_path: model.log
@@ -155,4 +155,5 @@ args:
       args:
         in_features: 256
         out_features: *output_ch
+
 

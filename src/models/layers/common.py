@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from PIL import Image
 
-from .utils import autopad, gumbel_softmax, get_act
+from .utils import autopad, gumbel_softmax, get_act, get_norm
 from .base import OpBuilder 
 
 __all__ = ["DWConvBNAct", "PoolBNAct", "ConvBNAct", "SepConvBNAct", "Identity", "FuseLayer", "FactorizedReduce"]
@@ -19,7 +19,7 @@ def DWConvBNAct(in_channel, out_channel, kernel=1, dilation=1, stride=1, group=1
 
 
 class PoolBNAct(nn.Module):
-    def __init__(self, kernel, out_channel=None, stride=1, pool='max', pad=None, bn=True, act=nn.ReLU()): 
+    def __init__(self, kernel, out_channel=None, stride=1, pool='max', pad=None, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=True)), act=nn.ReLU()): 
         super(PoolBNAct, self).__init__()
         if bn: assert out_channel is not None
 
@@ -33,7 +33,7 @@ class PoolBNAct(nn.Module):
             raise(ValueError(f"No implementation for pool as {pool}"))
 
         self.pool = pool_op(kernel_size=kernel, stride=stride, padding=autopad(kernel, pad))
-        self.bn = nn.BatchNorm2d(out_channel) if bn else None
+        self.bn = get_norm(bn, out_channel)
         self.act = get_act(act)
 
     def forward(self, x):
@@ -43,10 +43,11 @@ class PoolBNAct(nn.Module):
         return x
 
 class GlobalPoolBNAct(nn.Module):
-    def __init__(self, pool='avg', bn=False, act=None): 
+    def __init__(self, out_channel=None, pool='avg', bn=None, act=None): 
         super(GlobalPoolBNAct, self).__init__()
         self.pool = pool
-        self.bn = nn.BatchNorm2d(out_channel) if bn else None
+        if bn: assert out_channel is not None
+        self.bn = get_norm(bn, out_channel)
         self.act = get_act(act)
 
     def forward(self, x):
@@ -74,12 +75,12 @@ class LinearAct(nn.Module):
 
 class ConvBNAct(nn.Module):
     # Standard convolution
-    def __init__(self, in_channel, out_channel, kernel=1, dilation=1, stride=1, pad=None, group=1, bn=True, act=nn.ReLU(), bias=False):  # ch_in, ch_out, kernel, dilation, stride, padding, groups
+    def __init__(self, in_channel, out_channel, kernel=1, dilation=1, stride=1, pad=None, group=1, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=True)), act=nn.ReLU(), bias=False):  # ch_in, ch_out, kernel, dilation, stride, padding, groups
         super(ConvBNAct, self).__init__()
         if isinstance(kernel, list): kernel = kernel[0]
         if isinstance(dilation, list): dilation = dilation[0]
         self.conv = nn.Conv2d(in_channel, out_channel, kernel, stride, autopad(kernel, pad, dilation), dilation=dilation, groups=group, bias=bias)
-        self.bn = nn.BatchNorm2d(out_channel) if bn else None
+        self.bn = get_norm(bn, out_channel)
         self.act = get_act(act)
 
     def forward(self, x):
@@ -90,25 +91,51 @@ class ConvBNAct(nn.Module):
 
 class SepConvBNAct(nn.Module):
     # Standard convolution
-    def __init__(self, in_channel, out_channel, kernel=1, dilation=1, stride=1, pad=None, group=1, bn=True, act=nn.ReLU(), bias=False):  # ch_in, ch_out, kernel, dilation, stride, padding, groups
-        super(SepConv, self).__init__()
+    def __init__(self, in_channel, out_channel, kernel=1, dilation=1, stride=1, pad=None, group=1, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=True)), act=nn.ReLU(), bias=False, num_pair=1):
+        super(SepConvBNAct, self).__init__()
         if isinstance(kernel, list): kernel = kernel[0]
         if isinstance(dilation, list): dilation = dilation[0]
-        self.dwconv = nn.Conv2d(in_channel, out_channel, kernel, stride, autopad(kernel, pad, dilation), dilation=dilation, groups=in_channel, bias=bias)
-        self.pwconv = nn.Conv2d(in_channel, out_channel, 1, 1, padding=0, dilation=1, groups=1, bias=bias)
-        self.bn = nn.BatchNorm2d(out_channel) if bn else None
+        self.op = nn.Sequential()
+        for i in range(num_pair-1):
+            self.op.add_module( 
+                f'{i}_dw',
+                nn.Conv2d(in_channel, in_channel, kernel, stride if i==0 else 1, autopad(kernel, pad, dilation), dilation=dilation, groups=in_channel, bias=bias)
+            )
+            self.op.add_module( 
+                f'{i}_pw',
+                nn.Conv2d(in_channel, in_channel, 1, 1, padding=0, dilation=1, groups=1, bias=bias)
+            )
+            if bn: 
+                self.op.add_module(
+                    f'{i}_bn',
+                    get_norm(bn, in_channel)
+                    )
+
+        self.op.add_module( 
+            f'{num_pair-1}_dw',
+            nn.Conv2d(in_channel, in_channel, kernel, stride if num_pair==1 else 1, autopad(kernel, pad, dilation), dilation=dilation, groups=in_channel, bias=bias)
+        )
+        self.op.add_module( 
+            f'{num_pair-1}_pw',
+            nn.Conv2d(in_channel, out_channel, 1, 1, padding=0, dilation=1, groups=1, bias=bias)
+        )
+        if bn: 
+            self.op.add_module(
+                f'{num_pair-1}_bn',
+                get_norm(bn, out_channel)
+                )
+
         self.act = get_act(act)
 
     def forward(self, x):
-        x = self.pwconv(self.dwconv(x))
-        if self.bn: x = self.bn(x)
+        x = self.op(x)
         if self.act: x = self.act(x)
         return x
 
 
 class FuseLayer(nn.Module):
     # Feature Fusion
-    def __init__(self, in_channels, out_channel, strides, ops, act=nn.ReLU(), bn=True, fuse_edge_func=sum, auto_refine=False, adjust_ch_op=None, upsample_op=None):
+    def __init__(self, in_channels, out_channel, strides, ops, act=nn.ReLU(), bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=True)), fuse_edge_func=sum, auto_refine=False, adjust_ch_op=None, upsample_op=None):
         super(FuseLayer, self).__init__()
         self.check_valid(in_channels, strides, ops)
 
@@ -119,7 +146,7 @@ class FuseLayer(nn.Module):
             self.edges.append(op_builder.build_op(op, cin, out_channel, s))
 
         self.act = get_act(act)
-        self.bn = nn.BatchNorm2d(out_channel) if bn else None
+        self.bn = get_norm(bn, out_channel)
         self.fuse_edge_func = fuse_edge_func
 
     def check_valid(self, in_channels, strides, ops):
@@ -154,7 +181,7 @@ class Focus(nn.Module):
     # Focus wh information into c-space
     def __init__(self, in_channel, out_channel, kernel=1, stride=1, pad=None, group=1, act=nn.ReLU()):  # ch_in, ch_out, kernel, stride, padding, groups
         super(Focus, self).__init__()
-        self.conv = ConvBNAct(in_channel * 4, out_channel, kernel, 1, stride, pad, group, act, bn=True)
+        self.conv = ConvBNAct(in_channel * 4, out_channel, kernel, 1, stride, pad, group, act, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=True)))
         # self.contract = Contract(gain=2)
 
     def forward(self, x):  # x(b,c,w,h) -> y(b,4c,w/2,h/2)
@@ -201,12 +228,12 @@ class Concat(nn.Module):
 
 class FactorizedReduce(nn.Module):
 
-  def __init__(self, in_channel, out_channel, stride=2, affine=True, act=True):
+  def __init__(self, in_channel, out_channel, stride=2, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=True)), act=True):
     super(FactorizedReduce, self).__init__()
     assert out_channel % 2 == 0
     self.conv_1 = nn.Conv2d(in_channel, out_channel // 2, 1, stride=stride, padding=0, bias=False)
     self.conv_2 = nn.Conv2d(in_channel, out_channel // 2, 1, stride=stride, padding=0, bias=False) 
-    self.bn = nn.BatchNorm2d(out_channel, affine=affine)
+    self.bn = get_norm(bn, out_channel)
     self.act = get_act(act)
     self.stride=stride
 

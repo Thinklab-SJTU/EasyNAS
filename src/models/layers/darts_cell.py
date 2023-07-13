@@ -11,11 +11,11 @@ from .search_common import AFF
 from .utils import get_act
 
 class darts_identity(nn.Module):
-    def __init__(self, in_channel, out_channel, stride, affine=True, act=True):
+    def __init__(self, in_channel, out_channel, stride, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)), act=True):
         super(darts_identity, self).__init__()
         if stride == 1:
             self.op = nn.Identity()
-        else: self.op = FactorizedReduce(in_channel, out_channel, stride, affine, act)
+        else: self.op = FactorizedReduce(in_channel, out_channel, stride, bn, act)
     
     def forward(self, x):
         return self.op(x)
@@ -24,7 +24,7 @@ class darts_identity(nn.Module):
 class Cell(nn.Module):
   def __init__(self, in_channel, out_channel, strides, 
                cell_ops, edges, multiplier,
-               act=nn.ReLU(), bn=True):
+               act=nn.ReLU(), bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False))):
       super(Cell, self).__init__()
       self._steps = len(op)
       self.edges = edges
@@ -38,7 +38,7 @@ class Cell(nn.Module):
               break
       self.preprocess = nn.ModuleList([])
       for cin, s in zip(in_channel, strides):
-          self.preprocess.append(FactorizedReduce(cin, C, stride=2, act=act) if not reduction and s==2 else ConvBNAct(cin, C, kernel=1, stride=1, act=act, bn=True))
+          self.preprocess.append(FactorizedReduce(cin, C, stride=2, act=act, bn=bn) if not reduction and s==2 else ConvBNAct(cin, C, kernel=1, stride=1, act=act, bn=bn))
 
       self._ops = nn.ModuleList()
       tmp_cins, tmp_strides = [C for _ in range(len(in_channel))], strides.copy() if reduction else [1 for _ in range(len(strides))]
@@ -67,7 +67,7 @@ class Cell_search(SearchModule):
     def __init__(self, in_channel, out_channel, strides, 
                  steps=4, multiplier=4,
                  candidate_op=darts, gumbel_op=False, gumbel_edge=False, 
-                 act=nn.ReLU(), bn=True,
+                 act=nn.ReLU(), bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)),
                  independent_ch_arch_param=True, independent_op_arch_param=True, independent_edge_arch_param=True):
 
         super(Cell_search, self).__init__()
@@ -82,7 +82,7 @@ class Cell_search(SearchModule):
                 break
         self.preprocess = nn.ModuleList([])
         for cin, s in zip(in_channel, strides):
-            self.preprocess.append(FactorizedReduce(cin, C, stride=2, act=act) if not reduction and s==2 else ConvBNAct(cin, C, kernel=1, stride=1, act=act, bn=True))
+            self.preprocess.append(FactorizedReduce(cin, C, stride=2, act=act, bn=bn) if not reduction and s==2 else ConvBNAct(cin, C, kernel=1, stride=1, act=act, bn=bn))
 
         candidate_op = get_search_space(candidate_op)
         self._ops = nn.ModuleList()
@@ -94,7 +94,7 @@ class Cell_search(SearchModule):
                                  candidate_op=candidate_op,
                                  gumbel_op=gumbel_op,
                                  gumbel_edge=gumbel_edge,
-                                 act=act, bn=bn,
+                                 act=act, bn=False,
                                  ))
             tmp_cins.append(C)
             tmp_strides.append(1)
