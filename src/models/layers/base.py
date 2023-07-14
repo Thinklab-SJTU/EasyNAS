@@ -20,6 +20,14 @@ class SearchModule(nn.Module):
         setattr(self, 'outOp', get_layer(self.outOp_name))
 
     def init_output_yaml(self, arch_yaml=None, outOp_name=None, input_idx=-1, **kwargs):
+        if outOp_name is not None:
+            outOp = get_layer(outOp_name)
+        elif hasattr(self, 'outOp_name'):
+            outOp_name, outOp = self.outOp_name, self.outOp
+        else:
+            self.set_outOp()
+            outOp_name, outOp = self.outOp_name, self.outOp
+
 #            arch_yaml = {
 #                'args': {k: getattr(self, k) for k in inspect.signature(self.__init__).parameters.keys() if hassttr(self, k)}
 #                }
@@ -30,10 +38,6 @@ class SearchModule(nn.Module):
             new_arch['submodule_name'] = outOp_name
             new_arch['input_idx'] = input_idx
 
-        if outOp_name is not None:
-            outOp = get_layer(outOp_name)
-        else:
-            outOp_name, outOp = self.outOp_name, self.outOp
         # del unused variables
         need_key = inspect.signature(outOp.__init__).parameters.keys()
         if arch_yaml is not None:

@@ -8,7 +8,7 @@ from .base import SearchModule
 from .search_space import get_search_space, darts
 from .common import ConvBNAct, FactorizedReduce
 from .search_common import AFF
-from .utils import get_act
+from .utils import get_act, get_layer
 
 class darts_identity(nn.Module):
     def __init__(self, in_channel, out_channel, stride, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)), act=True):
@@ -23,10 +23,10 @@ class darts_identity(nn.Module):
 
 class Cell(nn.Module):
   def __init__(self, in_channel, out_channel, strides, 
-               cell_ops, edges, multiplier,
+               cell_ops, edges, multiplier=4,
                act=nn.ReLU(), bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False))):
       super(Cell, self).__init__()
-      self._steps = len(op)
+      self._steps = len(cell_ops)
       self.edges = edges
       self._multiplier = multiplier
       C = out_channel // multiplier
@@ -50,14 +50,14 @@ class Cell(nn.Module):
           )
           self._ops.append(get_layer(cell_ops[i]['submodule_name'])(**cell_ops[i]['args']))
           tmp_cins.append(C)
-          strides.append(1)
+          tmp_strides.append(1)
 
   def forward(self, inputs):
       xs = []
       for x, pre_op in zip(inputs, self.preprocess):
           xs.append(pre_op(x))
 
-      for op, edge in enumerate(self._ops, self.edges):
+      for op, edge in zip(self._ops, self.edges):
           xs.append(op([xs[e] for e in edge]))
       return torch.cat(xs[-self._multiplier:], dim=1)
 
@@ -110,7 +110,7 @@ class Cell_search(SearchModule):
 
 
     def discretize(self, cfg, op_alphas=None, ch_alphas=None, edge_alphas=None, num_reserved_op=1, num_reserved_edge=2):
-        args = {'cell_ops': [], 'edges': []}
+        args = {'multiplier': self.multiplier, 'cell_ops': [], 'edges': []}
         for i in range(self._steps):
             op = self._ops[i].discretize()
             edge = op.pop('input_idx')

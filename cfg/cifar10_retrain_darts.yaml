@@ -1,0 +1,68 @@
+root_path: &root_path runs/cifar10_retrain_darts/
+epoch: &epoch 600
+accumulate_gradient: &acc_grad 1
+amp: False
+
+data: cfg/dataset/cifar10.yaml
+
+model: runs/cifar10_darts/arch/architecture_49.yaml
+
+criterion: 
+  submodule_name: torch.nn.CrossEntropyLoss
+
+optimizer: &optimizer
+  submodule_name: torch.optim.SGD
+  args:
+    params:
+    lr: 0.025
+    momentum: 0.9
+    weight_decay: 3.e-4
+
+lr_scheduler: &scheduler
+  submodule_name: torch.optim.lr_scheduler.CosineAnnealingLR
+  args:
+    optimizer: 
+    T_max: *epoch
+
+hooks:
+  opt_hook:
+    submodule_name: OptHOOK
+    args:
+      priority: 0
+      accumulate_gradient: *acc_grad
+  
+  lr_scheduler_hook:
+    submodule_name: LrScheduleHOOK
+    args: 
+      priority: 5
+      mode: epoch
+
+  eval_hook:
+    submodule_name: EvalAccHOOK
+    args: 
+      priority: 5
+  
+  ddp_hook:
+    submodule_name: DDPHOOK
+    args:
+      priority: 10
+  
+  
+  log_hook:
+    submodule_name: LogHOOK
+    args:
+      logger_name: TrainPip
+      log_path: !join [*root_path, test.log]
+      print_freq: 100
+      only_master: True
+      priority: 20
+  
+  ckpt_hook:
+    submodule_name: CkptHOOK
+    args:
+      save_root: !join [*root_path, ckpt/]
+      pretrain: 
+      only_master: True
+      priority: 20
+  
+

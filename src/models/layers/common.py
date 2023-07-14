@@ -135,31 +135,31 @@ class SepConvBNAct(nn.Module):
 
 class FuseLayer(nn.Module):
     # Feature Fusion
-    def __init__(self, in_channels, out_channel, strides, ops, act=nn.ReLU(), bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=True)), fuse_edge_func=sum, auto_refine=False, adjust_ch_op=None, upsample_op=None):
+    def __init__(self, in_channel, out_channel, strides, ops, act=nn.ReLU(), bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=True)), fuse_edge_func=sum, auto_refine=False, adjust_ch_op=None, upsample_op=None):
         super(FuseLayer, self).__init__()
-        self.check_valid(in_channels, strides, ops)
+        self.check_valid(in_channel, strides, ops)
 
         op_builder = OpBuilder(auto_refine=auto_refine, adjust_ch_op=adjust_ch_op, upsample_op=upsample_op)
 
         self.edges = nn.ModuleList([])
-        for cin, s, op in zip(in_channels, strides, ops):
-            self.edges.append(op_builder.build_op(op, cin, out_channel, s))
+        for cin, s, op in zip(in_channel, strides, ops):
+            self.edges.extend(op_builder.build_op(op, cin, out_channel, s))
 
         self.act = get_act(act)
         self.bn = get_norm(bn, out_channel)
         self.fuse_edge_func = fuse_edge_func
 
-    def check_valid(self, in_channels, strides, ops):
+    def check_valid(self, in_channel, strides, ops):
         if isinstance(ops, list):
-            assert(len(in_channels)==len(strides))
-            assert(len(in_channels)==len(ops))
+            assert(len(in_channel)==len(strides))
+            assert(len(in_channel)==len(ops))
 
     def forward(self, xs):
-       out = self.fuse_edge_func(op(x) for op, x in zip(self.edges, xs))
-       if self.bn: out = self.bn(out)
-       if self.act: out = self.act(out)
-
-       return out
+        out = self.fuse_edge_func(op(x) for op, x in zip(self.edges, xs))
+        if self.bn: out = self.bn(out)
+        if self.act: out = self.act(out)
+ 
+        return out
 
 
 class SPP(nn.Module):

@@ -56,7 +56,8 @@ class BaseModel(nn.Module):
     def info(self, input_size=None):
         if input_size:
             input_size = [input_size, input_size] if isinstance(input_size, int) else input_size
-            self.logger.info("param size = %fMB, FLOPS=%10.1fG", count_parameters_in_MB(self), thop.profile(self.model, inputs=(torch.ones(1, self.input_ch, *input_size),), verbose=False)[0] / 1E9 if thop else 0)
+#            self.logger.info("param size = %fMB, FLOPS=%10.3fG", count_parameters_in_MB(self), thop.profile(self, inputs=(torch.ones(1, self.input_ch, *input_size),), verbose=False)[0] / 1E9 if thop else 0)
+            self.logger.info("param size = %fMB", count_parameters_in_MB(self))
         else:
             self.logger.info("param size = %fMB", count_parameters_in_MB(self))
 
@@ -102,7 +103,11 @@ class BaseModel(nn.Module):
             m_ = layer(**args)
             if num_repeat > 1:
                 if 'in_channel' in args and 'out_channel' in args: 
-                    args['in_channel'] = cout
+                    if isinstance(in_idx, (list, tuple)):
+                        cin = ch + [cout]
+                        args['in_channel'] = [cin[idx] for idx in in_idx]
+                    else:
+                        args['in_channel'] = cout
                 m_ = nn.Sequential(*[m_] + [layer(**args) for _ in range(num_repeat-1)])
 
             num_param = sum([x.numel() for x in m_.parameters()])  # number params
@@ -115,7 +120,8 @@ class BaseModel(nn.Module):
             if i == 0:
                 ch = []
             ch.append(cout)
-        return nn.Sequential(*layers), sorted(set(save))
+#        return nn.Sequential(*layers), sorted(set(save))
+        return nn.ModuleList(layers), sorted(set(save))
 
 
 
@@ -210,7 +216,7 @@ class SearchModel(BaseModel, SearchModule):
 
             else:
                 new_arch.append(m_.arch_yaml)
-        out_model_yaml['architecture'] = new_arch
+        out_model_yaml['args']['architecture'] = new_arch
 
         return out_model_yaml
 

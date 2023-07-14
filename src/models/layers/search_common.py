@@ -195,12 +195,11 @@ class ConvBNAct_search(SearchModule):
         out = self.act(out) if self.act is not None else out
         return out
 
-    def discretize(self, cfg=None, op_alphas=None, ch_alphas=None, edge_alpha=None, num_reserved_op=1, num_reserved_edge=None):
+    def discretize(self, cfg=None, op_alphas=None, ch_alphas=None, edge_alphas=None, num_reserved_op=1, num_reserved_edge=None):
         assert num_reserved_op==1
 
-        new_cfg = self.init_output_yaml(cfg)
-
-        if ch_alphas is None: ch_alphas = self.ch_alphas
+        new_cfg = self.init_output_yaml(cfg, outOp_name=None, input_idx=-1)
+        if ch_alphas is None: ch_alphas = getattr(self, 'ch_alphas', None)
         if ch_alphas is not None:
             ch_alphas_idx = self.get_reserved_idx(1, ch_alphas)[0]
             new_cfg['args']['out_channel'] = cfg['args']['out_channel'] * cfg['args']['candidate_ch'][ch_alphas_idx]
@@ -374,7 +373,7 @@ class AFF(SearchModule):
 
         return out
 
-    def discretize_edge(self, op_alphas, num_reserved_op=1):
+    def discretize_edge(self, edge_module, op_alphas, num_reserved_op=1):
         assert num_reserved_op == 1
         op_alphas_idx = self.get_reserved_idx(num_reserved_op, op_alphas)[0]
 #        num_alphas_before = reduce(lambda x,y: x+[x[-1]+abs(y)] if isinstance(x, list) else [abs(x),abs(x)+abs(y)], self.num_alphas_each_op)
@@ -382,7 +381,7 @@ class AFF(SearchModule):
         op_idx = bisect.bisect_right(num_alphas_before, op_alphas_idx)
         if self.num_alphas_each_op[op_idx] > 0: # (Sep)ConvBNAct_search
             select_op = self.candidate_op[op_idx]
-            layer_cfg = self.get_layer(select_op.Optype).discretize(select_op.args, op_alphas=op_alphas, ch_alphas=None, edge_alphas=None, num_reserved_op=num_reserved_op)
+            layer_cfg = edge_module[op_idx].discretize(select_op, op_alphas=op_alphas, ch_alphas=None, edge_alphas=None, num_reserved_op=num_reserved_op)
             return edict(submodule_name=layer_cfg['submodule_name'], args=layer_cfg['args'])
         else:
             return self.candidate_op[op_idx]
@@ -406,7 +405,7 @@ class AFF(SearchModule):
         else: edge_alphas_idx = list(range(len(op_alphas)))
         args['ops'], args['strides'] = [], []
         for idx in edge_alphas_idx:
-            edge_op = self.discretize_edge(op_alphas[idx], num_reserved_op)
+            edge_op = self.discretize_edge(self.m[idx], op_alphas[idx], num_reserved_op)
             args['ops'].append(edge_op)
             args['strides'].append(self.strides[idx])
         new_cfg = self.init_output_yaml(cfg, outOp_name='FuseLayer', input_idx=edge_alphas_idx, **args)

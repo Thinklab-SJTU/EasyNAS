@@ -67,7 +67,7 @@ class DARTSHOOK(HOOK):
     @execute_period("update_freq")
     def before_train_iter(self, runner):
 #        self.tmp = getattr(self, 'tmp', 0)
-#        if self.tmp == 10:
+#        if self.tmp == 1:
 #            self.after_train_epoch(runner)
 #            assert 0
 #        else: self.tmp += 1
