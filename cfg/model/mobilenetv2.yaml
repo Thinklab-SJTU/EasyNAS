@@ -143,6 +143,7 @@ args:
     - input_idx: -1
       submodule_name: torch.nn.Linear
       is_outlayer: True
+      freeze_ch: true
       args:
         in_features: 1280
         out_features: *output_ch

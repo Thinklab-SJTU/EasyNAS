@@ -1,6 +1,7 @@
 #!/bin/sh
 
-cfg=cfg/cifar10_retrain_darts.yaml
+cfg=cfg/cifar10_darts.yaml
+#cfg=cfg/cifar10_retrain_darts.yaml
 
 gpu=( $@ )
 gpu_num=$#
@@ -20,14 +21,14 @@ else
     START_CMD="python"
 fi
 
-echo "Start?"
-read -p "Yes/No? (default Yes) :" Answer
+#echo "Start?"
+read -p "Start (Yes/No default Yes)? :" Answer
 case $Answer in
     Yes|yes|y|Y|"")
 #        echo "Start the process. Log file is saved to logs/${NAME}.log"
         CUDA_VISIBLE_DEVICES=$gpustr ${START_CMD} app/train.py \
 		--cfg ${cfg} \
-#        	> logs/mergenas.log 2>&1 &
+        	> logs/darts.log 2>&1 &
         ;;
     No|no|N|n)
         echo "The process is killed!"

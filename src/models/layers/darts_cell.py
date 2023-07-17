@@ -47,6 +47,7 @@ class Cell(nn.Module):
               in_channel=[tmp_cins[e] for e in edges[i]],
               out_channel=C,
               strides=[tmp_strides[e] for e in edges[i]],
+              bn=False
           )
           self._ops.append(get_layer(cell_ops[i]['submodule_name'])(**cell_ops[i]['args']))
           tmp_cins.append(C)
@@ -110,7 +111,7 @@ class Cell_search(SearchModule):
 
 
     def discretize(self, cfg, op_alphas=None, ch_alphas=None, edge_alphas=None, num_reserved_op=1, num_reserved_edge=2):
-        args = {'multiplier': self.multiplier, 'cell_ops': [], 'edges': []}
+        args = {'multiplier': self._multiplier, 'cell_ops': [], 'edges': []}
         for i in range(self._steps):
             op = self._ops[i].discretize()
             edge = op.pop('input_idx')

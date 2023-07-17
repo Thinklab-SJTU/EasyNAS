@@ -1,13 +1,17 @@
 import os
 import yaml
 from copy import deepcopy
+import inspect
 
 from .utils import CfgLoader, CfgDumper, parse_cfg, get_submodule_by_name
 from .dataloader import create_dataloader 
 from .optimizer import create_optimizer
 
-def create_criterion(cfg: dict):
-    return get_submodule_by_name(cfg.get('submodule_name'), search_path='torch.nn.criterion')(**cfg.get('args', {}))
+def create_criterion(cfg: dict, local_rank=-1):
+    cls = get_submodule_by_name(cfg.get('submodule_name'), search_path='torch.nn.criterion')
+    if 'local_rank' in inspect.getfullargspec(cls.__init__).args:
+        cfg.setdefault('args', {}).setdefault('local_rank', local_rank)
+    return cls(**cfg.get('args', {}))
 
 def create_scheduler(cfg: dict):
     return get_submodule_by_name(cfg.get('submodule_name'), search_path='torch.optim.lr_scheduler')(**cfg.get('args', {}))

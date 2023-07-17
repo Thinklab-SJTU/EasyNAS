@@ -81,7 +81,7 @@ class DARTSHOOK(HOOK):
         alpha_file = os.path.join(self.save_root, "alpha_%d.json"%runner.info.current_epoch)
         with open(alpha_file, 'w') as f:
           json.dump(arch_param, f)
-        out_model_yaml = runner.model.discretize(depth_multiple=3, width_multiple=2.25)
+        out_model_yaml = runner.model.discretize(depth_multiple=5, width_multiple=2.25)
         yaml_file = os.path.join(self.save_root, "architecture_%d.yaml"%runner.info.current_epoch)
         with open(yaml_file, encoding='utf-8', mode='w') as f:
             try:

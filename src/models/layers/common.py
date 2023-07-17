@@ -19,7 +19,7 @@ def DWConvBNAct(in_channel, out_channel, kernel=1, dilation=1, stride=1, group=1
 
 
 class PoolBNAct(nn.Module):
-    def __init__(self, kernel, out_channel=None, stride=1, pool='max', pad=None, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=True)), act=nn.ReLU()): 
+    def __init__(self, kernel, out_channel=None, stride=1, pool='max', pad=None, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=True)), act=nn.ReLU(), **kwargs): 
         super(PoolBNAct, self).__init__()
         if bn: assert out_channel is not None
 
@@ -32,7 +32,7 @@ class PoolBNAct(nn.Module):
         else:
             raise(ValueError(f"No implementation for pool as {pool}"))
 
-        self.pool = pool_op(kernel_size=kernel, stride=stride, padding=autopad(kernel, pad))
+        self.pool = pool_op(kernel_size=kernel, stride=stride, padding=autopad(kernel, pad), **kwargs)
         self.bn = get_norm(bn, out_channel)
         self.act = get_act(act)
 
@@ -60,15 +60,18 @@ class GlobalPoolBNAct(nn.Module):
         x = x.view(x.size(0), -1)
         return x
 
-class LinearAct(nn.Module):
+class LinearBNAct(nn.Module):
     # Standard convolution
-    def __init__(self, in_channel, out_channel, act=None, bias=False):  # ch_in, ch_out, kernel, dilation, stride, padding, groups
-        super(LinearAct, self).__init__()
+    def __init__(self, in_channel, out_channel, act=None, bn=None, bias=False):  # ch_in, ch_out, kernel, dilation, stride, padding, groups
+        super(LinearBNAct, self).__init__()
         self.linear = nn.Linear(in_channel, out_channel, bias=bias)
+        self.bn = get_norm(bn, out_channel)
         self.act = get_act(act)
 
     def forward(self, x):
+        if x.dim() > 2: x = x.view(x.size(0), -1)
         x = self.linear(x)
+        if self.bn: x = self.bn(x)
         if self.act: x = self.act(x)
         return x
 

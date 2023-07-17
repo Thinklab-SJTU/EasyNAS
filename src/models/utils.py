@@ -3,7 +3,6 @@ import numpy as np
 import torch.nn as nn
 
 def count_parameters_in_MB(model):
-#  return np.sum(np.prod(v.size()) for name, v in model.named_parameters() if "auxiliary" not in name)/1e6
   return np.sum(v.numel() for name, v in model.named_parameters() if "auxiliary" not in name)/1e6
 
 def make_divisible(x, divisor):

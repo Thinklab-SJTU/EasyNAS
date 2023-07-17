@@ -50,11 +50,11 @@ def main():
 
     # parse criterion
     print("Building criterion")
-    criterion = create_criterion(cfg['criterion'])
+    criterion = create_criterion(cfg['criterion'], local_rank=args.local_rank)
 
     # parse optimizer
     print("Building optimizer")
-    optimizer = create_optimizer(model, cfg['optimizer'])
+    optimizer = create_optimizer(model, cfg['optimizer'], criterion)
 
     # parse scheduler
     print("Building lr scheduler")

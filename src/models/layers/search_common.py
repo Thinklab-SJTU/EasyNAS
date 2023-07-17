@@ -318,11 +318,6 @@ class AFF(SearchModule):
         self.m = nn.ModuleList([])
         for cin, s in zip(in_channel, strides):
             self.m.append(op_builder.build_op(candidate_op, cin, out_channel, s))
-#            self.m.append(ParallelOpLayer(cin, out_channel, candidate_op, candidate_ch, 
-#                          gumbel_op, gumbel_channel,
-#                          stride=s, act=None, bn=False,
-#                          independent_ch_arch_param=False,
-#                          independent_op_arch_param=independent_op_arch_param))
         self.num_alphas_each_op = []
         for op in candidate_op:
             self.num_alphas_each_op.append(

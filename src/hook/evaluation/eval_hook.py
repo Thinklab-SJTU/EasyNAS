@@ -24,6 +24,7 @@ class EvalAccHOOK(HOOK):
 
     def after_train_iter(self, runner):
         logits, target, iter_loss = runner.info.train_bs_logits, runner.info.train_bs_target, runner.info.train_bs_loss
+        if isinstance(logits, (list, tuple)): logits = logits[-1]
         prec1, prec5 = accuracy(logits, target, topk=(1, 5))
         n = target.size(0)
         self.loss.update(iter_loss.item(), n)
@@ -35,6 +36,7 @@ class EvalAccHOOK(HOOK):
 
     def after_val_iter(self, runner):
         logits, target, loss = runner.info.val_bs_logits, runner.info.val_bs_target, runner.info.val_bs_loss
+        if isinstance(logits, (list, tuple)): logits = logits[-1]
         prec1, prec5 = accuracy(logits, target, topk=(1, 5))
         n = target.size(0)
         self.val_loss.update(loss.item(), n)

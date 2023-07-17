@@ -5,10 +5,16 @@ amp: False
 
 data: cfg/dataset/cifar10.yaml
 
-model: runs/cifar10_darts/arch/architecture_49.yaml
+model: runs/cifar10_darts/arch/architecture_0.yaml
 
 criterion: 
-  submodule_name: torch.nn.CrossEntropyLoss
+  submodule_name: src.criterions.CriterionWithAux
+  args:
+    criterion_or_cfg:
+      submodule_name: torch.nn.CrossEntropyLoss
+    in_channel: 576
+    out_channel: 10
+    auxiliary_weight: 0.4
 
 optimizer: &optimizer
   submodule_name: torch.optim.SGD
