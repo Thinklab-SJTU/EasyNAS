@@ -83,8 +83,8 @@ class Trainer(object):
             getattr(hook, fn_name)(self)
 
     def train_one_epoch(self, train_loader, model, criterion):
-        self.call_hook('before_train_epoch')
         model.train()
+        self.call_hook('before_train_epoch')
         for step, (input, target) in enumerate(train_loader):
             self.call_hook('before_train_iter')
             self.info.current_iter = step
@@ -106,8 +106,8 @@ class Trainer(object):
         self.call_hook('after_train_epoch')
 
     def val(self, val_loader, model, criterion):
-        self.call_hook('before_val_epoch')
         model.eval()
+        self.call_hook('before_val_epoch')
         with torch.no_grad():
             for step, (input, target) in enumerate(val_loader):
                 self.call_hook('before_val_iter')

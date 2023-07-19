@@ -10,21 +10,27 @@ from .common import ConvBNAct, FactorizedReduce
 from .search_common import AFF
 from .utils import get_act, get_layer
 
-class darts_identity(nn.Module):
-    def __init__(self, in_channel, out_channel, stride, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)), act=True):
-        super(darts_identity, self).__init__()
-        if stride == 1:
-            self.op = nn.Identity()
-        else: self.op = FactorizedReduce(in_channel, out_channel, stride, bn, act)
-    
-    def forward(self, x):
-        return self.op(x)
+#class darts_identity(nn.Module):
+#    def __init__(self, in_channel, out_channel, stride, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)), act=True):
+#        super(darts_identity, self).__init__()
+#        if stride == 1:
+#            self.op = nn.Identity()
+#        else: self.op = FactorizedReduce(in_channel, out_channel, stride, bn, act)
+#    
+#    def forward(self, x):
+#        return self.op(x)
+
+def darts_identity(in_channel, out_channel, stride, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)), act=True):
+    if stride == 1:
+        return nn.Identity()
+    else: return FactorizedReduce(in_channel, out_channel, stride, bn, act)
 
 
 class Cell(nn.Module):
   def __init__(self, in_channel, out_channel, strides, 
                cell_ops, edges, multiplier=4,
-               act=nn.ReLU(), bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False))):
+               act=nn.ReLU(), bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)),
+               drop_path_prob=0.2):
       super(Cell, self).__init__()
       self._steps = len(cell_ops)
       self.edges = edges
@@ -47,7 +53,9 @@ class Cell(nn.Module):
               in_channel=[tmp_cins[e] for e in edges[i]],
               out_channel=C,
               strides=[tmp_strides[e] for e in edges[i]],
-              bn=False
+              act=act,
+              bn=False,
+              drop_path_prob=drop_path_prob
           )
           self._ops.append(get_layer(cell_ops[i]['submodule_name'])(**cell_ops[i]['args']))
           tmp_cins.append(C)
@@ -96,6 +104,9 @@ class Cell_search(SearchModule):
                                  gumbel_op=gumbel_op,
                                  gumbel_edge=gumbel_edge,
                                  act=act, bn=False,
+                                 independent_edge_arch_param=independent_edge_arch_param,
+                                 independent_op_arch_param=independent_op_arch_param,
+                                 independent_ch_arch_param=independent_ch_arch_param,
                                  ))
             tmp_cins.append(C)
             tmp_strides.append(1)
@@ -111,7 +122,7 @@ class Cell_search(SearchModule):
 
 
     def discretize(self, cfg, op_alphas=None, ch_alphas=None, edge_alphas=None, num_reserved_op=1, num_reserved_edge=2):
-        args = {'multiplier': self._multiplier, 'cell_ops': [], 'edges': []}
+        args = {'multiplier': self._multiplier, 'cell_ops': [], 'edges': [], 'drop_path_prob': 0.2}
         for i in range(self._steps):
             op = self._ops[i].discretize()
             edge = op.pop('input_idx')

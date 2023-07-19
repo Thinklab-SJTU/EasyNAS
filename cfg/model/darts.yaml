@@ -35,6 +35,7 @@ args:
           name: torch.nn.BatchNorm2d
           args: 
             affine: False
+        independent_edge_arch_param: False
     - input_idx: [-2, -1] # 2
       submodule_name: Cell_search
       arch_idx: -1
@@ -49,6 +50,7 @@ args:
           name: torch.nn.BatchNorm2d
           args: 
             affine: False
+        independent_edge_arch_param: False
 
 # reduce cell * 1  
     - input_idx: [-2, -1] # 3
@@ -64,6 +66,7 @@ args:
           name: torch.nn.BatchNorm2d
           args: 
             affine: False
+        independent_edge_arch_param: False
 
 # normal cell * 2
     - input_idx: [-2, -1] # 4
@@ -79,6 +82,7 @@ args:
           name: torch.nn.BatchNorm2d
           args: 
             affine: False
+        independent_edge_arch_param: False
     - input_idx: [-2, -1] # 5
       submodule_name: Cell_search
       arch_idx: -1
@@ -93,6 +97,7 @@ args:
           name: torch.nn.BatchNorm2d
           args: 
             affine: False
+        independent_edge_arch_param: False
 
 # reduce cell * 1  
     - input_idx: [-2, -1] # 6
@@ -109,6 +114,7 @@ args:
           name: torch.nn.BatchNorm2d
           args: 
             affine: False
+        independent_edge_arch_param: False
 
 # normal cell * 2
     - input_idx: [-2, -1] # 7
@@ -124,6 +130,7 @@ args:
           name: torch.nn.BatchNorm2d
           args: 
             affine: False
+        independent_edge_arch_param: False
     - input_idx: [-2, -1] # 8
       submodule_name: Cell_search
       arch_idx: -1
@@ -138,6 +145,7 @@ args:
           name: torch.nn.BatchNorm2d
           args: 
             affine: False
+        independent_edge_arch_param: False
 
     - input_idx: -1
       submodule_name: GlobalPoolBNAct

@@ -8,14 +8,14 @@ dataset:
       root: ./data/
       train: True
       download: True
-      transform: default
+      transform: !get_func [src.datasets.cifar.get_transforms, {cutout: True, cutout_length: 16, cutout_prob: 1.0}]
   val:
     submodule_name: src.datasets.CIFAR10
     dataset_args:
       root: ./data/
       train: False
       download: True
-      transform: default
+      transform: !get_func [src.datasets.cifar.get_transforms, {cutout: True, cutout_length: 16, cutout_prob: 1.0}]
 
 dataloader:
   train:

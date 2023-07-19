@@ -394,10 +394,8 @@ class AFF(SearchModule):
                 args['out_channel'] = self.cout * self.candidate_ch[ch_alphas_idx]
 
         if op_alphas is None: op_alphas = self.op_alphas
-        if edge_alphas is None: edge_alphas = self.edge_alphas
-        if edge_alphas is not None:
-            edge_alphas_idx = self.get_reserved_idx(num_reserved_edge, edge_alphas)
-        else: edge_alphas_idx = list(range(len(op_alphas)))
+        if edge_alphas is None: edge_alphas = getattr(self, 'edge_alphas', op_alphas.max(dim=1)[0])
+        edge_alphas_idx = self.get_reserved_idx(num_reserved_edge, edge_alphas)
         args['ops'], args['strides'] = [], []
         for idx in edge_alphas_idx:
             edge_op = self.discretize_edge(self.m[idx], op_alphas[idx], num_reserved_op)

@@ -1,18 +1,20 @@
-root_path: &root_path runs/cifar10_darts_noEdgeAlpha_noCutout/
-epoch: &epoch 50
+root_path: &root_path runs/cifar10_mergenas/retrain_drop_path0.2/
+epoch: &epoch 600
 accumulate_gradient: &acc_grad 1
 amp: False
 
-data: cfg/dataset/cifar10_search.yaml
+data: cfg/dataset/cifar10.yaml
 
-model: cfg/model/darts.yaml
+model: runs/cifar10_mergenas/arch/architecture_49.yaml
 
-criterion: &criterion
+criterion: 
   submodule_name: src.criterions.CriterionWithAux
   args:
     criterion_or_cfg:
       submodule_name: torch.nn.CrossEntropyLoss
-    auxiliary_or_cfg: null
+    in_channel: 576
+    out_channel: 10
+    auxiliary_weight: 0.4
 
 optimizer: &optimizer
   submodule_name: torch.optim.SGD
@@ -27,7 +29,6 @@ lr_scheduler: &scheduler
   args:
     optimizer: 
     T_max: *epoch
-    eta_min: 0.001
 
 hooks:
   opt_hook:
@@ -42,22 +43,6 @@ hooks:
       priority: 5
       mode: epoch
 
-  darts_hook:
-    submodule_name: DARTSHOOK
-    args:
-      optimizer_cfg:
-        submodule_name: torch.optim.Adam
-        args:
-          lr: 3.e-4
-          betas: [0.5, 0.999]
-          weight_decay: 1.e-3
-      dataloader_name: search_val
-      criterion_cfg: *criterion
-      update_freq: 5
-      accumulate_gradient: *acc_grad
-      priority:
-      save_root: !join [*root_path, arch/]
-  
   eval_hook:
     submodule_name: EvalAccHOOK
     args: 
@@ -86,3 +71,5 @@ hooks:
       only_master: True
       priority: 20
   
+
+

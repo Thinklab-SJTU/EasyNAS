@@ -1,4 +1,4 @@
-root_path: &root_path runs/cifar10_mergenas/
+root_path: &root_path runs/cifar10_mergenas_noEdgeAlpha_noCutout/
 epoch: &epoch 50
 accumulate_gradient: &acc_grad 1
 amp: False

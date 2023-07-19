@@ -1,6 +1,7 @@
 from collections import namedtuple
 from copy import deepcopy
 import inspect
+from inspect import isfunction
 from easydict import EasyDict as edict
 import torch
 import torch.nn as nn
@@ -164,7 +165,11 @@ class OpBuilder(object):
                 up_s, s = int(1./s), max(1, s)
                 adjust_ch = False
                 refined_op.args.update(stride=s, **tmp_update_args)
-                arg_names = inspect.getfullargspec(get_layer(refined_op.submodule_name).__init__).args
+                tmp_module = get_layer(refined_op.submodule_name)
+                if isfunction(tmp_module):
+                    arg_names = inspect.getfullargspec(tmp_module).args
+                else:
+                    arg_names = inspect.getfullargspec(tmp_module.__init__).args
                 if 'in_channel' in arg_names: 
                     refined_op.args.update(in_channel=cin)
                 if 'out_channel' in arg_names: 

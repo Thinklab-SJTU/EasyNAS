@@ -138,7 +138,7 @@ class SepConvBNAct(nn.Module):
 
 class FuseLayer(nn.Module):
     # Feature Fusion
-    def __init__(self, in_channel, out_channel, strides, ops, act=nn.ReLU(), bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=True)), fuse_edge_func=sum, auto_refine=False, adjust_ch_op=None, upsample_op=None):
+    def __init__(self, in_channel, out_channel, strides, ops, act=nn.ReLU(), bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=True)), drop_path_prob=0., fuse_edge_func=sum, auto_refine=False, adjust_ch_op=None, upsample_op=None):
         super(FuseLayer, self).__init__()
         self.check_valid(in_channel, strides, ops)
 
@@ -150,6 +150,7 @@ class FuseLayer(nn.Module):
 
         self.act = get_act(act)
         self.bn = get_norm(bn, out_channel)
+        self.drop_path = DropPath(drop_path_prob)
         self.fuse_edge_func = fuse_edge_func
 
     def check_valid(self, in_channel, strides, ops):
@@ -158,7 +159,7 @@ class FuseLayer(nn.Module):
             assert(len(in_channel)==len(ops))
 
     def forward(self, xs):
-        out = self.fuse_edge_func(op(x) for op, x in zip(self.edges, xs))
+        out = self.fuse_edge_func(op(x) if isinstance(op, nn.Identity) else self.drop_path(op(x)) for op, x in zip(self.edges, xs))
         if self.bn: out = self.bn(out)
         if self.act: out = self.act(out)
  
@@ -245,6 +246,26 @@ class FactorizedReduce(nn.Module):
     out = self.bn(out)
     out = self.act(out)
     return out
+
+
+class DropPath(nn.Module):
+    def __init__(self, drop_prob=None):
+        super(DropPath, self).__init__()
+        self.drop_prob = drop_prob
+
+    def drop_path(self, x, drop_prob: float = 0.):
+        keep_prob = 1 - drop_prob
+        shape = (x.shape[0],) + (1,) * (x.ndim - 1)
+        random_tensor = keep_prob + torch.rand(shape, dtype=x.dtype, device=x.device)
+        random_tensor.floor_()
+#        x.div_(keep_prob).mul_(random_tensor)
+        x = x.div(keep_prob).mul_(random_tensor)
+        return x
+
+    def forward(self, x):
+        if self.drop_prob == 0. or not self.training:
+            return x
+        return self.drop_path(x, self.drop_prob)
 
 
 

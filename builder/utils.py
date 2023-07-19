@@ -102,7 +102,7 @@ class CfgLoader(yaml.SafeLoader):
     def join(self, node):
         return ''.join([str(i) for i in self.construct_sequence(node)])
 
-    def get_module(self, node):
+    def get_func(self, node):
 #        module_name = str(self.construct_scalar(node.value[0])).split('.')
 #        args = self.construct_mapping(node.value[1])
         name_args = self.construct_sequence(node, deep=True)
@@ -118,7 +118,7 @@ CfgLoader.add_constructor(
     u'tag:yaml.org,2002:python/tuple',
     CfgLoader.construct_python_tuple)
 CfgLoader.add_constructor('!join', CfgLoader.join)
-CfgLoader.add_constructor('!get_module', CfgLoader.get_module)
+CfgLoader.add_constructor('!get_func', CfgLoader.get_func)
 CfgLoader.add_constructor('!edict', CfgLoader.construct_python_edict)
 
 class CfgDumper(yaml.SafeDumper):
