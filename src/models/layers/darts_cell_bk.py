@@ -23,14 +23,7 @@ from .utils import get_act, get_layer
 def darts_identity(in_channel, out_channel, stride, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)), act=True):
     if stride == 1:
         return nn.Identity()
-    else: 
-        if act:
-            return nn.Sequential(
-                    get_act(act),
-                    FactorizedReduce(in_channel, out_channel, stride, bn, False)
-                    )
-        else:
-            return FactorizedReduce(in_channel, out_channel, stride, bn, False)
+    else: return FactorizedReduce(in_channel, out_channel, stride, bn, act)
 
 
 class Cell(nn.Module):
@@ -51,12 +44,7 @@ class Cell(nn.Module):
               break
       self.preprocess = nn.ModuleList([])
       for cin, s in zip(in_channel, strides):
-          pre_op = nn.Sequential(
-                  get_act(act),
-                  FactorizedReduce(cin, C, stride=2, act=False, bn=bn) if not reduction and s==2 else ConvBNAct(cin, C, kernel=1, stride=1, act=False, bn=bn),
-                  )
-          self.preprocess.append(pre_op)
-#          self.preprocess.append(FactorizedReduce(cin, C, stride=2, act=act, bn=bn) if not reduction and s==2 else ConvBNAct(cin, C, kernel=1, stride=1, act=act, bn=bn))
+          self.preprocess.append(FactorizedReduce(cin, C, stride=2, act=act, bn=bn) if not reduction and s==2 else ConvBNAct(cin, C, kernel=1, stride=1, act=act, bn=bn))
 
       self._ops = nn.ModuleList()
       tmp_cins, tmp_strides = [C for _ in range(len(in_channel))], strides.copy() if reduction else [1 for _ in range(len(strides))]
@@ -65,7 +53,7 @@ class Cell(nn.Module):
               in_channel=[tmp_cins[e] for e in edges[i]],
               out_channel=C,
               strides=[tmp_strides[e] for e in edges[i]],
-              act=False,
+              act=act,
               bn=False,
               drop_path_prob=drop_path_prob
           )
@@ -103,12 +91,7 @@ class Cell_search(SearchModule):
                 break
         self.preprocess = nn.ModuleList([])
         for cin, s in zip(in_channel, strides):
-            pre_op = nn.Sequential(
-                    get_act(),
-                    FactorizedReduce(cin, C, stride=2, act=False, bn=bn) if not reduction and s==2 else ConvBNAct(cin, C, kernel=1, stride=1, act=False, bn=bn),
-                    )
-            self.preprocess.append(pre_op)
-#            self.preprocess.append(FactorizedReduce(cin, C, stride=2, act=act, bn=bn) if not reduction and s==2 else ConvBNAct(cin, C, kernel=1, stride=1, act=act, bn=bn))
+            self.preprocess.append(FactorizedReduce(cin, C, stride=2, act=act, bn=bn) if not reduction and s==2 else ConvBNAct(cin, C, kernel=1, stride=1, act=act, bn=bn))
 
         candidate_op = get_search_space(candidate_op)
         self._ops = nn.ModuleList()
@@ -120,7 +103,7 @@ class Cell_search(SearchModule):
                                  candidate_op=candidate_op,
                                  gumbel_op=gumbel_op,
                                  gumbel_edge=gumbel_edge,
-                                 act=False, bn=False,
+                                 act=act, bn=False,
                                  independent_edge_arch_param=independent_edge_arch_param,
                                  independent_op_arch_param=independent_op_arch_param,
                                  independent_ch_arch_param=independent_ch_arch_param,
@@ -147,6 +130,7 @@ class Cell_search(SearchModule):
             args['edges'].append(edge)
         new_cfg = self.init_output_yaml(cfg, outOp_name="Cell", input_idx=cfg['input_idx'], **args)
         return new_cfg
+
 
 
 

@@ -269,5 +269,18 @@ class DropPath(nn.Module):
             return x
         return self.drop_path(x, self.drop_prob)
 
+#class MyAct(nn.Module):
+#    def __init__(self):
+#        super(MyAct, self).__init__()
+#        self.act = nn.ReLU(inplace=False)
+#        print(self.act.inplace)
+#    def forward(self, x):
+#        print(x.sum())
+#        out = self.act(x)
+#        print(self.act.inplace)
+##        out = nn.functional.relu(x)
+#        print(x.sum(), out.sum())
+#        return out
+##        return nn.functional.relu(x)
 
 

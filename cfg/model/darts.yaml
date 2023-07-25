@@ -15,7 +15,7 @@ args:
         dilation: 1
         stride: 1
         bias: False
-        act: torch.nn.ReLU
+        act: False # torch.nn.ReLU
         bn: !get_module [torch.nn.BatchNorm2d, {affine: True}]
 
 # normal cell * 2
@@ -29,7 +29,7 @@ args:
         gumbel_op: False
         gumbel_edge: False
         bn: !get_module [torch.nn.BatchNorm2d, {affine: False}]
-        act: torch.nn.ReLU
+        act: !get_module [torch.nn.ReLU, {inplace: False}]
         independent_edge_arch_param: False
     - input_idx: [-2, -1] # 2
       submodule_name: Cell_search
@@ -42,7 +42,7 @@ args:
         gumbel_op: False
         gumbel_edge: False
         bn: !get_module [torch.nn.BatchNorm2d, {affine: False}]
-        act: torch.nn.ReLU
+        act: !get_module [torch.nn.ReLU, {inplace: False}]
         independent_edge_arch_param: False
 
 # reduce cell * 1  
@@ -56,7 +56,7 @@ args:
         gumbel_op: False
         gumbel_edge: False
         bn: !get_module [torch.nn.BatchNorm2d, {affine: False}]
-        act: torch.nn.ReLU
+        act: !get_module [torch.nn.ReLU, {inplace: False}]
         independent_edge_arch_param: False
 
 # normal cell * 2
@@ -70,7 +70,7 @@ args:
         gumbel_op: False
         gumbel_edge: False
         bn: !get_module [torch.nn.BatchNorm2d, {affine: False}]
-        act: torch.nn.ReLU
+        act: !get_module [torch.nn.ReLU, {inplace: False}]
         independent_edge_arch_param: False
     - input_idx: [-2, -1] # 5
       submodule_name: Cell_search
@@ -83,7 +83,7 @@ args:
         gumbel_op: False
         gumbel_edge: False
         bn: !get_module [torch.nn.BatchNorm2d, {affine: False}]
-        act: torch.nn.ReLU
+        act: !get_module [torch.nn.ReLU, {inplace: False}]
         independent_edge_arch_param: False
 
 # reduce cell * 1  
@@ -98,7 +98,7 @@ args:
         gumbel_op: False
         gumbel_edge: False
         bn: !get_module [torch.nn.BatchNorm2d, {affine: False}]
-        act: torch.nn.ReLU
+        act: !get_module [torch.nn.ReLU, {inplace: False}]
         independent_edge_arch_param: False
 
 # normal cell * 2
@@ -112,7 +112,7 @@ args:
         gumbel_op: False
         gumbel_edge: False
         bn: !get_module [torch.nn.BatchNorm2d, {affine: False}]
-        act: torch.nn.ReLU
+        act: !get_module [torch.nn.ReLU, {inplace: False}]
         independent_edge_arch_param: False
     - input_idx: [-2, -1] # 8
       submodule_name: Cell_search
@@ -125,7 +125,7 @@ args:
         gumbel_op: False
         gumbel_edge: False
         bn: !get_module [torch.nn.BatchNorm2d, {affine: False}]
-        act: torch.nn.ReLU
+        act: !get_module [torch.nn.ReLU, {inplace: False}]
         independent_edge_arch_param: False
 
     - input_idx: -1

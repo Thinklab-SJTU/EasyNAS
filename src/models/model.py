@@ -50,6 +50,7 @@ class BaseModel(nn.Module):
         else: self.apply(default_init_weights)
 
         self.info(input_size)
+
         self.to(self.device)
 
 

@@ -3,6 +3,7 @@ import random
 import argparse
 import numpy as np
 import torch
+torch.backends.cudnn.deterministic = True
 
 from builder import parse_cfg, create_dataloader, create_model, create_optimizer, create_criterion, create_hook, create_scheduler
 from pipeline.trainer import Trainer

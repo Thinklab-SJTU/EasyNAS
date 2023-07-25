@@ -25,7 +25,7 @@ def default_init_weights(m):
             nn.init.constant_(m.weight, 1)
         if hasattr(m, 'bias') and m.bias is not None:
             nn.init.constant_(m.bias, 0)
-    elif isinstance(m, (nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6)):
-        m.inplace = True
+#    elif isinstance(m, (nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6)):
+#        m.inplace = True
 
 

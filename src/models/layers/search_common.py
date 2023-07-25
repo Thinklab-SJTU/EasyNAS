@@ -359,9 +359,11 @@ class AFF(SearchModule):
         edge_alphas = edge_alphas if edge_alphas is not None else (self.norm_arch_parameters(self.edge_alphas, self.gumbel_edge) if hasattr(self, 'edge_alphas') else [1.]*len(self.cin))
         bn = self.get_norm_layer(ch_alphas, self.bn, self.gumbel_channel)
 
-        out = 0.
-        for x, m, edge_alpha, edge_op_alphas in zip(xs, self.m, edge_alphas, op_alphas):
-            out = out + self.forward_edge(x, m, edge_op_alphas, ch_alphas) * edge_alpha
+#        out = 0.
+#        for x, m, edge_alpha, edge_op_alphas in zip(xs, self.m, edge_alphas, op_alphas):
+#            out = out + self.forward_edge(x, m, edge_op_alphas, ch_alphas) * edge_alpha
+        out = sum(self.forward_edge(x, m, edge_op_alphas, ch_alphas) * edge_alpha 
+                for x, m, edge_alpha, edge_op_alphas in zip(xs, self.m, edge_alphas, op_alphas))
 
         if bn: out = bn(out)
         if self.act: out = self.act(out)

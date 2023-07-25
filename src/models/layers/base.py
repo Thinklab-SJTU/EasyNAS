@@ -153,19 +153,20 @@ class OpBuilder(object):
         if isinstance(op, (tuple, list)):
             Warning("Sequential op will set the out_channel of last op as cout, and set the out_channel and in_channel of other ops as cin; set stride of first op as stride and set others' as 1.")
             op = list(op)
-            op[0] = self.refine_C_stride_sequence(op[0], in_channel, in_channel, stride, **update_args)
-            for i in range(1, len(op)-1):
-                op[i] = self.refine_C_stride_sequence(op[i], in_channel, in_channel, 1, **update_args)
-            op[-1] = self.refine_C_stride_sequence(op[-1], in_channel, out_channel, 1, **update_args)
+            for i in range(len(op)-1):
+                op[i], stride = self.refine_C_stride_sequence(op[i], in_channel, in_channel, stride, **update_args)
+            op[-1], s = self.refine_C_stride_sequence(op[-1], in_channel, out_channel, stride, **update_args)
         elif isinstance(op, edict):
             up_s, s = int(1./stride), max(1, stride)
             adjust_ch = False
-            op.args.update(stride=stride, **update_args)
             tmp_module = get_layer(op.submodule_name)
             if isfunction(tmp_module):
                 arg_names = inspect.getfullargspec(tmp_module).args
             else:
                 arg_names = inspect.getfullargspec(tmp_module.__init__).args
+            if 'stride' in arg_names:
+                op.args.update(stride=stride, **update_args)
+                s = 1
             if 'in_channel' in arg_names: 
                 op.args.update(in_channel=in_channel)
             if 'out_channel' in arg_names: 
@@ -180,12 +181,13 @@ class OpBuilder(object):
                 op.append(upsample_op)
             if self.auto_refine and adjust_ch: 
                 adjust_ch_op = deepcopy(self.adjust_ch_op)
-                adjust_ch_op.args.update(in_channel=in_channel, out_channel=out_channel)
+                adjust_ch_op.args.update(in_channel=in_channel, out_channel=out_channel, stride=s)
+                s = 1
                 if isinstance(op, edict):
                     op = [op]
                 op.append(adjust_ch_op)
         else: raise(ValueError(f"No implementation for op as type {type(op)}"))
-        return op
+        return op, s
 
     def refine_C_stride_parallel(self, op_config, in_channel, out_channel, stride, **update_args):
         if isinstance(op_config, edict):
@@ -199,7 +201,7 @@ class OpBuilder(object):
             tmp_update_args = {}
             for k, v in update_args:
                 tmp_update_args[k] = v[idx] if isinstance(v, (list, tuple)) else v
-            refined_op = self.refine_C_stride_sequence(refined_op, cin, cout, s, **tmp_update_args)
+            refined_op, _ = self.refine_C_stride_sequence(refined_op, cin, cout, s, **tmp_update_args)
             refined_op_config.append(refined_op)
         return tuple(refined_op_config)
 #            if isinstance(op, edict):
@@ -251,7 +253,7 @@ class OpBuilder(object):
                 op = nn.Sequential()
                 for idx, sub_config in enumerate(config):
                     module = get_layer(sub_config.submodule_name) 
-                    op.add_module(str(idx), module(**sub_config.args))
+                    op.add_module(str(idx), module(**sub_config.get('args', {})))
             else: 
                 raise(TypeError("op_config should be either easydict or sequence"))
             ops.append(op)
