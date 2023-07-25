@@ -149,7 +149,45 @@ class OpBuilder(object):
         self.adjust_ch_op = edict(submodule_name='ConvBNAct', args=dict(kernel=1, dilation=1, bn=False, act=None)) if adjust_ch_op is None else adjust_ch_op
         self.upsample_op = edict(submodule_name=nn.Upsample, args=dict(size=None, scale_factor=None, mode='nearest', align_corners=None)) if upsample_op is None else upsample_op
 
-    def refine_C_stride(self, op_config, in_channel, out_channel, stride, **update_args):
+    def refine_C_stride_sequence(self, op, in_channel, out_channel, stride, **update_args):
+        if isinstance(op, (tuple, list)):
+            Warning("Sequential op will set the out_channel of last op as cout, and set the out_channel and in_channel of other ops as cin; set stride of first op as stride and set others' as 1.")
+            op = list(op)
+            op[0] = self.refine_C_stride_sequence(op[0], in_channel, in_channel, stride, **update_args)
+            for i in range(1, len(op)-1):
+                op[i] = self.refine_C_stride_sequence(op[i], in_channel, in_channel, 1, **update_args)
+            op[-1] = self.refine_C_stride_sequence(op[-1], in_channel, out_channel, 1, **update_args)
+        elif isinstance(op, edict):
+            up_s, s = int(1./stride), max(1, stride)
+            adjust_ch = False
+            op.args.update(stride=stride, **update_args)
+            tmp_module = get_layer(op.submodule_name)
+            if isfunction(tmp_module):
+                arg_names = inspect.getfullargspec(tmp_module).args
+            else:
+                arg_names = inspect.getfullargspec(tmp_module.__init__).args
+            if 'in_channel' in arg_names: 
+                op.args.update(in_channel=in_channel)
+            if 'out_channel' in arg_names: 
+                op.args.update(out_channel=out_channel)
+            if in_channel != out_channel and ('in_channel' not in arg_names or 'out_channel' not in arg_names):
+                Warning("Input channel should be the same as output channel. Otherwise, you should set auto_refine as True")
+                adjust_ch = True
+            if self.auto_refine and up_s > 1: 
+                upsample_op = deepcopy(self.upsample_op)
+                upsample_op.args.update(scale_factor=up_s)
+                op = [op]
+                op.append(upsample_op)
+            if self.auto_refine and adjust_ch: 
+                adjust_ch_op = deepcopy(self.adjust_ch_op)
+                adjust_ch_op.args.update(in_channel=in_channel, out_channel=out_channel)
+                if isinstance(op, edict):
+                    op = [op]
+                op.append(adjust_ch_op)
+        else: raise(ValueError(f"No implementation for op as type {type(op)}"))
+        return op
+
+    def refine_C_stride_parallel(self, op_config, in_channel, out_channel, stride, **update_args):
         if isinstance(op_config, edict):
             op_config = [op_config]
         refined_op_config = []
@@ -161,44 +199,47 @@ class OpBuilder(object):
             tmp_update_args = {}
             for k, v in update_args:
                 tmp_update_args[k] = v[idx] if isinstance(v, (list, tuple)) else v
-            if isinstance(op, edict):
-                up_s, s = int(1./s), max(1, s)
-                adjust_ch = False
-                refined_op.args.update(stride=s, **tmp_update_args)
-                tmp_module = get_layer(refined_op.submodule_name)
-                if isfunction(tmp_module):
-                    arg_names = inspect.getfullargspec(tmp_module).args
-                else:
-                    arg_names = inspect.getfullargspec(tmp_module.__init__).args
-                if 'in_channel' in arg_names: 
-                    refined_op.args.update(in_channel=cin)
-                if 'out_channel' in arg_names: 
-                    refined_op.args.update(out_channel=cout)
-                if cin != cout and ('in_channel' not in arg_names or 'out_channel' not in arg_names):
-                    Warning("Input channel should be the same as output channel. Otherwise, you should set auto_refine as True")
-                    adjust_ch = True
-                if self.auto_refine and up_s > 1: 
-                    upsample_op = deepcopy(self.upsample_op)
-                    upsample_op.args.update(scale_factor=up_s)
-                    refined_op = [refined_op]
-                    refined_op.append(upsample_op)
-                if self.auto_refine and adjust_ch: 
-                    adjust_ch_op = deepcopy(self.adjust_ch_op)
-                    adjust_ch_op.args.update(in_channel=cin, out_channel=cout)
-                    if isinstance(refined_op, edict):
-                        refined_op = [refined_op]
-                    refined_op.append(adjust_ch_op)
-            elif isinstance(op, (tuple, list)):
-                Warning("Sequential op will set the out_channel of last op as cout, and set the out_channel and in_channel of other ops as cin; set stride of first op as stride and set others' as 1.")
-                refined_op = list(refined_op)
-                refined_op[0].args.update(stride=s, in_channel=cin, out_channel=cin, **tmp_update_args)
-                for i in range(1, len(op)-1):
-                    refined_op[i].args.update(stride=1, in_channel=cin, out_channel=cin, **tmp_update_args)
-                refined_op[-1].args.update(in_channel=cin, out_channel=cout, stride=1, **tmp_update_args)
-            else: raise(ValueError(f"No implementation for op as type {type(op)}"))
-
+            refined_op = self.refine_C_stride_sequence(refined_op, cin, cout, s, **tmp_update_args)
             refined_op_config.append(refined_op)
         return tuple(refined_op_config)
+#            if isinstance(op, edict):
+#                up_s, s = int(1./s), max(1, s)
+#                adjust_ch = False
+#                refined_op.args.update(stride=s, **tmp_update_args)
+#                tmp_module = get_layer(refined_op.submodule_name)
+#                if isfunction(tmp_module):
+#                    arg_names = inspect.getfullargspec(tmp_module).args
+#                else:
+#                    arg_names = inspect.getfullargspec(tmp_module.__init__).args
+#                if 'in_channel' in arg_names: 
+#                    refined_op.args.update(in_channel=cin)
+#                if 'out_channel' in arg_names: 
+#                    refined_op.args.update(out_channel=cout)
+#                if cin != cout and ('in_channel' not in arg_names or 'out_channel' not in arg_names):
+#                    Warning("Input channel should be the same as output channel. Otherwise, you should set auto_refine as True")
+#                    adjust_ch = True
+#                if self.auto_refine and up_s > 1: 
+#                    upsample_op = deepcopy(self.upsample_op)
+#                    upsample_op.args.update(scale_factor=up_s)
+#                    refined_op = [refined_op]
+#                    refined_op.append(upsample_op)
+#                if self.auto_refine and adjust_ch: 
+#                    adjust_ch_op = deepcopy(self.adjust_ch_op)
+#                    adjust_ch_op.args.update(in_channel=cin, out_channel=cout)
+#                    if isinstance(refined_op, edict):
+#                        refined_op = [refined_op]
+#                    refined_op.append(adjust_ch_op)
+#            elif isinstance(op, (tuple, list)):
+#                Warning("Sequential op will set the out_channel of last op as cout, and set the out_channel and in_channel of other ops as cin; set stride of first op as stride and set others' as 1.")
+#                refined_op = list(refined_op)
+#                refined_op[0].args.update(stride=s, in_channel=cin, out_channel=cin, **tmp_update_args)
+#                for i in range(1, len(op)-1):
+#                    refined_op[i].args.update(stride=1, in_channel=cin, out_channel=cin, **tmp_update_args)
+#                refined_op[-1].args.update(in_channel=cin, out_channel=cout, stride=1, **tmp_update_args)
+#            else: raise(ValueError(f"No implementation for op as type {type(op)}"))
+#
+#            refined_op_config.append(refined_op)
+#        return tuple(refined_op_config)
 
     def _build_op(self, op_config):
         ops = nn.ModuleList([])
@@ -217,7 +258,7 @@ class OpBuilder(object):
         return ops
 
     def build_op(self, op_config, in_channel, out_channel, stride, **update_args):
-        op_config = self.refine_C_stride(op_config, in_channel, out_channel, stride, **update_args)
+        op_config = self.refine_C_stride_parallel(op_config, in_channel, out_channel, stride, **update_args)
         return self._build_op(op_config)
 
 

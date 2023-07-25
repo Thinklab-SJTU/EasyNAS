@@ -1,6 +1,6 @@
 #!/bin/sh
 
-cfg=cfg/cifar10_mergenas.yaml
+cfg=cfg/cifar10_darts.yaml
 #cfg=cfg/cifar10_retrain_darts.yaml
 
 gpu=( $@ )
@@ -28,7 +28,7 @@ case $Answer in
 #        echo "Start the process. Log file is saved to logs/${NAME}.log"
         CUDA_VISIBLE_DEVICES=$gpustr ${START_CMD} app/train.py \
 		--cfg ${cfg} \
-        	> logs/mergenas_noPermutation_noEdgeAlpha_noCutout_SepConvInterReLU_alphaInit1e-3_affineTrue.log 2>&1 &
+#        	> logs/mergenas_noPermutation_noEdgeAlpha_noCutout_SepConvInterReLU_alphaInit1e-3_affineTrue.log 2>&1 &
         ;;
     No|no|N|n)
         echo "The process is killed!"

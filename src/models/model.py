@@ -109,8 +109,8 @@ class BaseModel(nn.Module):
                 if not freeze_ch: 
                     cout = [int(make_divisible(c * gw, width_divisible)) for c in cout] if isinstance(cout, list) else make_divisible(cout*gw, width_divisible)
                     args['out_channel'] = cout
-                else:
-                    if self.output_ch: args['out_channel'] = self.output_ch
+#                else:
+#                    if self.output_ch: args['out_channel'] = self.output_ch
             else:
                 cout = get_outchannel(cin, v['submodule_name'], args)
 

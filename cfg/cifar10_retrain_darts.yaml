@@ -4,9 +4,46 @@ epoch: &epoch 600
 accumulate_gradient: &acc_grad 1
 amp: False
 
-data: cfg/dataset/cifar10.yaml
+data: !cross_ref [cfg/dataset/cifar10.yaml]
 
-model: !join [*base_path, arch/architecture_49.yaml]
+model: !cross_ref [!join [*base_path, arch/architecture_49.yaml]]
+
+auxiliary_model: &aux
+  submodule_name: src.model.BaseModel
+  args:
+    output_ch: &output_ch 10
+    architecture:
+      - input_idx: -1 # 0
+        submodule_name: PoolBNAct
+        args: 
+          pool: avg
+          kernel: 5
+          stride: 3
+          pad: 0
+          act: False
+          bn: False
+          count_include_pad: False
+      - input_idx: -1 # 1
+        submodule_name: ConvBNAct
+        args: 
+          out_channel: 128
+          kernel: 1
+          act: torch.nn.ReLU
+          bn: torch.nn.BatchNorm2d
+      - input_idx: -1 # 2
+        submodule_name: ConvBNAct
+        args: 
+          out_channel: 768
+          kernel: 2
+          act: torch.nn.ReLU
+          bn: torch.nn.BatchNorm2d
+      - input_idx: -1 # 3
+        submodule_name: LinearBNAct
+        args: 
+          out_channel: *output_ch
+          is_outlayer: True
+          act: False
+          bn: False
 
 criterion: 
   submodule_name: src.criterions.CriterionWithAux
@@ -14,7 +51,8 @@ criterion:
     criterion_or_cfg:
       submodule_name: torch.nn.CrossEntropyLoss
     in_channel: 576
-    out_channel: 10
+    out_channel: *output_ch
+    auxiliary_or_cfg: *aux
     auxiliary_weight: 0.4
 
 optimizer: &optimizer
