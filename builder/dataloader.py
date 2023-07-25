@@ -16,10 +16,6 @@ def create_dataloader(cfg: dict) -> dict:
     datasets = {}
     for set_name, set_cfg in dataset_cfg.items():
        	cfg = copy.deepcopy(set_cfg)
-#        submodule_name = cfg.pop('submodule_name', 'Dataset')
-#        module_name = cfg.pop('module_name', 'dataset.datasets')
-#        package_path = cfg.pop('package_path', None)
-#        Dataset = get_submodule(submodule_name, module_name, package_path)
        	submodule_name = cfg.pop('submodule_name')
         Dataset = get_submodule_by_name(submodule_name, search_path='src.datasets')
         datasets[set_name] = Dataset(**cfg.get('dataset_args', {}))
@@ -36,14 +32,24 @@ def create_dataloader(cfg: dict) -> dict:
         # train_portion to split the original dataset
        	portion =  cfg.pop('portion', None)
         if portion:
-       	    info = splitInfos.get(set_name, None)
-       	    if info is None:
-                num_train = len(dataset)
-       	        indices = np.random.permutation(num_train)
-       	        start = 0
+            try:
+                info = splitInfos[set_name]
+            except KeyError as e:
+                start, num_train = 0, len(dataset)
+#       	 indices = np.random.permutation(num_train)
+       	        indices = list(range(num_train))
        	        splitInfos[set_name] = splitInfo(indices=indices, start=start)
-       	    else: 
+            else:
                 indices, start, num_train = info.indices, info.start, len(info.indices)
+#       	    info = splitInfos.get(set_name, None)
+#       	    if info is None:
+#                num_train = len(dataset)
+#       	        indices = np.random.permutation(num_train)
+#       	        start = 0
+#       	        splitInfos[set_name] = splitInfo(indices=indices, start=start)
+#       	    else: 
+#                indices, start, num_train = info.indices, info.start, len(info.indices)
+
             end = start + int(np.floor(portion * num_train))
             splitInfos[set_name] = splitInfos[set_name]._replace(start=end)
             dataset = torch.utils.data.Subset(dataset, indices=indices[start:end])
@@ -57,10 +63,6 @@ def create_dataloader(cfg: dict) -> dict:
         else:
             sampler = torch.utils.data.RandomSampler(dataset)
 
-#        submodule_name = cfg.pop('submodule_name', 'DataLoader')
-#        module_name = cfg.pop('module_name', '.utils.data')
-#        package_path = cfg.pop('package_path', 'torch')
-#        Dataloader = get_submodule(submodule_name, module_name, package_path)
        	submodule_name = cfg.pop('submodule_name', 'torch.utils.data.DataLoader')
         Dataloader = get_submodule_by_name(submodule_name, search_path='src.datasets')
         dataloaders[loader_name] = Dataloader(dataset, sampler=sampler, **cfg.get('dataloader_args', {}))

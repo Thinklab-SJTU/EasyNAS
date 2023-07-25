@@ -1,11 +1,12 @@
-root_path: &root_path runs/cifar10_darts/retrain_drop_path0.2/
+base_path: &base_path runs/cifar10_noPermutation_darts_noEdgeAlpha_noCutout_noActEachOp_SepConvInterReLU_alphaInit1e-3/
+root_path: &root_path !join [*base_path, retrain-affineTrue_drop_path0.2/]
 epoch: &epoch 600
 accumulate_gradient: &acc_grad 1
 amp: False
 
 data: cfg/dataset/cifar10.yaml
 
-model: runs/cifar10_darts/arch/architecture_49.yaml
+model: !join [*base_path, arch/architecture_49.yaml]
 
 criterion: 
   submodule_name: src.criterions.CriterionWithAux

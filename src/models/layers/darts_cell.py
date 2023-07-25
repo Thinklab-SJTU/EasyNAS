@@ -29,7 +29,7 @@ def darts_identity(in_channel, out_channel, stride, bn=dict(name='torch.nn.Batch
 class Cell(nn.Module):
   def __init__(self, in_channel, out_channel, strides, 
                cell_ops, edges, multiplier=4,
-               act=nn.ReLU(), bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)),
+               act=nn.ReLU(), bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=True)),
                drop_path_prob=0.2):
       super(Cell, self).__init__()
       self._steps = len(cell_ops)

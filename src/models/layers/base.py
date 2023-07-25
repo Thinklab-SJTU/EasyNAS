@@ -53,7 +53,7 @@ class SearchModule(nn.Module):
 
     def init_arch_parameters(self, arch_name, *shape):
 #        arch_param = 1e-3*torch.randn(*shape, requires_grad=True)
-        arch_param = torch.normal(mean=0, std=1e-6, size=shape, requires_grad=True)
+        arch_param = torch.normal(mean=0, std=1e-3, size=shape, requires_grad=True)
         if arch_name in self._arch_parameters: 
             del self._arch_parameters[arch_name]
             delattr(self, arch_name)

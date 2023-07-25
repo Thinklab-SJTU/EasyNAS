@@ -77,8 +77,7 @@ class LinearBNAct(nn.Module):
 
 
 class ConvBNAct(nn.Module):
-    # Standard convolution
-    def __init__(self, in_channel, out_channel, kernel=1, dilation=1, stride=1, pad=None, group=1, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=True)), act=nn.ReLU(), bias=False):  # ch_in, ch_out, kernel, dilation, stride, padding, groups
+    def __init__(self, in_channel, out_channel, kernel=1, dilation=1, stride=1, pad=None, group=1, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=True)), act=nn.ReLU(), bias=False):  
         super(ConvBNAct, self).__init__()
         if isinstance(kernel, list): kernel = kernel[0]
         if isinstance(dilation, list): dilation = dilation[0]
@@ -93,7 +92,6 @@ class ConvBNAct(nn.Module):
         return x
 
 class SepConvBNAct(nn.Module):
-    # Standard convolution
     def __init__(self, in_channel, out_channel, kernel=1, dilation=1, stride=1, pad=None, group=1, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=True)), act=nn.ReLU(), bias=False, num_pair=1):
         super(SepConvBNAct, self).__init__()
         if isinstance(kernel, list): kernel = kernel[0]
@@ -113,6 +111,10 @@ class SepConvBNAct(nn.Module):
                     f'{i}_bn',
                     get_norm(bn, in_channel)
                     )
+            self.op.add_module(
+                f'{i}_act',
+                nn.ReLU() 
+                )
 
         self.op.add_module( 
             f'{num_pair-1}_dw',
@@ -243,8 +245,8 @@ class FactorizedReduce(nn.Module):
 
   def forward(self, x):
     out = torch.cat([self.conv_1(x), self.conv_2(x[:,:,1:,1:])], dim=1)
-    out = self.bn(out)
-    out = self.act(out)
+    if self.bn: out = self.bn(out)
+    if self.act: out = self.act(out)
     return out
 
 

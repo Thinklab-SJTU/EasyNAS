@@ -30,6 +30,10 @@ class HOOK(object):
     def set_period(self, name, n):
         setattr(self, '_execute_period_'+name, n)
 
+    def reset_period(self):
+        for k in getattr(self, 'execute_period_count', {}).keys():
+            self.execute_period_count[k] = 0
+
 #    @execute_period('n')
     def before_run(self, runner):
 #        print("before run")
@@ -44,7 +48,7 @@ class HOOK(object):
         pass
  
     def after_epoch(self, runner):
-        pass
+        self.reset_period()
  
     def before_train_epoch(self, runner):
         pass

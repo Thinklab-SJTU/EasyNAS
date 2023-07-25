@@ -16,23 +16,24 @@ def get_search_space(ss):
     else: return ss
 
 darts_conv = (
-       edict(submodule_name='ConvBNAct', args=dict(kernel=3, dilation=1, pad=None, group=1, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)), act='torch.nn.ReLU')),
-       edict(submodule_name='ConvBNAct', args=dict(kernel=5, dilation=1, pad=None, group=1, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)), act='torch.nn.ReLU')),
-       edict(submodule_name='ConvBNAct', args=dict(kernel=3, dilation=2, pad=None, group=1, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)), act='torch.nn.ReLU')),
-       edict(submodule_name='ConvBNAct', args=dict(kernel=5, dilation=2, pad=None, group=1, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)), act='torch.nn.ReLU')),
-       edict(submodule_name='PoolBNAct', args=dict(pool='max', kernel=3, pad=None, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)), act='torch.nn.ReLU')),
-       edict(submodule_name='PoolBNAct', args=dict(pool='avg', kernel=3, pad=None, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)), act='torch.nn.ReLU')),
-       edict(submodule_name='src.models.layers.darts_cell.darts_identity', args=dict(bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)), act='torch.nn.ReLU')),
+       edict(submodule_name='ConvBNAct', args=dict(kernel=3, dilation=1, pad=None, group=1, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=False)), act='torch.nn.ReLU')),
+       edict(submodule_name='ConvBNAct', args=dict(kernel=5, dilation=1, pad=None, group=1, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=False)), act='torch.nn.ReLU')),
+       edict(submodule_name='ConvBNAct', args=dict(kernel=3, dilation=2, pad=None, group=1, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=False)), act='torch.nn.ReLU')),
+       edict(submodule_name='ConvBNAct', args=dict(kernel=5, dilation=2, pad=None, group=1, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=False)), act='torch.nn.ReLU')),
+       edict(submodule_name='PoolBNAct', args=dict(pool='max', kernel=3, pad=None, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=False)), act='torch.nn.ReLU')),
+       edict(submodule_name='PoolBNAct', args=dict(pool='avg', kernel=3, pad=None, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=False)), act='torch.nn.ReLU')),
+       edict(submodule_name='src.models.layers.darts_cell.darts_identity', args=dict(bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=False)), act='torch.nn.ReLU')),
                        )
 
 darts = (
-       edict(submodule_name='SepConvBNAct', args=dict(kernel=3, dilation=1, pad=None, group=1, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)), act='torch.nn.ReLU', num_pair=2)),
-       edict(submodule_name='SepConvBNAct', args=dict(kernel=5, dilation=1, pad=None, group=1, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)), act='torch.nn.ReLU', num_pair=2)),
-       edict(submodule_name='SepConvBNAct', args=dict(kernel=3, dilation=2, pad=None, group=1, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)), act='torch.nn.ReLU', num_pair=1)),
-       edict(submodule_name='SepConvBNAct', args=dict(kernel=5, dilation=2, pad=None, group=1, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)), act='torch.nn.ReLU', num_pair=1)),
-       edict(submodule_name='PoolBNAct', args=dict(pool='max', kernel=3, pad=None, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)), act='torch.nn.ReLU')),
-       edict(submodule_name='PoolBNAct', args=dict(pool='avg', kernel=3, pad=None, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)), act='torch.nn.ReLU')),
-       edict(submodule_name='src.models.layers.darts_cell.darts_identity', args=dict(bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)), act='torch.nn.ReLU')),
+       edict(submodule_name='SepConvBNAct', args=dict(kernel=3, dilation=1, pad=None, group=1, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=False)), act=False, num_pair=2)),
+#       [edict(submodule_name='SepConvBNAct', args=dict(kernel=3, dilation=1, pad=None, group=1, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=False)), act='torch.nn.ReLU', num_pair=1)), edict(submodule_name='SepConvBNAct', args=dict(kernel=3, dilation=1, pad=None, group=1, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=False)), act=False, num_pair=1))],
+       edict(submodule_name='SepConvBNAct', args=dict(kernel=5, dilation=1, pad=None, group=1, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=False)), act=False, num_pair=2)),
+       edict(submodule_name='SepConvBNAct', args=dict(kernel=3, dilation=2, pad=None, group=1, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=False)), act=False, num_pair=1)),
+       edict(submodule_name='SepConvBNAct', args=dict(kernel=5, dilation=2, pad=None, group=1, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=False)), act=False, num_pair=1)),
+       edict(submodule_name='PoolBNAct', args=dict(pool='max', kernel=3, pad=None, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=False)), act=False)),
+       edict(submodule_name='PoolBNAct', args=dict(pool='avg', kernel=3, pad=None, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=False)), act=False)),
+       edict(submodule_name='src.models.layers.darts_cell.darts_identity', args=dict(bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=False)), act=False)),
                        )
 
 mergenas = (
@@ -40,13 +41,13 @@ mergenas = (
                        candidate_op=[(3,1), (5,1), (3,2), (5,2)], 
                        candidate_ch=[1.], 
                        gumbel_op=False, gumbel_channel=False,
-                       bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)), act='torch.nn.ReLU',
+                       bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True)), act='torch.nn.ReLU',
                        merge_kernel=True,
                        independent_ch_arch_param=False,
                        independent_op_arch_param=False)),
-       edict(submodule_name='PoolBNAct', args=dict(pool='max', kernel=3, pad=None, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)), act='torch.nn.ReLU')),
-       edict(submodule_name='PoolBNAct', args=dict(pool='avg', kernel=3, pad=None, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)), act='torch.nn.ReLU')),
-       edict(submodule_name='src.models.layers.darts_cell.darts_identity', args=dict(bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)), act='torch.nn.ReLU')),
+       edict(submodule_name='PoolBNAct', args=dict(pool='max', kernel=3, pad=None, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True)), act='torch.nn.ReLU')),
+       edict(submodule_name='PoolBNAct', args=dict(pool='avg', kernel=3, pad=None, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True)), act='torch.nn.ReLU')),
+       edict(submodule_name='src.models.layers.darts_cell.darts_identity', args=dict(bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True)), act='torch.nn.ReLU')),
                        )
 
 eautodet = (
@@ -54,7 +55,7 @@ eautodet = (
                        candidate_op=[(1,1), (3,1), (5,1), (3,2)], 
                        candidate_ch=[1.], 
                        gumbel_op=False, gumbel_channel=True,
-                       bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)), act='torch.nn.SiLU',
+                       bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=False)), act='torch.nn.SiLU',
                        independent_ch_arch_param=False,
                        independent_op_arch_param=False)
          ),

@@ -321,7 +321,7 @@ class AFF(SearchModule):
         self.num_alphas_each_op = []
         for op in candidate_op:
             self.num_alphas_each_op.append(
-                 len(op.args['candidate_op']) if hasattr(op.args, 'candidate_op') else -1)
+                 len(op.args['candidate_op']) if hasattr(op, 'args') and hasattr(op.args, 'candidate_op') else -1)
         self.num_op_alphas = sum(abs(x) for x in self.num_alphas_each_op)
         self.init_arch_parameters(independent_op_arch_param, independent_ch_arch_param, independent_edge_arch_param)
 

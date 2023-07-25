@@ -7,7 +7,7 @@ dataset:
       root: ./data/
       train: True
       download: True
-      transform: !get_func [src.datasets.cifar.get_transforms, {cutout: False}]
+      transform: !get_module [src.datasets.cifar.get_transforms, {cutout: False}]
   val:
     submodule_name: src.datasets.CIFAR10
     pakcage_path: 
@@ -15,7 +15,7 @@ dataset:
       root: ./data/
       train: False
       download: True
-      transform: !get_func [src.datasets.cifar.get_transforms, {cutout: False}]
+      transform: !get_module [src.datasets.cifar.get_transforms, {cutout: False}]
 
 dataloader:
   train:

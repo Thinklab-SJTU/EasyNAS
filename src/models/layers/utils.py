@@ -1,30 +1,31 @@
+from functools import partial
 import torch.nn as nn
 from collections import namedtuple
 
 from builder.utils import get_submodule_by_name as utils_get_submodule_by_name
 
-def get_act(act=True):
+def get_act(act=True, *args, **kwargs):
     if act is None or act is False: return None
-    elif act is True: return nn.ReLU()
     elif isinstance(act, nn.Module): return act
-    elif isinstance(act, str): 
-        return utils_get_submodule_by_name(act)()
-    elif isinstance(act, dict): 
-        return utils_get_submodule_by_name(act['name'])(**act['args'])
-    else:
-        raise(TypeError(f"No Implementation for act func as {act}"))
+    elif act is True: return nn.ReLU(*args, **kwargs)
+    return get_module(act, *args, search_path='torch.nn', **kwargs)
 
 def get_norm(norm, *args, **kwargs):
-    if norm is None or norm is False: return None
-    elif isinstance(norm, nn.Module): return norm
-    elif isinstance(norm, dict):
-        norm['args'].update(kwargs)
-        return utils_get_submodule_by_name(norm['name'])(*args, **norm['args'])
-#    elif norm is True: return nn.BatchNorm2d(*args, **kwargs)
-#    elif isinstance(norm, str): 
-#        return utils_get_submodule_by_name(norm, search_path=['torch.nn'])(*args, **kwargs)
-    else:
-        raise(TypeError(f"No Implementation for normalization func as {norm}"))
+    return get_module(norm, *args, search_path='torch.nn', **kwargs)
+
+def get_module(module, *args, search_path=('torch.nn',), **kwargs):
+    if module is None or module is False: return None
+    elif isinstance(module, str):
+        module = utils_get_submodule_by_name(module, search_path=search_path)
+    elif isinstance(module, dict):
+        module_args = module.get('args', {})
+        for k in kwargs.keys(): module_args.pop(k, None)
+        module = partial(utils_get_submodule_by_name(module['submodule_name'], search_path=search_path), **module_args)
+    try:
+        return module(*args, **kwargs)
+    except TypeError as e:
+        raise(TypeError(f"No Implementation for module as {module}"))
+
 
 
 def autopad(k, p=None, d=1):  # kernel, padding
