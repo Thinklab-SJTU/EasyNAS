@@ -1,9 +1,10 @@
+from contextlib import contextmanager
+
 def only_master(func):
     def inner(self, runner, *args, **kwargs):
         if runner.local_rank in [-1, 0]:
             return func(self, runner, *args, **kwargs)
     return inner
-
 
 def execute_period(attr_name=None, n=None):
     def wrapper(func):
@@ -73,6 +74,45 @@ class HOOK(object):
  
     def after_val_iter(self, runner):
         pass
+
+@contextmanager
+def hooks_ctx(fn_name, hooks, runner):
+    for hook in hooks: getattr(hook, 'before_'+fn_name)(runner)
+    yield
+    for hook in hooks: getattr(hook, 'after_'+fn_name)(runner)
+
+@contextmanager
+def hooks_run(hooks, runner):
+    for hook in hooks: hook.before_run(runner)
+    yield
+    for hook in hooks: hook.after_run(runner)
+@contextmanager
+def hooks_epoch(hooks, runner):
+    for hook in hooks: hook.before_epoch(runner)
+    yield
+    for hook in hooks: 
+        hook.after_epoch(runner)
+        hook.reset_period()
+@contextmanager
+def hooks_train_epoch(hooks, runner):
+    for hook in hooks: hook.before_train_epoch(runner)
+    yield
+    for hook in hooks: hook.after_train_epoch(runner)
+@contextmanager
+def hooks_val_epoch(hooks, runner):
+    for hook in hooks: hook.before_val_epoch(runner)
+    yield
+    for hook in hooks: hook.after_val_epoch(runner)
+@contextmanager
+def hooks_train_iter(hooks, runner):
+    for hook in hooks: hook.before_train_iter(runner)
+    yield
+    for hook in hooks: hook.after_train_iter(runner)
+@contextmanager
+def hooks_val_iter(hooks, runner):
+    for hook in hooks: hook.before_val_iter(runner)
+    yield
+    for hook in hooks: hook.after_val_iter(runner)
 
  
 if __name__ == '__main__':

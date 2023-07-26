@@ -3,7 +3,7 @@ from typing import Union, List
 import bisect
 import torch
 
-from src.hook import HOOK, OptHOOK
+from src.hook import HOOK, OptHOOK, hooks_run, hooks_epoch, hooks_train_epoch, hooks_val_epoch, hooks_train_iter, hooks_val_iter
 
 class Trainer(object):
     def __init__(self, dataloaders:dict, model, criterion, optimizer, lr_scheduler, hooks: List[HOOK]=[], local_rank=-1, sync_bn=False, amp=False):
@@ -91,59 +91,60 @@ class Trainer(object):
 
     def train_one_epoch(self, train_loader, model, criterion):
         model.train()
-        self.call_hook('before_train_epoch')
-        for step, (input, target) in enumerate(train_loader):
-            self.call_hook('before_train_iter')
-            self.info.current_iter = step
-            target = target.to(self.device, non_blocking=True)
-            input = input.to(self.device, non_blocking=True)
-            self.info.train_bs_input = input
-            self.info.train_bs_target = target
-            with torch.cuda.amp.autocast(enabled=self.amp):
-                logits = model(input)
-                loss = criterion(logits, target)
-                self.info.train_bs_logits = logits
-                self.info.train_bs_loss = loss
-            if self.scaler:
-                self.scaler.scale(loss).backward()
-            else:
-                loss.backward()
-            self.call_hook('after_train_iter')
-
-        self.call_hook('after_train_epoch')
+#        self.call_hook('before_train_epoch')
+        with hooks_train_epoch(self.hooks, self):
+            for step, (input, target) in enumerate(train_loader):
+#                self.call_hook('before_train_iter')
+                with hooks_train_iter(self._hooks, self):
+                    self.info.current_iter = step
+                    target = target.to(self.device, non_blocking=True)
+                    input = input.to(self.device, non_blocking=True)
+                    self.info.train_bs_input = input
+                    self.info.train_bs_target = target
+                    with torch.cuda.amp.autocast(enabled=self.amp):
+                        logits = model(input)
+                        loss = criterion(logits, target)
+                        self.info.train_bs_logits = logits
+                        self.info.train_bs_loss = loss
+                    if self.scaler:
+                        self.scaler.scale(loss).backward()
+                    else:
+                        loss.backward()
+#                self.call_hook('after_train_iter')
+#        self.call_hook('after_train_epoch')
 
     def val(self, val_loader, model, criterion):
         model.eval()
-        self.call_hook('before_val_epoch')
-        with torch.no_grad():
-            for step, (input, target) in enumerate(val_loader):
-                self.call_hook('before_val_iter')
-                self.info.current_iter = step
-                target = target.to(self.device, non_blocking=True)
-                input = input.to(self.device, non_blocking=True)
-            
-                with torch.cuda.amp.autocast(enabled=self.amp):
-                    logits = model(input)
-                    loss = criterion(logits, target)
-                    self.info.val_bs_logits = logits
-                    self.info.val_bs_target = target
-                    self.info.val_bs_loss = loss
-                self.call_hook('after_val_iter')
-
-        self.call_hook('after_val_epoch')
+#        self.call_hook('before_val_epoch')
+        with hooks_val_epoch(self._hooks, self):
+            with torch.no_grad():
+                for step, (input, target) in enumerate(val_loader):
+#                    self.call_hook('before_val_iter')
+                    with hooks_val_iter(self._hooks, self):
+                        self.info.current_iter = step
+                        target = target.to(self.device, non_blocking=True)
+                        input = input.to(self.device, non_blocking=True)
+                
+                        with torch.cuda.amp.autocast(enabled=self.amp):
+                            logits = model(input)
+                            loss = criterion(logits, target)
+                            self.info.val_bs_logits = logits
+                            self.info.val_bs_target = target
+                            self.info.val_bs_loss = loss
+#                    self.call_hook('after_val_iter')
+#        self.call_hook('after_val_epoch')
 
     def run(self, epochs=None):
-        self.call_hook('before_run')
-        for epoch in range(self.start_epoch, epochs):
-#            if self.is_ddp():
-#                if self.train_loader.cfg.get('use_dist', True): self.train_loader.sampler.set_epoch(epoch)
-#                if self.val_loader.cfg.get('use_dist', True): self.val_loader.sampler.set_epoch(epoch)
-            self.info.current_epoch = epoch
-            self.call_hook('before_epoch')
-            self.train_one_epoch(self.train_loader, self.model, self.criterion)
-  
-            if self.local_rank in [-1, 0] or self.val_loader.cfg.get('use_dist', True):
-                self.val(self.val_loader, self.model, self.criterion)
-            self.call_hook('after_epoch')
-        self.call_hook('after_run')
+#        self.call_hook('before_run')
+        with hooks_run(self._hooks, self):
+            for epoch in range(self.start_epoch, epochs):
+                self.info.current_epoch = epoch
+#                self.call_hook('before_epoch')
+                with hooks_epoch(self._hooks, self):
+                    self.train_one_epoch(self.train_loader, self.model, self.criterion)
+          
+                    if self.local_rank in [-1, 0] or self.val_loader.cfg.get('use_dist', True):
+                        self.val(self.val_loader, self.model, self.criterion)
+#                self.call_hook('after_epoch')
+#        self.call_hook('after_run')
         
