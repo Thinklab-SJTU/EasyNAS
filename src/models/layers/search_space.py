@@ -51,12 +51,12 @@ mergenas = (
                        candidate_op=[(3,1), (5,1), (3,2), (5,2)], 
                        candidate_ch=[1.], 
                        gumbel_op=False, gumbel_channel=False,
-                       bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True)), act=False,
+                       bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=False)), act=False,
                        merge_kernel=True,
                        independent_ch_arch_param=False,
                        independent_op_arch_param=False))],
-       edict(submodule_name='PoolBNAct', args=dict(pool='max', kernel=3, pad=None, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True)), act=False)),
-       edict(submodule_name='PoolBNAct', args=dict(pool='avg', kernel=3, pad=None, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True)), act=False)),
+       edict(submodule_name='PoolBNAct', args=dict(pool='max', kernel=3, pad=None, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=False)), act=False)),
+       edict(submodule_name='PoolBNAct', args=dict(pool='avg', kernel=3, pad=None, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=False)), act=False)),
        edict(submodule_name='src.models.layers.darts_cell.darts_identity', args=dict(bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=False)), act=edict(submodule_name='torch.nn.ReLU', args=dict(inplace=False)))),
                        )
 

@@ -31,8 +31,8 @@ class Trainer(object):
 
         self.criterion = criterion.to(self.device)
         self.start_epoch = 0
+        self._hooks = []
         for hook in hooks: self.register_hook(hook)
-#        self._hooks = hooks
         self.info = EasyDict({
             'results': {'train': {}, 'val': {}},
             'current_iter': 0,
@@ -65,10 +65,8 @@ class Trainer(object):
             assert hasattr(hook, 'priority')
         else:
             hook.priority = priority
-#        if hasattr(hook, 'priority'):
-#            raise ValueError('"priority" is a reserved attribute for hooks')
         # insert the hook to a sorted list
-        idx = bisect.bisect_right(self._hooks, hook, key=lambda x: x.priority)
+        idx = bisect.bisect_right([h.priority for h in self._hooks], hook.priority)
         self._hooks.insert(idx, hook)
 #        inserted = False
 #        for i in range(len(self._hooks) - 1, -1, -1):

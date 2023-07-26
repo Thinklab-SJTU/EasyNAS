@@ -55,3 +55,4 @@ class LogHOOK(HOOK):
         for k, v in runner.info.results.val.items():
             string += ' %s: %f' % (k, v)
         self.logger.info(string)
+        self.logger.info('='*10+f'Epoch {runner.info.current_epoch} Done'+'='*10)

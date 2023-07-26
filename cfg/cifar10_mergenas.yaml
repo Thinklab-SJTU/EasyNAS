@@ -1,4 +1,4 @@
-root_path: &root_path runs/cifar10_noPermutation_mergenas_noEdgeAlpha_noCutout_SepConvInterReLU_alphaInit1e-3_affineTrue/
+root_path: &root_path runs/cifar10_noPermutation_mergenas_noEdgeAlpha_noCutout_SepConvInterReLU_alphaInit1e-3_actBeforeOp/
 epoch: &epoch 50
 accumulate_gradient: &acc_grad 1
 amp: False
@@ -55,7 +55,7 @@ hooks:
       criterion_cfg: *criterion
       update_freq: 5
       accumulate_gradient: *acc_grad
-      priority:
+      priority: 30
       save_root: !join [*root_path, arch/]
   
   eval_hook:

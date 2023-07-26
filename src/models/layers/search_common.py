@@ -381,7 +381,7 @@ class AFF(SearchModule):
             layer_cfg = edge_module[op_idx].discretize(select_op, op_alphas=op_alphas, ch_alphas=None, edge_alphas=None, num_reserved_op=num_reserved_op)
             return edict(submodule_name=layer_cfg['submodule_name'], args=layer_cfg['args'])
         else:
-            return self.candidate_op[op_idx]
+            return deepcopy(self.candidate_op[op_idx])
 
     def discretize(self, cfg=None, op_alphas=None, ch_alphas=None, edge_alphas=None, num_reserved_op=1, num_reserved_edge=2):
         assert num_reserved_op==1

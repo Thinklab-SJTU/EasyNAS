@@ -137,15 +137,13 @@ class Cell_search(SearchModule):
         for i in range(self._steps):
             op = self._ops[i].discretize()
             # set affine as True for each BN
-            for fuselayer in op:
-                for edge_op in fuselayer['args']['ops']:
-                    if isinstance(edge_op, (edict, dict)) and 'bn' in edge_op.get('args', {}):
-                        edge_op['args']['bn'] = dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True))
-                    else:
-                        for sub_op in edge_op:
-                            if 'bn' in sub_op.get('args', {}):
-                                sub_op['args']['bn'] = dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True))
-
+            for edge_op in op['args']['ops']:
+                if isinstance(edge_op, (dict)) and edge_op.get('args', {}).get('bn', False):
+                    edge_op['args']['bn'] = dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True))
+                else:
+                    for sub_op in edge_op:
+                        if 'bn' in sub_op.get('args', {}):
+                            sub_op['args']['bn'] = dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True))
             edge = op.pop('input_idx')
             args['cell_ops'].append(op)
             args['edges'].append(edge)
