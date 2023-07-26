@@ -38,8 +38,15 @@ class EMA():
 
     def load_state_dict(self, ckpt):
         for k, v in ckpt.items():
-            assert k in self.shadow
-            self.shadow[k] = v
+            setattr(self, k, v)
+#        for k, v in ckpt.items():
+#            assert k in self.shadow
+#            self.shadow[k] = v
+
+    def state_dict(self):
+        return {'shadow': self.shadow,
+                'update': self.update,
+                'decay': self.decay}
 
 
 class EMAHOOK(HOOK):
@@ -50,13 +57,11 @@ class EMAHOOK(HOOK):
         self.accumulate_gradient = accumulate_gradient
         self.only_master = only_master
 
-    def load_state_dict(self, ckpt_ema, ema_updates): 
+    def load_state_dict(self, ckpt_ema): 
         self.ema.load_state_dict(ckpt_ema)
-        self.ema.updates = ema_updates
 
-#    @only_master
-#    def before_run(self, runner):
-#        self.ema = EMA(self.decay)
+    def state_dict(self):
+        return self.ema.state_dict()
 
     @only_master
     @execute_period('accumulate_gradient')

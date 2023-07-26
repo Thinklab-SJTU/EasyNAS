@@ -61,6 +61,10 @@ class CkptHOOK(HOOK):
           'optimizer': runner.optimizer.state_dict(),
           'scheduler': runner.lr_scheduler.state_dict(),
                }
+        for hook in runner.hooks:
+            if hasattr(hook, 'state_dict'):
+                ckpt[hook.__class__.__name__] = hook.state_dict()
+                
         model_name = 'weight_%d.pt'%epoch if model_name is None else model_name
         save_path = os.path.join(self.save_root, model_name)
         torch.save(ckpt, save_path)

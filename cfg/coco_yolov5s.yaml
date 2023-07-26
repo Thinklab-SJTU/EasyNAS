@@ -1,4 +1,4 @@
-root_path: &root_path runs/cifar10_res18/
+root_path: &root_path runs/coco_yolov5s/
 epoch: &epoch 300
 accumulate_gradient: &acc_grad 1
 amp: True
@@ -12,11 +12,11 @@ train_hyp: &hyp
   warmup_init_momentum_rate: &warmup_init_momentum_rate 0.854  # warmup initial momentum
   warmup_bias_lr: &warmup_bias_lr 0.1  # warmup initial bias lr
 
-data: cfg/dataset/coco_yolo.yaml
+data: !cross_ref [cfg/dataset/coco_yolo.yaml]
 
-criterion: cfg/criterion/yolov5.yaml
+criterion: !cross_ref [cfg/criterion/yolov5.yaml]
 
-model: cfg/model/yolov5s.yaml
+model: !cross_ref [cfg/model/yolov5s.yaml]
 
 
 optimizer: &optimizer

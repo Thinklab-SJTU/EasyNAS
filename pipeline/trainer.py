@@ -1,5 +1,6 @@
 from easydict import EasyDict
 from typing import Union, List
+import bisect
 import torch
 
 from src.hook import HOOK, OptHOOK
@@ -30,7 +31,8 @@ class Trainer(object):
 
         self.criterion = criterion.to(self.device)
         self.start_epoch = 0
-        self._hooks = hooks
+        for hook in hooks: self.register_hook(hook)
+#        self._hooks = hooks
         self.info = EasyDict({
             'results': {'train': {}, 'val': {}},
             'current_iter': 0,
@@ -40,6 +42,9 @@ class Trainer(object):
         self.optimizer = optimizer
         self.lr_scheduler = lr_scheduler
 
+    @property
+    def hooks(self):
+        return self._hooks
 
     def is_ddp(self):
         return self.local_rank >= 0
@@ -63,14 +68,16 @@ class Trainer(object):
 #        if hasattr(hook, 'priority'):
 #            raise ValueError('"priority" is a reserved attribute for hooks')
         # insert the hook to a sorted list
-        inserted = False
-        for i in range(len(self._hooks) - 1, -1, -1):
-            if priority >= getattr(self._hooks[i], 'priority', len(self._hooks)):
-                self._hooks.insert(i + 1, hook)
-                inserted = True
-                break
-        if not inserted:
-            self._hooks.insert(0, hook)
+        idx = bisect.bisect_right(self._hooks, hook, key=lambda x: x.priority)
+        self._hooks.insert(idx, hook)
+#        inserted = False
+#        for i in range(len(self._hooks) - 1, -1, -1):
+#            if priority >= getattr(self._hooks[i], 'priority', len(self._hooks)):
+#                self._hooks.insert(i + 1, hook)
+#                inserted = True
+#                break
+#        if not inserted:
+#            self._hooks.insert(0, hook)
 
     def call_hook(self, fn_name:str):
         """Call all hooks.
