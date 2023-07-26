@@ -1,4 +1,4 @@
-base_path: &base_path runs/cifar10_noPermutation_darts_noEdgeAlpha_noCutout_noActEachOp_SepConvInterReLU_alphaInit1e-3/
+base_path: &base_path runs/cifar10_noPermutation_darts_noEdgeAlpha_noCutout_noActEachOp_SepConvInterReLU_alphaInit1e-3_actBeforeOp/
 root_path: &root_path !join [*base_path, retrain-affineTrue_drop_path0.2/]
 epoch: &epoch 600
 accumulate_gradient: &acc_grad 1
@@ -9,7 +9,7 @@ data: !cross_ref [cfg/dataset/cifar10.yaml]
 model: !cross_ref [!join [*base_path, arch/architecture_49.yaml]]
 
 auxiliary_model: &aux
-  submodule_name: src.model.BaseModel
+  submodule_name: src.models.BaseModel
   args:
     output_ch: &output_ch 10
     architecture:
@@ -39,9 +39,9 @@ auxiliary_model: &aux
           bn: torch.nn.BatchNorm2d
       - input_idx: -1 # 3
         submodule_name: LinearBNAct
+        is_outlayer: True
         args: 
           out_channel: *output_ch
-          is_outlayer: True
           act: False
           bn: False
 

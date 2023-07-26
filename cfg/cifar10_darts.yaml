@@ -1,5 +1,5 @@
 root_path: &root_path runs/cifar10_noPermutation_darts_noEdgeAlpha_noCutout_noActEachOp_SepConvInterReLU_alphaInit1e-3_actBeforeOp/
-epoch: &epoch 50
+epoch: &epoch 200
 accumulate_gradient: &acc_grad 1
 amp: False
 

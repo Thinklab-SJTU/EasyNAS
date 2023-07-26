@@ -317,7 +317,7 @@ class AFF(SearchModule):
         )
         self.m = nn.ModuleList([])
         for cin, s in zip(in_channel, strides):
-            self.m.append(op_builder.build_op(candidate_op, cin, out_channel, s))
+            self.m.append(op_builder.build_parallel_op(candidate_op, cin, out_channel, s))
         self.num_alphas_each_op = []
         for op in candidate_op:
             self.num_alphas_each_op.append(

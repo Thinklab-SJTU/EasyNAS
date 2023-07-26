@@ -43,6 +43,7 @@ class Cell(nn.Module):
       self.edges = edges
       self._multiplier = multiplier
       C = out_channel // multiplier
+      self.strides = strides
 
       reduction = True
       for s in strides:

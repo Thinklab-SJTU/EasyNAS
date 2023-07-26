@@ -148,7 +148,7 @@ class FuseLayer(nn.Module):
 
         self.edges = nn.ModuleList([])
         for cin, s, op in zip(in_channel, strides, ops):
-            self.edges.extend(op_builder.build_op(op, cin, out_channel, s))
+            self.edges.append(op_builder.build_sequence_op(op, cin, out_channel, s))
 
         self.act = get_act(act)
         self.bn = get_norm(bn, out_channel)

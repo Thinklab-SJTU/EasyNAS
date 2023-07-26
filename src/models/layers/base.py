@@ -243,25 +243,32 @@ class OpBuilder(object):
 #            refined_op_config.append(refined_op)
 #        return tuple(refined_op_config)
 
-    def _build_op(self, op_config):
+    def _build_sequence_op(self, op_config):
+        if isinstance(op_config, edict):
+            module = get_layer(op_config.submodule_name) 
+            op = module(**op_config.args)
+        elif isinstance(op_config, (tuple, list)):
+            op = nn.Sequential()
+            for idx, sub_config in enumerate(op_config):
+                module = get_layer(sub_config.submodule_name) 
+                op.add_module(str(idx), module(**sub_config.get('args', {})))
+        else: 
+            raise(TypeError("op_config should be either easydict or sequence"))
+        return op
+
+    def _build_parallel_op(self, op_config):
         ops = nn.ModuleList([])
         for config in op_config:
-            if isinstance(config, edict):
-                module = get_layer(config.submodule_name) 
-                op = module(**config.args)
-            elif isinstance(config, (tuple, list)):
-                op = nn.Sequential()
-                for idx, sub_config in enumerate(config):
-                    module = get_layer(sub_config.submodule_name) 
-                    op.add_module(str(idx), module(**sub_config.get('args', {})))
-            else: 
-                raise(TypeError("op_config should be either easydict or sequence"))
-            ops.append(op)
+            ops.append(self._build_sequence_op(config))
         return ops
 
-    def build_op(self, op_config, in_channel, out_channel, stride, **update_args):
+    def build_parallel_op(self, op_config, in_channel, out_channel, stride, **update_args):
         op_config = self.refine_C_stride_parallel(op_config, in_channel, out_channel, stride, **update_args)
-        return self._build_op(op_config)
+        return self._build_parallel_op(op_config)
+
+    def build_sequence_op(self, op_config, in_channel, out_channel, stride, **update_args):
+        op_config, _ = self.refine_C_stride_sequence(op_config, in_channel, out_channel, stride, **update_args)
+        return self._build_sequence_op(op_config)
 
 
 
@@ -269,7 +276,7 @@ class OpLayer(nn.Module):
     def __init__(self, in_channel, out_channel, stride, op, act=nn.ReLU(), bn=True, auto_refine=False, adjust_ch_op=None, upsample_op=None):
         super(OpLayer, self).__init__()
         op_builder = OpBuilder(auto_refine=auto_refine, adjust_ch_op=adjust_ch_op, upsample_op=upsample_op)
-        self.op = OpBuilder.build_op(op, in_channel, out_channel, stride)
+        self.op = OpBuilder.build_parallel_op(op, in_channel, out_channel, stride)
         self.act = get_act(act)
         self.bn = nn.BatchNorm2d(self.cout) if bn else None
 
