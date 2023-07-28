@@ -1,4 +1,4 @@
-base_path: &base_path runs/cifar10_noPermutation_darts_noEdgeAlpha_noCutout_noActEachOp_SepConvInterReLU_alphaInit1e-3_actBeforeOp/
+base_path: &base_path runs/cifar10_noPermutation_darts_noEdgeAlpha_noCutout_noActEachOp_SepConvInterReLU_alphaInit1e-3_actBeforeOp_gradClip5/
 root_path: &root_path !join [*base_path, retrain-affineTrue_drop_path0.2/]
 epoch: &epoch 600
 accumulate_gradient: &acc_grad 1
@@ -73,6 +73,7 @@ hooks:
   opt_hook:
     submodule_name: OptHOOK
     args:
+      grad_clip: 5
       priority: 0
       accumulate_gradient: *acc_grad
   

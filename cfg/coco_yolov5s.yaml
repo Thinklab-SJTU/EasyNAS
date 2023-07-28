@@ -20,18 +20,14 @@ model: !cross_ref [cfg/model/yolov5s.yaml]
 
 
 optimizer: &optimizer
-  submodule_name: SGD
-  module_name: .optim
-  package_path: torch
+  submodule_name: torch.optim.SGD
   args:
     params: [{'params': conv_parameters, 'weight_decay': *wd}, {'params': bias_parameters}, {'params': all_parameters}]
     lr: *lr0
     momentum: *momentum
 
 lr_scheduler: &scheduler
-  submodule_name: LambdaLR
-  module_name: .optim.lr_scheduler
-  package_path: torch
+  submodule_name: torch.optim.lr_scheduler.LambdaLR
   args:
     optimizer: 
     lr_lambda: !get_module [src.scheduler.one_cycle, {'start': 1, 'end': *lrf, 'steps': *epoch}]
@@ -39,27 +35,29 @@ lr_scheduler: &scheduler
 opt_hook:
   hook_name: OptHOOK
   hook_args:
-    optimizer: 
     priority: 1
     accumulate_gradient: &acc_grad
 
 lr_scheduler_hook:
   hook_name: LrScheduleHOOK
   hook_args: 
-    lr_scheduler:
-    priority: 1
+    priority: 5
     mode: epoch
 
 #TODO
 eval_hook:
-  hook_name: EvalmAPHOOK
+  hook_name: EvalCOCOmAPHOOK
   hook_args: 
+    anno_file: 'data/coco/annotations/instances_val2017.json'
+    iou_thres: 0.7
+    conf_thres: 0.001
+    eval_by_cocotools: True
     priority: 10
 
 ddp_hook:
   hook_name: DDPHOOK
   hook_args:
-    priority: 5
+    priority: 10
 
 
 log_hook:
@@ -67,7 +65,7 @@ log_hook:
   hook_args:
     logger_name: TrainPip
     log_path: !join [*root_path, test.log]
-    print_freq: 50
+    print_freq: 100
     only_master: True
     priority: 10
 

@@ -1,5 +1,5 @@
-root_path: &root_path runs/cifar10_noPermutation_darts_noEdgeAlpha_noCutout_noActEachOp_SepConvInterReLU_alphaInit1e-3_actBeforeOp/
-epoch: &epoch 200
+root_path: &root_path runs/cifar10_noPermutation_darts_noEdgeAlpha_noCutout_noActEachOp_SepConvInterReLU_alphaInit1e-3_actBeforeOp_gradClip5_noInitW/
+epoch: &epoch 50
 accumulate_gradient: &acc_grad 1
 amp: False
 
@@ -34,6 +34,7 @@ hooks:
     submodule_name: OptHOOK
     args:
       priority: 0
+      grad_clip: 5
       accumulate_gradient: *acc_grad
   
   lr_scheduler_hook:
@@ -55,13 +56,14 @@ hooks:
       criterion_cfg: *criterion
       update_freq: 5
       accumulate_gradient: *acc_grad
-      priority:
+      priority: 30
       save_root: !join [*root_path, arch/]
   
   eval_hook:
     submodule_name: EvalAccHOOK
     args: 
       priority: 5
+      only_master: True
   
   ddp_hook:
     submodule_name: DDPHOOK

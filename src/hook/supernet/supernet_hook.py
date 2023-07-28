@@ -42,8 +42,6 @@ class DARTSHOOK(HOOK):
         except StopIteration:
             self.dataiter = iter(self.dataloader)
             input_valid, target_valid = self.dataiter.next()
-        except Exception as e:
-            raise(e)
 
         target_valid = target_valid.to(runner.device, non_blocking=True)
         input_valid = input_valid.to(runner.device, non_blocking=True)

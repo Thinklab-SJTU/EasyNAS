@@ -47,7 +47,7 @@ class BaseModel(nn.Module):
 
         # Init weights, biases
         if init_func is not None: self.apply(init_func)
-        else: self.apply(default_init_weights)
+#        else: self.apply(default_init_weights)
 
         self.info(input_size)
 

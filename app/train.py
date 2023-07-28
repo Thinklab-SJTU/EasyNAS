@@ -82,6 +82,9 @@ def main():
                       )
     print("Training...")
     trainer.run(cfg['epoch'])
+
+    dist.barrier()
+    dist.destroy_process_group()
     
 
 if __name__ == '__main__':

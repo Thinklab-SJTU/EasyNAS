@@ -5,6 +5,7 @@ args:
   depth_multiple: 1.0
   width_multiple: 1.0
   output_ch: &output_ch 10
+  init_func: null
   architecture:
 # stem
     - input_idx: -1 # 0

@@ -46,13 +46,15 @@ class LogHOOK(HOOK):
     def after_val_iter(self, runner):
         string = 'val %03d' % runner.info.current_iter
         for k, v in runner.info.results.val.items():
-            string += ' %s: %f' % (k, v)
+            if 'ignore' not in k:
+                string += ' %s: %f' % (k, v)
         self.logger.info(string)
 
     @only_master
     def after_val_epoch(self, runner):
         string = 'Epoch %03d val' % (runner.info.current_epoch)
         for k, v in runner.info.results.val.items():
-            string += ' %s: %f' % (k, v)
+            if 'ignore' not in k:
+                string += ' %s: %f' % (k, v)
         self.logger.info(string)
         self.logger.info('='*10+f'Epoch {runner.info.current_epoch} Done'+'='*10)
