@@ -11,3 +11,4 @@ from .supernet.supernet_hook import DARTSHOOK
 
 from .warmup_hook import WarmupHOOK
 from .ema_hook import EMAHOOK
+from .module_apply_hook import ModuleApplyHOOK, DropPathProbHOOK

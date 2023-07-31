@@ -126,17 +126,18 @@ class Trainer(object):
 #                self.call_hook('after_val_iter')
 
     def run(self, epochs=None):
+        self.info.epochs = epochs
 #        self.call_hook('before_run')
         with hooks_run(self._hooks, self):
             for epoch in range(self.start_epoch, epochs):
                 self.info.current_epoch = epoch
                 with hooks_epoch(self._hooks, self):
-                    model.train()
+                    self.model.train()
                     with hooks_train_epoch(self.hooks, self):
                         self.train_one_epoch(self.train_loader, self.model, self.criterion)
           
                     if self.local_rank in [-1, 0] or self.val_loader.cfg.get('use_dist', True):
-                        model.eval()
+                        self.model.eval()
                         with hooks_val_epoch(self._hooks, self):
                             self.val(self.val_loader, self.model, self.criterion)
 #        self.call_hook('after_run')

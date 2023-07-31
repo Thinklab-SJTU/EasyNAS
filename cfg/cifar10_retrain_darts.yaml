@@ -1,5 +1,5 @@
 base_path: &base_path runs/cifar10_noPermutation_darts_noEdgeAlpha_noCutout_noActEachOp_SepConvInterReLU_alphaInit1e-3_actBeforeOp_gradClip5/
-root_path: &root_path !join [*base_path, retrain-affineTrue_drop_path0.2/]
+root_path: &root_path !join [*base_path, retrain-affineTrue_drop_path0.2-dynamic/]
 epoch: &epoch 600
 accumulate_gradient: &acc_grad 1
 amp: False
@@ -82,6 +82,13 @@ hooks:
     args: 
       priority: 5
       mode: epoch
+
+  drop_path_hook:
+    submodule_name: DropPathProbHOOK
+    args:
+      mode: epoch
+      apply_period: 1
+      priority: 5
 
   eval_hook:
     submodule_name: EvalAccHOOK

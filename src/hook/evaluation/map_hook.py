@@ -3,12 +3,13 @@ from pathlib import Path
 
 from ..hook import HOOK, execute_period
 from .utils import AverageMeter, accuracy, ap_per_class
-from src.datatsets.coco_yolo_utils import xywh2xyxy, xyxy2xywh
+from src.datasets.coco_yolo_utils import xywh2xyxy, xyxy2xywh
 
 class EvalCOCOmAPHOOK(HOOK):
-    def __init__(self, anno_file, conf_thres=0.001, iou_thres=0.6, eval_by_cocotools=True, priority=0, only_master=False):
+    def __init__(self, anno_file, conf_thres=0.001, iou_thres=0.6, eval_by_cocotools=True, verbose_per_class=False, priority=0, only_master=False):
         self.class_mapper = coco80_to_coco91_class()
         self.eval_by_cocotools = eval_by_cocotools
+        self.verbose_per_class = verbose_per_class
         self.anno_file = anno_file
         self.conf_thres = conf_thres
         self.iou_thres = iou_thres
@@ -130,11 +131,11 @@ class EvalCOCOmAPHOOK(HOOK):
         runner.info.results.val['map@.5:.95'] = map
 
         # Results per class
-        if (self.verbose_per_class or (nc < 50 and not training)) and nc > 1 and len(stats):
-        runner.info.results.val['per_class'] = {
-                str(c): {'precision'=p[i], 'recall'=r[i], 'map@.5': ap50[i], 'map@.5:.95': ap[i]}
-                for i, c in enumerate(ap_class)
-                }
+        if self.verbose_per_class and nc > 1 and len(stats):
+            runner.info.results.val['per_class'] = {
+                    str(c): {'precision': p[i], 'recall': r[i], 'map@.5': ap50[i], 'map@.5:.95': ap[i]}
+                    for i, c in enumerate(ap_class)
+                    }
 
         # Evaluate by cocotools
         if self.eval_by_cocotools and len(self.jdict):
