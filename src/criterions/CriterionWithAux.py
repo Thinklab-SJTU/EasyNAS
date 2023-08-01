@@ -28,7 +28,7 @@ def refine_aux_cfg(input_ch, output_ch, cfg):
     return cfg
 
 class CriterionWithAux(nn.Module):
-    def __init__(self, criterion_or_cfg, in_channel=None, out_channel=None, auxiliary_or_cfg=default_aux_cfg, auxiliary_weight=0.4, local_rank=-1):
+    def __init__(self, criterion_or_cfg, in_channel=None, out_channel=None, auxiliary_or_cfg=default_aux_cfg, auxiliary_weight=0.4, sync_bn=False, local_rank=-1):
         super(CriterionWithAux, self).__init__()
 
         self.auxiliary_weight = auxiliary_weight if isinstance(auxiliary_weight, (list, tuple)) else (auxiliary_weight,)
@@ -39,8 +39,13 @@ class CriterionWithAux(nn.Module):
             self.auxiliary = nn.ModuleList([self.build_auxiliary(cin, out_channel, aux, local_rank) for aux, cin in zip(auxiliary_or_cfg, in_channel)])
         else: 
             self.auxiliary = nn.ModuleList([self.build_auxiliary(in_channel, out_channel, auxiliary_or_cfg, local_rank)])
-#        if self.auxiliary:
-#            self.auxiliary.to(self.device)
+
+        if self.auxiliary and local_rank >= 0:
+            for i in range(len(self.auxiliary)):
+#            # convert BN to SyncBN
+                if sync_bn:
+                    self.auxiliary[i] = torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.auxiliary[i])
+                self.auxiliary[i] = torch.nn.parallel.DistributedDataParallel(self.auxiliary[i], device_ids=[local_rank], output_device=local_rank)
 
         if isinstance(criterion_or_cfg, dict):
             self.criterion = create_criterion(criterion_or_cfg)

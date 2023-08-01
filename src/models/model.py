@@ -28,6 +28,7 @@ def get_outchannel(cin, layer_name, args):
 class BaseModel(nn.Module):
     def __init__(self, architecture, output_ch, input_ch=3, input_size=None, depth_multiple=1., width_multiple=1., width_divisible=1, log_path=None, init_func=None, local_rank=-1):
         super(BaseModel, self).__init__()
+        self.local_rank = local_rank
         self.device = torch.device('cuda', max(local_rank, 0))
 
         self.logger = logging.getLogger('model_builder')
@@ -143,7 +144,7 @@ class BaseModel(nn.Module):
 
 class SearchModel(BaseModel, SearchModule):
     def __init__(self, architecture, output_ch, input_ch=3, input_size=None, depth_multiple=1., width_multiple=1., log_path=None, init_func=None, local_rank=-1):
-        super(SearchModel, self).__init__(architecture, output_ch, input_ch=3, input_size=None, log_path=None, init_func=None, local_rank=-1)
+        super(SearchModel, self).__init__(architecture, output_ch, input_ch=input_ch, input_size=input_size, log_path=log_path, init_func=init_func, local_rank=local_rank)
         self.init_arch_parameters()
         self.info_arch()
 

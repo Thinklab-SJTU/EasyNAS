@@ -3,7 +3,7 @@ from typing import Union, List
 import bisect
 import torch
 
-from builder import parse_cfg, create_dataloader, create_model, create_optimizer, create_criterion, create_hook, create_scheduler
+from builder import create_dataloader, create_model, create_optimizer, create_criterion, create_hook, create_scheduler
 from src.hook import HOOK, OptHOOK, hooks_run, hooks_epoch, hooks_train_epoch, hooks_val_epoch, hooks_train_iter, hooks_val_iter
 
 class NNEngine(object):
@@ -19,12 +19,12 @@ class NNEngine(object):
         self.amp = amp
         self.scaler = torch.cuda.amp.GradScaler(enabled=True) if amp else None
 
+        self.model_without_ddp = model
         if self.local_rank >= 0:
 #            # convert BN to SyncBN
             if sync_bn:
                 model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
             self.model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[self.local_rank], output_device=self.local_rank)
-#            model_without_ddp = model.module
         else:
             self.model = model
 #            self.model = model.to(self.device)
@@ -44,24 +44,24 @@ class NNEngine(object):
         print("Building dataloader")
         datasets, dataloaders = create_dataloader(data_cfg)
 
-        # parse model
+        # build model
         print("Building model")
         model = create_model(model_cfg, input_size=data_cfg.get('input_size', None), local_rank=self.local_rank)
 
-        # parse criterion
+        # build criterion
         print("Building criterion")
         criterion = create_criterion(criterion_cfg, local_rank=self.local_rank).to(self.device)
 
-        # parse optimizer
+        # build optimizer
         print("Building optimizer")
         optimizer = create_optimizer(model, optimizer_cfg, criterion)
 
-        # parse scheduler
+        # build scheduler
         print("Building lr scheduler")
         lr_scheduler_cfg['args']['optimizer'] = optimizer
         lr_scheduler = create_scheduler(lr_scheduler_cfg)
 
-        # parse other hooks
+        # build other hooks
         print("Building hooks")
         hooks = []
         gen = hooks_cfg.values() if isinstance(hooks_cfg, dict) else iter(hooks_cfg)
@@ -96,14 +96,6 @@ class NNEngine(object):
         # insert the hook to a sorted list
         idx = bisect.bisect_right([h.priority for h in self._hooks], hook.priority)
         self._hooks.insert(idx, hook)
-#        inserted = False
-#        for i in range(len(self._hooks) - 1, -1, -1):
-#            if priority >= getattr(self._hooks[i], 'priority', len(self._hooks)):
-#                self._hooks.insert(i + 1, hook)
-#                inserted = True
-#                break
-#        if not inserted:
-#            self._hooks.insert(0, hook)
 
     def call_hook(self, fn_name:str):
         """Call all hooks.
@@ -163,6 +155,7 @@ class NNEngine(object):
                     self.model.train()
                     with hooks_train_epoch(self.hooks, self):
                         self.train_one_epoch(self.train_loader, self.model, self.criterion)
+                    print_ddp(self.local_rank, 'train_epoch_done')
           
                     if self.local_rank in [-1, 0] or self.val_loader.cfg.get('use_dist', True):
                         self.model.eval()

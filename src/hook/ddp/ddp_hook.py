@@ -2,7 +2,7 @@ import os
 from typing import Union
 import torch
 
-from ..hook import HOOK, execute_period
+from ..hook import HOOK, execute_period, only_master
 from app.distribute_utils import synchronize_between_processes
 
 class DDPHOOK(HOOK):
@@ -12,8 +12,11 @@ class DDPHOOK(HOOK):
 
     def before_epoch(self, runner):
         if runner.is_ddp():
-            if runner.train_loader.cfg.get('use_dist', True): runner.train_loader.sampler.set_epoch(runner.info.current_epoch)
-            if runner.val_loader.cfg.get('use_dist', True): runner.val_loader.sampler.set_epoch(runner.info.current_epoch)
+            for k, loader in runner.dataloaders.items():
+                if loader.cfg.get('use_dist', True):
+                    loader.sampler.set_epoch(runner.info.current_epoch)
+#            if runner.train_loader.cfg.get('use_dist', True): runner.train_loader.sampler.set_epoch(runner.info.current_epoch)
+#            if runner.val_loader.cfg.get('use_dist', True): runner.val_loader.sampler.set_epoch(runner.info.current_epoch)
 
     def after_train_epoch(self, runner):
         if runner.is_ddp():

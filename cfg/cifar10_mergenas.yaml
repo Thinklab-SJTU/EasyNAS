@@ -48,7 +48,7 @@ hooks: &hooks
           weight_decay: 1.e-3
       dataloader_name: search_val
       criterion_cfg: *criterion
-      update_freq: 5
+      update_freq: 1
       accumulate_gradient: *acc_grad
       priority: 30
       save_root: !join [*root_path, arch/]

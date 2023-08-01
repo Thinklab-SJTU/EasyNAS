@@ -36,6 +36,7 @@ def setup_for_distributed(is_master, logger=None):
             builtin_print(*args, **kwargs)
 
     if logger is None:
+        __builtin__.print_ddp = __builtin__.print
         __builtin__.print = print
     else: logger.info = print
 
@@ -96,7 +97,7 @@ def synchronize_between_processes(var, device='cuda', mode='sum'):
         return var
     t = var if isinstance(var, torch.Tensor) else torch.tensor([var], device=device)
     dist.barrier()
-    dist.all_reduce(t, op=dist.reduce_op.SUM)
+    dist.all_reduce(t, op=dist.ReduceOp.SUM)
     if mode == 'avg': 
         t.div_(get_world_size())
     return t if isinstance(var, torch.Tensor) else t.tolist()[0]

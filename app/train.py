@@ -27,7 +27,6 @@ def main():
     np.random.seed(seed)
     # random.seed(seed)
 
-    init_distributed_mode(args)
     with ddp_ctx(args):
         print(args)
     

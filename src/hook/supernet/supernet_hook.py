@@ -4,7 +4,7 @@ import json
 import yaml
 
 from builder import get_submodule_by_name, create_criterion, CfgDumper
-from ..hook import HOOK, execute_period 
+from ..hook import HOOK, execute_period, only_master
 from .. import OptHOOK
 
 class DARTSHOOK(HOOK):
@@ -24,7 +24,7 @@ class DARTSHOOK(HOOK):
 #            torch.nn.init.normal_(p, mean=0.0, std=1e-6)
 
     def before_run(self, runner):
-        self.optimizer_cfg['args']['params'] = runner.model.arch_parameters()
+        self.optimizer_cfg['args']['params'] = runner.model_without_ddp.arch_parameters()
 #        self._initialize_arch_param(arch_param)
         self.optimizer = get_submodule_by_name(self.optimizer_cfg.get('submodule_name'), search_path=('torch.optim',))(**self.optimizer_cfg['args'])
         self.optimizer_hook = OptHOOK(self.optimizer, self.accumulate_gradient)
@@ -33,15 +33,21 @@ class DARTSHOOK(HOOK):
         else:
             self.criterion = runner.criterion
         self.dataloader = runner.dataloaders[self.dataloader_name]
-        self.dataiter = iter(self.dataloader)
+#        self.dataiter = iter(self.dataloader)
+        self.dataiter = self.data_generator(self.dataloader)
+
+    def data_generator(self, dataloader):
+        while True:
+            yield from dataloader
 
     def backward_arch_param(self, runner):
-        arch_param = runner.model.arch_parameters()
-        try:
-            input_valid, target_valid = self.dataiter.next()
-        except StopIteration:
-            self.dataiter = iter(self.dataloader)
-            input_valid, target_valid = self.dataiter.next()
+        arch_param = runner.model_without_ddp.arch_parameters()
+#        try:
+#            input_valid, target_valid = self.dataiter.next()
+#        except StopIteration:
+#            self.dataiter = iter(self.dataloader)
+#            input_valid, target_valid = self.dataiter.next()
+        input_valid, target_valid = next(self.dataiter)
 
         target_valid = target_valid.to(runner.device, non_blocking=True)
         input_valid = input_valid.to(runner.device, non_blocking=True)
@@ -64,7 +70,7 @@ class DARTSHOOK(HOOK):
 
     @execute_period("update_freq")
     def before_train_iter(self, runner):
-#        self.tmp = getattr(self, 'tmp', 0)
+#        self.tmp = getattr(self, 'tmp', 5)
 #        if self.tmp == 1:
 #            self.after_train_epoch(runner)
 #            assert 0
@@ -74,17 +80,18 @@ class DARTSHOOK(HOOK):
         self.backward_arch_param(runner)
         self.optimizer_hook.after_train_iter(runner)
 
+    @only_master
     def after_train_epoch(self, runner):
-        arch_param = {k:v.data.cpu().numpy().tolist() for k, v in runner.model.named_arch_parameters()}
+        arch_param = {k:v.data.cpu().numpy().tolist() for k, v in runner.model_without_ddp.named_arch_parameters()}
         alpha_file = os.path.join(self.save_root, "alpha_%d.json"%runner.info.current_epoch)
         with open(alpha_file, 'w') as f:
           json.dump(arch_param, f)
-        out_model_yaml = runner.model.discretize(depth_multiple=5, width_multiple=2.25)
+        out_model_yaml = runner.model_without_ddp.discretize(depth_multiple=5, width_multiple=2.25)
         yaml_file = os.path.join(self.save_root, "architecture_%d.yaml"%runner.info.current_epoch)
         with open(yaml_file, encoding='utf-8', mode='w') as f:
             try:
                 yaml.dump(data=out_model_yaml, stream=f, allow_unicode=True, Dumper=CfgDumper, default_flow_style=False)
             except Exception as e:
                 raise(e)
-        runner.model.info_arch()
+        runner.model_without_ddp.info_arch()
 
