@@ -1,14 +1,6 @@
 root_path: &root_path runs/cifar10_resnet50/
 epoch: &epoch 100
 accumulate_gradient: &acc_grad 1
-amp: False
-
-data: cfg/dataset/imagenet.yaml
-
-model: cfg/model/resnet50.yaml
-
-criterion: 
-  submodule_name: torch.nn.CrossEntropyLoss
 
 optimizer: &optimizer
   submodule_name: torch.optim.SGD
@@ -24,7 +16,7 @@ lr_scheduler: &scheduler
     optimizer: 
     lr_lambda: !get_module [src.scheduler.utils.multistep, {gamma: 0.1, milestones: [100]}]
 
-hooks:
+hooks: &hooks
   opt_hook:
     submodule_name: OptHOOK
     args:
@@ -72,3 +64,17 @@ hooks:
   #     warmup_init_lr_rate: 1.e-3
   #     priority: 10
   #     accumulate_gradient: *acc_grad
+
+
+engine:
+  submodule_name: NNengine
+  args:
+    data: !cross_ref [cfg/dataset/imagenet.yaml]
+    model: !cross_ref [cfg/model/resnet50.yaml]
+    criterion:
+      submodule_name: torch.nn.CrossEntropyLoss
+    optimizer: *optimizer
+    lr_scheduler: *scheduler
+    hooks: *hooks
+    amp: false
+

@@ -5,6 +5,14 @@ import torch.nn as nn
 import torch.distributed as dist
 
 @contextmanager
+def ddp_ctx(args):
+    init_distributed_mode(args)
+    yield
+    if is_dist_avail_and_initialized():
+        dist.barrier()
+        dist.destroy_process_group()
+
+@contextmanager
 def torch_distributed_zero_first(local_rank: int):
     """
     Decorator to make all processes in distributed training wait for each local_master to do something.

@@ -3,33 +3,32 @@ from typing import Union, List
 import bisect
 import torch
 
+from builder import parse_cfg, create_dataloader, create_model, create_optimizer, create_criterion, create_hook, create_scheduler
 from src.hook import HOOK, OptHOOK, hooks_run, hooks_epoch, hooks_train_epoch, hooks_val_epoch, hooks_train_iter, hooks_val_iter
 
-class Trainer(object):
-    def __init__(self, dataloaders:dict, model, criterion, optimizer, lr_scheduler, hooks: List[HOOK]=[], local_rank=-1, sync_bn=False, amp=False):
+class NNEngine(object):
+    def __init__(self, data, model, criterion, optimizer, lr_scheduler, hooks={}, local_rank=-1, sync_bn=False, amp=False):
 
-        self.dataloaders = dataloaders
-        self.train_loader, self.val_loader, self.test_loader = dataloaders.get('train', None), dataloaders.get('val', None), dataloaders.get('test', None)
+        self.local_rank = local_rank
+        self.device = torch.device('cuda', max(local_rank, 0))
+        self.dataloaders, model, self.criterion, self.optimizer, self.lr_scheduler, hooks = self.build_from_cfg(data, model, criterion, optimizer, lr_scheduler, hooks)
+
+        self.train_loader, self.val_loader, self.test_loader = self.dataloaders.get('train', None), self.dataloaders.get('val', None), self.dataloaders.get('test', None)
         assert self.train_loader is not None
 
         self.amp = amp
         self.scaler = torch.cuda.amp.GradScaler(enabled=True) if amp else None
 
-        self.local_rank = local_rank
-        self.device = torch.device('cuda', max(local_rank, 0))
-
         if self.local_rank >= 0:
 #            # convert BN to SyncBN
             if sync_bn:
                 model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
-#            model = model.to(self.device)
             self.model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[self.local_rank], output_device=self.local_rank)
 #            model_without_ddp = model.module
         else:
             self.model = model
 #            self.model = model.to(self.device)
 
-        self.criterion = criterion.to(self.device)
         self.start_epoch = 0
         self._hooks = []
         for hook in hooks: self.register_hook(hook)
@@ -39,8 +38,37 @@ class Trainer(object):
             'current_epoch': 0,
             })
 
-        self.optimizer = optimizer
-        self.lr_scheduler = lr_scheduler
+
+    def build_from_cfg(self, data_cfg, model_cfg, criterion_cfg, optimizer_cfg, lr_scheduler_cfg, hooks_cfg):
+        # build data
+        print("Building dataloader")
+        datasets, dataloaders = create_dataloader(data_cfg)
+
+        # parse model
+        print("Building model")
+        model = create_model(model_cfg, input_size=data_cfg.get('input_size', None), local_rank=self.local_rank)
+
+        # parse criterion
+        print("Building criterion")
+        criterion = create_criterion(criterion_cfg, local_rank=self.local_rank).to(self.device)
+
+        # parse optimizer
+        print("Building optimizer")
+        optimizer = create_optimizer(model, optimizer_cfg, criterion)
+
+        # parse scheduler
+        print("Building lr scheduler")
+        lr_scheduler_cfg['args']['optimizer'] = optimizer
+        lr_scheduler = create_scheduler(lr_scheduler_cfg)
+
+        # parse other hooks
+        print("Building hooks")
+        hooks = []
+        gen = hooks_cfg.values() if isinstance(hooks_cfg, dict) else iter(hooks_cfg)
+        for v in gen:
+            if (not v.get('args', {}).get('only_master', False)) or self.local_rank in [-1, 0]:
+                hooks.append(create_hook(v))
+        return dataloaders, model, criterion, optimizer, lr_scheduler, hooks
 
     @property
     def hooks(self):

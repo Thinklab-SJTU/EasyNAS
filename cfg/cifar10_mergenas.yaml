@@ -1,11 +1,6 @@
 root_path: &root_path runs/cifar10_noPermutation_mergenas_noEdgeAlpha_noCutout_SepConvInterReLU_alphaInit1e-3_actBeforeOp/
 epoch: &epoch 50
 accumulate_gradient: &acc_grad 1
-amp: False
-
-data: cfg/dataset/cifar10_search.yaml
-
-model: cfg/model/mergenas.yaml
 
 criterion: &criterion
   submodule_name: src.criterions.CriterionWithAux
@@ -29,7 +24,7 @@ lr_scheduler: &scheduler
     T_max: *epoch
     eta_min: 0.001
 
-hooks:
+hooks: &hooks
   opt_hook:
     submodule_name: OptHOOK
     args:
@@ -86,4 +81,14 @@ hooks:
       only_master: True
       priority: 20
   
+engine:
+  submodule_name: NNEngine
+  args:
+    data: !cross_ref [cfg/dataset/cifar10_search.yaml]
+    model: !cross_ref [cfg/model/mergenas.yaml]
+    criterion: *criterion
+    optimizer: *optimizer
+    lr_scheduler: *scheduler
+    hooks: *hooks
+    amp: False
 

@@ -2,11 +2,6 @@ base_path: &base_path runs/cifar10_noPermutation_darts_noEdgeAlpha_noCutout_noAc
 root_path: &root_path !join [*base_path, retrain-affineTrue_drop_path0.2-dynamic/]
 epoch: &epoch 600
 accumulate_gradient: &acc_grad 1
-amp: False
-
-data: !cross_ref [cfg/dataset/cifar10.yaml]
-
-model: !cross_ref [!join [*base_path, arch/architecture_49.yaml]]
 
 auxiliary_model: &aux
   submodule_name: src.models.BaseModel
@@ -45,7 +40,7 @@ auxiliary_model: &aux
           act: False
           bn: False
 
-criterion: 
+criterion: &criterion
   submodule_name: src.criterions.CriterionWithAux
   args:
     criterion_or_cfg:
@@ -69,7 +64,7 @@ lr_scheduler: &scheduler
     optimizer: 
     T_max: *epoch
 
-hooks:
+hooks: &hooks
   opt_hook:
     submodule_name: OptHOOK
     args:
@@ -119,3 +114,13 @@ hooks:
       priority: 20
   
 
+engine:
+  submodule_name: NNEngine
+  args:
+    data: !cross_ref [cfg/dataset/cifar10.yaml]
+    model: !cross_ref [!join [*base_path, arch/architecture_49.yaml]]
+    criterion: *criterion
+    optimizer: *optimizer
+    lr_scheduler: *scheduler
+    hooks: *hooks
+    amp: False

@@ -5,6 +5,7 @@ logs
 *.log
 *.DS_Store
 .nfs*
+*_bk.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

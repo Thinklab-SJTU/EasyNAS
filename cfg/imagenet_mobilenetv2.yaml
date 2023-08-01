@@ -1,14 +1,6 @@
-root_path: &root_path runs/cifar10_res18/
+root_path: &root_path runs/imagenet_mobilenetv2/
 epoch: &epoch 180
 accumulate_gradient: &acc_grad 1
-amp: False # True
-
-data: cfg/dataset/imagenet.yaml
-
-model: cfg/model/mobilenetv2.yaml
-
-criterion: 
-  submodule_name: torch.nn.CrossEntropyLoss
 
 optimizer: &optimizer
   submodule_name: torch.optim.SGD
@@ -32,7 +24,7 @@ lr_scheduler: &scheduler
     T_max: *epoch 
     eta_min: 1.e-4
 
-hooks:
+hooks: &hooks
   opt_hook:
     submodule_name: OptHOOK
     args:
@@ -54,7 +46,6 @@ hooks:
     submodule_name: DDPHOOK
     args:
       priority: 10
-  
   
   log_hook:
     submodule_name: LogHOOK
@@ -80,3 +71,17 @@ hooks:
   #     warmup_init_lr_rate: 1.e-3
   #     priority: 10
   #     accumulate_gradient: *acc_grad
+
+
+engine:
+  submodule_name: NNengine
+  args:
+    data: !cross_ref [cfg/dataset/imagenet.yaml]
+    model: !cross_ref [cfg/model/mobilenetv2.yaml]
+    criterion:
+      submodule_name: torch.nn.CrossEntropyLoss
+    optimizer: *optimizer
+    lr_scheduler: *scheduler
+    hooks: *hooks
+    amp: false
+
