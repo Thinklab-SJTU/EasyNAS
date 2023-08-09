@@ -8,7 +8,7 @@ class EvalAccHOOK(HOOK):
         self.loss = AverageMeter()
         self.top1 = AverageMeter()
         self.top5 = AverageMeter()
-        self.val_loss = AverageMeter()
+#        self.val_loss = AverageMeter()
         self.val_top1 = AverageMeter()
         self.val_top5 = AverageMeter()
 
@@ -18,7 +18,7 @@ class EvalAccHOOK(HOOK):
         self.top5.reset()
 
     def before_val_epoch(self, runner):
-        self.val_loss.reset()
+#        self.val_loss.reset()
         self.val_top1.reset()
         self.val_top5.reset()
 
@@ -35,14 +35,14 @@ class EvalAccHOOK(HOOK):
         runner.info.results.train.top5 = self.top5.avg
 
     def after_val_iter(self, runner):
-        logits, target, loss = runner.info.val_bs_logits, runner.info.val_bs_target, runner.info.val_bs_loss
+        logits, target = runner.info.val_bs_logits, runner.info.val_bs_target
         if isinstance(logits, (list, tuple)): logits = logits[-1]
         prec1, prec5 = accuracy(logits, target, topk=(1, 5))
         n = target.size(0)
-        self.val_loss.update(loss.item(), n)
+#        self.val_loss.update(loss.item(), n)
         self.val_top1.update(prec1.item(), n)
         self.val_top5.update(prec5.item(), n)
-        runner.info.results.val.loss = self.val_loss.avg
+#        runner.info.results.val.loss = self.val_loss.avg
         runner.info.results.val.top1 = self.val_top1.avg
         runner.info.results.val.top5 = self.val_top5.avg
 

@@ -1,11 +1,12 @@
-from .search_common import SearchLayer, ConvBNAct_search, SepConvBNAct_search
-from 
+from .search_common import ConvBNAct_search, SepConvBNAct_search
+from .base import SearchModule
 
-class YOLOBottleneck_search(SearchLayer):
+class YOLOBottleneck_search(SearchModule):
     # Standard bottleneck
     def __init__(self, in_channel, out_channel, candidate_kernel_dilation=[(3,1),(5,1),(3,2)], candidate_ch=[1.], shortcut=True, group=1, expansion=0.5, gumbel_channel=False, separable=False, merge_kernel=True):  # ch_in, ch_out, shortcut, groups, expansion
         super(YOLOBottleneck_search, self).__init__()
         self.gumbel_channel = gumbel_channel
+        self.expansion = expansion
 
         c_ = int(out_channel * e)  # hidden channels
         c_max = int(c_ * max(candidate_ch))
@@ -23,9 +24,9 @@ class YOLOBottleneck_search(SearchLayer):
         else:
           return x + self.cv2(self.cv1(x), op_alphas, ch_alphas) if self.add else self.cv2(self.cv1(x), op_alphas, ch_alphas)
 
-class YOLOC3_search(SearchLayer):
+class YOLOC3_search(SearchModule):
     # CSP Bottleneck with 3 convolutions
-    def __init__(self, in_channel, out_channel, num_repeat=1, candidate_kernel_dilation=[(3,1),(5,1),(3,2)], candidate_ch=[1.], shortcut=True, group=1, expansion=0.5, search_out_channel=None, gumbel_channel=False, separable=False, merge_kernel):  # ch_in, ch_out, number, shortcut, groups, expansion
+    def __init__(self, in_channel, out_channel, num_repeat=1, candidate_kernel_dilation=[(3,1),(5,1),(3,2)], candidate_ch=[1.], shortcut=True, group=1, expansion=0.5, e_bottleneck=1., search_out_channel=None, gumbel_channel=False, separable=False, merge_kernel=True):  # ch_in, ch_out, number, shortcut, groups, expansion
         super(YOLOC3_search, self).__init__()
         if search_out_channel==True:
             self.search_out_channel = candidate_ch
@@ -36,6 +37,10 @@ class YOLOC3_search(SearchLayer):
         else:
             raise(ValueError("search_out_channel has to be bool or None or a list of float"))
         self.gumbel_channel = gumbel_channel
+        self.out_channel = out_channel
+        self.candidate_ch = candidate_ch
+        self.candidate_op = candidate_kernel_dilation
+        self.e_bottleneck = [e_bottleneck for _ in range(num_repeat)] if isinstance(e_bottleneck, float) else e_bottleneck
 
         out_channel = out_channel * max(self.search_out_channel)
         c_ = int(out_channel * expansion)  # hidden channels
@@ -51,7 +56,7 @@ class YOLOC3_search(SearchLayer):
         if len(self.search_out_channel) > 1:
             self.register_buffer('ch_alphas', torch.autograd.Variable(1e-3*torch.randn(len(self.search_out_channel)), requires_grad=True))
 
-        self.m = nn.Sequential(*[YOLOBottleneck_search(c_, c_, candidate_kernel_dilation, candidate_ch, shortcut, group, expansion=1.0, gumbel_channel=gumbel_channel, separable=separable, merge_kernel=merge_kernel) for _ in range(num_repeat)])
+        self.m = nn.Sequential(*[YOLOBottleneck_search(c_, c_, candidate_kernel_dilation, candidate_ch, shortcut, group, expansion=self.e_bottleneck[i], gumbel_channel=gumbel_channel, separable=separable, merge_kernel=merge_kernel) for i in range(num_repeat)])
 
     def forward(self, x):
         if self.gumbel_channel:
@@ -62,3 +67,35 @@ class YOLOC3_search(SearchLayer):
         else:
             ch_alphas = nn.functional.softmax(self.ch_alphas, dim=-1) if hasattr(self, 'ch_alphas') else None
             return self.cv3(torch.cat((self.m(self.cv1(x, ch_alphas=ch_alphas)), self.cv2(x, ch_alphas=ch_alphas)), dim=1), ch_alphas=ch_alphas)
+
+    def discretize(self, cfg=None, op_alphas=None, ch_alphas=None, edge_alphas=None, num_reserved_op=1, num_reserved_edge=2):
+        assert num_reserved_op==1
+
+        args = {}
+        ch_alphas = getattr(self, 'ch_alphas', None) if ch_alphas is None else ch_alphas
+        if ch_alphas is not None:
+            ch_alphas_idx = self.get_reserved_idx(1, ch_alphas)[0]
+            if cfg is not None:
+                args['out_channel'] = cfg['args']['out_channel'] * cfg['args']['candidate_ch'][ch_alphas_idx]
+            else:
+                args['out_channel'] = self.out_channel * self.candidate_ch[ch_alphas_idx]
+        kernel, dilation, e_bottleneck = [], [], []
+        for m in self.m:
+            if op_alphas is None: op_alphas = m.cv2.op_alphas
+            op_alphas_idx = self.get_reserved_idx(num_reserved_op, op_alphas)[0]
+            k, d = self.candidate_op[op_alphas_idx]
+            kernel.append(k)
+            dilation.append(d)
+
+            if m.cv1.ch_alphas is not None:
+                ch_alphas_idx = self.get_reserved_idx(1, m.cv1.ch_alphas)[0]
+                e_bottleneck.append(m.expansion * self.candidate_ch[ch_alphas_idx])
+            else: e_bottleneck.append(m.expansion)
+
+        args['kernel'] = kernel
+        args['dilation'] = dilation
+        args['e_bottleck'] = e_bottleneck
+
+        new_cfg = self.init_output_yaml(cfg, outOp_name='YOLOC3', input_idx=-1, **args)
+        return new_cfg
+

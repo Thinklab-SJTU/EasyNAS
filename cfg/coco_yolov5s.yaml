@@ -29,21 +29,21 @@ lr_scheduler: &scheduler
 
 hooks: &hooks
   opt_hook:
-    hook_name: OptHOOK
-    hook_args:
-      priority: 1
-      accumulate_gradient: &acc_grad
+    submodule_name: OptHOOK
+    args:
+      priority: 0
+      accumulate_gradient: *acc_grad
   
   lr_scheduler_hook:
-    hook_name: LrScheduleHOOK
-    hook_args: 
+    submodule_name: LrScheduleHOOK
+    args: 
       priority: 5
       mode: epoch
   
   #TODO
   eval_hook:
-    hook_name: EvalCOCOmAPHOOK
-    hook_args: 
+    submodule_name: EvalCOCOmAPHOOK
+    args: 
       anno_file: 'data/coco/annotations/instances_val2017.json'
       iou_thres: 0.7
       conf_thres: 0.001
@@ -51,31 +51,31 @@ hooks: &hooks
       priority: 10
   
   ddp_hook:
-    hook_name: DDPHOOK
-    hook_args:
+    submodule_name: DDPHOOK
+    args:
       priority: 10
   
   
   log_hook:
-    hook_name: LogHOOK
-    hook_args:
+    submodule_name: LogHOOK
+    args:
       logger_name: TrainPip
       log_path: !join [*root_path, test.log]
       print_freq: 100
       only_master: True
-      priority: 10
+      priority: 20
   
   ckpt_hook:
-    hook_name: CkptHOOK
-    hook_args:
+    submodule_name: CkptHOOK
+    args:
       save_root: !join [*root_path, ckpt/]
       pretrain: 
       only_master: True
       priority: 20
   
   warmup_hook:
-    hook_name: WarmupHOOK
-    hook_args:
+    submodule_name: WarmupHOOK
+    args:
       max_iter: 1000
       warmup_init_lr_rate: [1., *warmup_bias_lr, 1.]
       warmup_init_momentum_rate: *warmup_init_momentum_rate
@@ -83,15 +83,15 @@ hooks: &hooks
       accumulate_gradient: *acc_grad
   
   ema_hook:
-    hook_name: EMAHOOK
-    hook_args:
+    submodule_name: EMAHOOK
+    args:
       decay: 0.999
       priority: 5
       accumulate_gradient: *acc_grad
 
 
 engine:
-  submodule_name: NNengine
+  submodule_name: engines.NNEngine
   args:
     data: !cross_ref [cfg/dataset/coco_yolo.yaml]
     criterion: !cross_ref [cfg/criterion/yolov5.yaml]

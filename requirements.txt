@@ -7,3 +7,4 @@ pyyaml
 easydict
 opencv-python
 thop
+pycocotools>=2.0

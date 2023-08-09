@@ -1,5 +1,9 @@
+import time
 from easydict import EasyDict
 from pathlib import Path
+import torch
+import torchvision
+import numpy as np
 
 from ..hook import HOOK, execute_period
 from .utils import AverageMeter, accuracy, ap_per_class
@@ -15,27 +19,34 @@ class EvalCOCOmAPHOOK(HOOK):
         self.iou_thres = iou_thres
         self.priority = priority
         self.only_master = only_master
+
         self.loss = AverageMeter()
-        self.val_loss = AverageMeter()
+        self.loss_box = AverageMeter()
+        self.loss_obj = AverageMeter()
+        self.loss_cls = AverageMeter()
 
     def before_run(self, runner):
         self.iouv = torch.linspace(0.5, 0.95, 10).to(runner.device)  # iou vector for mAP@0.5:0.95
-        self.niou = iouv.numel()
+        self.niou = self.iouv.numel()
 
     def before_train_epoch(self, runner):
         self.loss.reset()
 
-    def before_val_epoch(self, runner):
-        self.val_loss.reset()
-
     def after_train_iter(self, runner):
-        target, iter_loss = runner.info.train_bs_target, runner.info.train_bs_loss
+        target, iter_loss, iter_loss_items = runner.info.train_bs_target, runner.info.train_bs_loss, runner.info.train_bs_loss_items
         n = target.size(0)
         self.loss.update(iter_loss.item(), n)
+        self.loss_box.update(iter_loss_items[0].item(), n)
+        self.loss_obj.update(iter_loss_items[1].item(), n)
+        self.loss_cls.update(iter_loss_items[2].item(), n)
+
         runner.info.results.train.loss = self.loss.avg
+        runner.info.results.train.loss_box = self.loss_box.avg
+        runner.info.results.train.loss_obj = self.loss_obj.avg
+        runner.info.results.train.loss_cls = self.loss_cls.avg
 
     def after_val_iter(self, runner):
-        img, logits, targets, iter_loss = runner.info.val_bs_input, runner.info.val_bs_logits, runner.info.val_bs_target, runner.info.val_bs_loss
+        img, logits, targets = runner.info.val_bs_input, runner.info.val_bs_logits, runner.info.val_bs_target
         paths, shapes = runner.info.val_bs_others
         self.jdict = getattr(self, 'jdict', [])
         self.stats = getattr(self, 'stats', [])
@@ -45,7 +56,9 @@ class EvalCOCOmAPHOOK(HOOK):
         nb, _, height, width = img.shape  # batch size, channels, height, width
 
         targets[:, 2:] *= torch.Tensor([width, height, width, height]).to(runner.device)  # to pixels
-        lb = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if save_hybrid else []  # for autolabelling
+#        lb = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if save_hybrid else []  # for autolabelling
+        lb = []  # for autolabelling
+
         out = non_max_suppression(logits, conf_thres=self.conf_thres, iou_thres=self.iou_thres, labels=lb, multi_label=True)
         # Statistics per image
         for si, pred in enumerate(out):
@@ -53,7 +66,6 @@ class EvalCOCOmAPHOOK(HOOK):
             nl = len(labels)
             tcls = labels[:, 0].tolist() if nl else []  # target class
             path = Path(paths[si])
-            seen += 1
 
             if len(pred) == 0:
                 if nl:
@@ -77,7 +89,7 @@ class EvalCOCOmAPHOOK(HOOK):
                                   'score': round(p[4], 5)})
 
             # Assign all predictions as incorrect
-            correct = torch.zeros(pred.shape[0], self.niou, dtype=torch.bool, device=device)
+            correct = torch.zeros(pred.shape[0], self.niou, dtype=torch.bool, device=pred.device)
             if nl:
                 detected = []  # target indices
                 tcls_tensor = labels[:, 0]
@@ -110,8 +122,6 @@ class EvalCOCOmAPHOOK(HOOK):
             # Append statistics (correct, conf, pcls, tcls)
             self.stats.append((correct.cpu(), pred[:, 4].cpu(), pred[:, 5].cpu(), tcls))
 
-        self.val_loss.update(iter_loss.item(), n)
-        runner.info.results.val.loss = self.val_loss.avg
 
     def after_val_epoch(self, runner):
         # Compute statistics
@@ -122,20 +132,16 @@ class EvalCOCOmAPHOOK(HOOK):
             ap50, ap = ap[:, 0], ap.mean(1)  # AP@0.5, AP@0.5:0.95
             mp, mr, map50, map = p.mean(), r.mean(), ap50.mean(), ap.mean()
             nt = np.bincount(stats[3].astype(np.int64), minlength=nc)  # number of targets per class
-        else:
-            nt = torch.zeros(1)
-
-        runner.info.results.val.precision = mp
-        runner.info.results.val.recall = mr
-        runner.info.results.val['map@.5'] = map50
-        runner.info.results.val['map@.5:.95'] = map
-
-        # Results per class
-        if self.verbose_per_class and nc > 1 and len(stats):
-            runner.info.results.val['per_class'] = {
-                    str(c): {'precision': p[i], 'recall': r[i], 'map@.5': ap50[i], 'map@.5:.95': ap[i]}
-                    for i, c in enumerate(ap_class)
-                    }
+            runner.info.results.val.precision = mp
+            runner.info.results.val.recall = mr
+            runner.info.results.val['map@.5'] = map50
+            runner.info.results.val['map@.5:.95'] = map
+            # Results per class
+            if self.verbose_per_class and nc > 1:
+                runner.info.results.val['per_class'] = {
+                        str(c): {'precision': p[i], 'recall': r[i], 'map@.5': ap50[i], 'map@.5:.95': ap[i]}
+                        for i, c in enumerate(ap_class)
+                        }
 
         # Evaluate by cocotools
         if self.eval_by_cocotools and len(self.jdict):

@@ -1,4 +1,4 @@
-# Loss functions
+import math
 import torch
 import torch.nn as nn
 
@@ -128,12 +128,14 @@ class QFocalLoss(nn.Module):
 
 class YOLOv5Loss(nn.Module):
     # Compute losses
-    def __init__(self, hyp, num_anchors, num_det_layers, anchors, iou_loss_ratio, num_classes=80, imgsz=640, stride=None, autobalance=False):
+    def __init__(self, hyp, anchors, iou_loss_ratio, num_classes=80, imgsz=640, stride=None, autobalance=False):
         super(YOLOv5Loss, self).__init__()
         self.hyp = hyp  # hyperparameters
-        self.nl = num_det_layers
-        self.na = num_anchors
-        self.anchors = anchors
+        self.img_size = imgsz
+        self.nl = len(anchors)
+        self.na = len(anchors[0]) // 2
+        a = torch.tensor(anchors).float().view(self.nl, -1, 2)
+        self.register_buffer('anchors', a)  # shape(nl,na,2)
         self.stride = stride
         self.gr = iou_loss_ratio
         self.autobalance = autobalance
@@ -204,7 +206,8 @@ class YOLOv5Loss(nn.Module):
         bs = tobj.shape[0]  # batch size
 
         loss = lbox + lobj + lcls
-        return loss * bs, torch.cat((lbox, lobj, lcls, loss)).detach()
+        return loss * bs, lbox.detach(), lobj.detach(), lcls.detach()
+#        return loss * bs, torch.cat((lbox, lobj, lcls, loss)).detach()
 
     def build_targets(self, p, targets):
         # Build targets for compute_loss(), input targets(image,class,x,y,w,h)
@@ -221,7 +224,7 @@ class YOLOv5Loss(nn.Module):
                             ], device=targets.device).float() * g  # offsets
 
         for i in range(self.nl):
-            anchors = self.anchors[i]
+            anchors = self.anchors[i] * p[i].shape[-2] / self.img_size
             gain[2:6] = torch.tensor(p[i].shape)[[3, 2, 3, 2]]  # xyxy gain
 
             # Match targets to anchors

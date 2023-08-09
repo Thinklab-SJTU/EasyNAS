@@ -41,7 +41,7 @@ def setup_for_distributed(is_master, logger=None):
     else: logger.info = print
 
 def is_parallel(model):
-    return isinstance(model, [nn.parallel.DataParallel, nn.parallel.DistributedDataParallel])
+    return isinstance(model, (nn.parallel.DataParallel, nn.parallel.DistributedDataParallel))
 
 
 def is_dist_avail_and_initialized():

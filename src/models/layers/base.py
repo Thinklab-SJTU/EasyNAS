@@ -132,7 +132,7 @@ class SearchModule(nn.Module):
         return gumbel_softmax(F.log_softmax(alphas, dim=-1), hard=True) if gumbel else nn.functional.softmax(alphas, dim=-1)
 
     def get_norm_layer(self, ch_alphas, bn, gumbel_channel=True):
-        return bn[ch_alphas.argmax()] if gumbel_channel else bn
+        return bn[ch_alphas.argmax()] if gumbel_channel and isinstance(bn, nn.ModuleList) else bn
 
     def get_reserved_idx(self, num_reserved, weight):
         return [x.item() for x in torch.topk(weight, k=num_reserved, dim=-1)[1]]

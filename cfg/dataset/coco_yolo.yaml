@@ -1,6 +1,7 @@
 num_classes: 80
 input_size: &imgsz 640
 batch_size: &bs 80
+val_batch_size: &val_bs 256
 
 data_hyp: &hyp
   hsv_h: 0.015  # image HSV-Hue augmentation (fraction)
@@ -20,22 +21,23 @@ dataset:
   train:
     submodule_name: src.datasets.COCO_YOLO
     dataset_args:
-      path: ./data/
-      imgsz: *imgsz
+      path: ./data/coco2017/images/train2017/
+      img_size: *imgsz
       batch_size: *bs
-      augment: True
       hyp: *hyp
+      augment: True
       rect: False
       stride: 32
   val:
     submodule_name: src.datasets.COCO_YOLO
     dataset_args:
-      path: ./data/
-      imgsz: *imgsz
-      batch_size: *bs
-      augment: True
+      path: ./data/coco2017/images/val2017/
+      img_size: *imgsz
+      batch_size: *val_bs
       hyp: *hyp
-      rect: False
+      augment: False
+      rect: True # Note that when rect is True, you have to set shuffle as False in the dataloader configuration.
+      pad: 0.5
       stride: 32
 
 dataloader:
@@ -51,8 +53,9 @@ dataloader:
     dataset_name: val
     submodule_name: src.datasets.LOADER_YOLO
     use_dist: False
+    shuffle: False
     dataloader_args:
-      batch_size: *bs
+      batch_size: *val_bs
       pin_memory: True
       num_workers: 4
       collate_fn: !get_module [src.datasets.coco_yolo.collate_fn]

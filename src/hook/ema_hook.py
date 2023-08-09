@@ -1,3 +1,5 @@
+import math
+
 from .hook import HOOK, execute_period, only_master
 from app.distribute_utils import is_parallel
 
@@ -12,28 +14,28 @@ class EMA():
         msd = model.module.state_dict() if is_parallel(model) else model.state_dict()  # model state_dict
         if self.updates == 0:
             for name, param in msd.items():
-                self.shadow[name] = param.clone()
+                self.shadow[name] = param.data.clone()
         else:
             d = self.decay(self.updates)
             for name, param in msd.items():
-#                if param.requires_grad:
-                self.shadow[name].mul_(d).add_((1.0 - d) * param.data.detach())
+                if param.requires_grad:
+                    self.shadow[name].mul_(d).add_((1.0 - d) * param.data.detach())
         self.updates += 1
  
     def apply_shadow(self, model):
         msd = model.module.state_dict() if is_parallel(model) else model.state_dict()  # model state_dict
         for name, param in msd.items():
-#            if param.requires_grad:
-            assert name in self.shadow
-            self.backup[name] = param.data
-            param.data = self.shadow[name]
+            if param.requires_grad:
+                assert name in self.shadow
+                self.backup[name] = param.data
+                param.data = self.shadow[name]
  
     def restore(self, model):
         msd = model.module.state_dict() if is_parallel(model) else model.state_dict()  # model state_dict
         for name, param in msd.items():
-#            if param.requires_grad:
-            assert name in self.backup
-            param.data = self.backup[name]
+            if param.requires_grad:
+                assert name in self.backup
+                param.data = self.backup[name]
         self.backup = {}
 
     def load_state_dict(self, ckpt):
@@ -45,8 +47,8 @@ class EMA():
 
     def state_dict(self):
         return {'shadow': self.shadow,
-                'update': self.update,
-                'decay': self.decay}
+                'update': self.updates,
+               }
 
 
 class EMAHOOK(HOOK):

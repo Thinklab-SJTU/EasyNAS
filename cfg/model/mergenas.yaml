@@ -15,7 +15,7 @@ args:
         dilation: 1
         stride: 1
         bias: False
-        act: torch.nn.ReLU
+        act: False
         bn: !get_module [torch.nn.BatchNorm2d, {affine: True}]
 
 # normal cell * 2

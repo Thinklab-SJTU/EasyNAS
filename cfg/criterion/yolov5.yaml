@@ -1,4 +1,3 @@
-anchors: &anchor !cross_ref[cfg/model/yolov5s.yaml:anchors]
 
 loss_hyp: &hyp
   box: 0.05  # box loss gain
@@ -10,14 +9,10 @@ loss_hyp: &hyp
   anchor_t: 4.0  # anchor-multiple threshold
   fl_gamma: 0.0  # focal loss gamma (efficientDet default gamma=1.5)
 
-name: YOLOv5Loss
-module_name: .criterions
-package_path: src
-criterion_args:
-        hyp: *hyp
-        num_anchors: 3
-        num_det_layers: 3
-        anchors: *anchors
-        iou_loss_ratio: 1.0
-        autobalance: False
+submodule_name: src.criterions.YOLOv5Loss
+args:
+  hyp: *hyp
+  anchors: !cross_ref [cfg/model/yolov5s.yaml:anchors]
+  iou_loss_ratio: 1.0
+  autobalance: False
 

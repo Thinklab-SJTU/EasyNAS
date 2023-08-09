@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from .common import ConvBNAct, SepConvBNAct
-from .search_common import SearchLayer
+from .base import SearchModule
 
 class InvertedResidual(nn.Module):
     def __init__(
@@ -53,7 +53,7 @@ class InvertedResidual(nn.Module):
         else:
             return self.conv(x)
 
-class InvertedResidual_search(SearchLayer):
+class InvertedResidual_search(SearchModule):
     def __init__(
             self, in_channel: int, out_channel: int, expand_ratio: int, candidate_op=[(1,1), (3,1), (5,1), (3,2)], candidate_ch=[1.], gumbel_op=False, gumbel_channel=True, stride=1, merge_kernel=True) -> None:
         super().__init__()

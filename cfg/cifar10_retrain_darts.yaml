@@ -1,4 +1,4 @@
-base_path: &base_path runs/cifar10_noPermutation_darts_noEdgeAlpha_noCutout_noActEachOp_SepConvInterReLU_alphaInit1e-3_actBeforeOp_gradClip5/
+base_path: &base_path runs/cifar10_noPermutation_darts_noEdgeAlpha_noCutout_noActEachOp_SepConvInterReLU_alphaInit1e-3_actBeforeOp_gradClip5_noInitW_updateFreq1/
 root_path: &root_path !join [*base_path, retrain-affineTrue_drop_path0.2-dynamic/]
 epoch: &epoch 600
 accumulate_gradient: &acc_grad 1

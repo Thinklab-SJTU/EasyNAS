@@ -66,6 +66,7 @@ class NNEngine(object):
         hooks = []
         gen = hooks_cfg.values() if isinstance(hooks_cfg, dict) else iter(hooks_cfg)
         for v in gen:
+            print(v)
             if (not v.get('args', {}).get('only_master', False)) or self.local_rank in [-1, 0]:
                 hooks.append(create_hook(v))
         return dataloaders, model, criterion, optimizer, lr_scheduler, hooks
@@ -119,9 +120,10 @@ class NNEngine(object):
                 self.info.train_bs_others = bs_args
                 with torch.cuda.amp.autocast(enabled=self.amp):
                     logits = model(input)
-                    loss = criterion(logits, target)
+                    loss, *loss_items = criterion(logits, target)
                     self.info.train_bs_logits = logits
                     self.info.train_bs_loss = loss
+                    self.info.train_bs_loss_items = loss_items
                 if self.scaler:
                     self.scaler.scale(loss).backward()
                 else:
@@ -138,11 +140,12 @@ class NNEngine(object):
             
                     with torch.cuda.amp.autocast(enabled=self.amp):
                         logits = model(input)
-                        loss = criterion(logits, target)
+#                        loss = criterion(logits, target)
                         self.info.val_bs_logits = logits
+                        self.info.val_bs_input = input
                         self.info.val_bs_target = target
                         self.info.val_bs_others = bs_args
-                        self.info.val_bs_loss = loss
+#                        self.info.val_bs_loss = loss
 #                self.call_hook('after_val_iter')
 
     def run(self, epochs=None):
@@ -155,7 +158,6 @@ class NNEngine(object):
                     self.model.train()
                     with hooks_train_epoch(self.hooks, self):
                         self.train_one_epoch(self.train_loader, self.model, self.criterion)
-                    print_ddp(self.local_rank, 'train_epoch_done')
           
                     if self.local_rank in [-1, 0] or self.val_loader.cfg.get('use_dist', True):
                         self.model.eval()

@@ -54,14 +54,17 @@ def create_dataloader(cfg: dict) -> dict:
             splitInfos[set_name] = splitInfos[set_name]._replace(start=end)
             dataset = torch.utils.data.Subset(dataset, indices=indices[start:end])
 
+       	shuffle =  cfg.pop('shuffle', True)
         if is_dist_avail_and_initialized() and cfg.get('use_dist', True):
             world_size = get_world_size()
             rank = get_rank()
             sampler = torch.utils.data.DistributedSampler(
-                dataset, num_replicas=world_size, rank=rank, shuffle=True
+                dataset, num_replicas=world_size, rank=rank, shuffle=shuffle
             )
         else:
-            sampler = torch.utils.data.RandomSampler(dataset)
+            sampler = torch.utils.data.RandomSampler(dataset) if shuffle else None
+
+        print(sampler)
 
        	submodule_name = cfg.pop('submodule_name', 'torch.utils.data.DataLoader')
         Dataloader = get_submodule_by_name(submodule_name, search_path='src.datasets')

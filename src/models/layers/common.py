@@ -170,11 +170,11 @@ class FuseLayer(nn.Module):
 
 class SPP(nn.Module):
     # Spatial pyramid pooling layer used in YOLOv3-SPP
-    def __init__(self, in_channel, out_channel, kernels=(5, 9, 13)):
+    def __init__(self, in_channel, out_channel, kernels=(5, 9, 13), bn=torch.nn.BatchNorm2d, act=nn.SiLU):
         super(SPP, self).__init__()
         c_ = in_channel // 2  # hidden channels
-        self.cv1 = Conv(in_channel, c_, k=1, d=1, s=1)
-        self.cv2 = Conv(c_ * (len(k) + 1), out_channel, k=1, d=1, s=1)
+        self.cv1 = ConvBNAct(in_channel, c_, kernel=1, dilation=1, stride=1, bn=bn, act=act)
+        self.cv2 = ConvBNAct(c_ * (len(kernels) + 1), out_channel, kernel=1, dilation=1, stride=1, bn=bn, act=act)
         self.m = nn.ModuleList([nn.MaxPool2d(kernel_size=x, stride=1, padding=x // 2) for x in kernels])
 
     def forward(self, x):
@@ -187,7 +187,7 @@ class Focus(nn.Module):
     # Focus wh information into c-space
     def __init__(self, in_channel, out_channel, kernel=1, stride=1, pad=None, group=1, act=nn.ReLU()):  # ch_in, ch_out, kernel, stride, padding, groups
         super(Focus, self).__init__()
-        self.conv = ConvBNAct(in_channel * 4, out_channel, kernel, 1, stride, pad, group, act, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=True)))
+        self.conv = ConvBNAct(in_channel * 4, out_channel, kernel, 1, stride, pad, group, act=act, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True)))
         # self.contract = Contract(gain=2)
 
     def forward(self, x):  # x(b,c,w,h) -> y(b,4c,w/2,h/2)
@@ -233,7 +233,6 @@ class Concat(nn.Module):
         return torch.cat(x, self.d)
 
 class FactorizedReduce(nn.Module):
-
   def __init__(self, in_channel, out_channel, stride=2, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=True)), act=True):
     super(FactorizedReduce, self).__init__()
     assert out_channel % 2 == 0
@@ -248,6 +247,16 @@ class FactorizedReduce(nn.Module):
     if self.bn: out = self.bn(out)
     if self.act: out = self.act(out)
     return out
+
+class Zero(nn.Module):
+  def __init__(self, stride):
+    super(Zero, self).__init__()
+    self.stride = stride
+
+  def forward(self, x):
+    if self.stride == 1:
+      return x.mul(0.)
+    return x[:,:,::self.stride,::self.stride].mul(0.)
 
 
 class DropPath(nn.Module):

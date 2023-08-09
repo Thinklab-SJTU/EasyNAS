@@ -1,4 +1,4 @@
-root_path: &root_path runs/cifar10_noPermutation_darts_noEdgeAlpha_noCutout_noActEachOp_SepConvInterReLU_alphaInit1e-3_actBeforeOp_gradClip5_noInitW/
+root_path: &root_path runs/cifar10_noPermutation_darts_noEdgeAlpha_noCutout_noActEachOp_SepConvInterReLU_alphaInit1e-3_actBeforeOp_gradClip5_noInitW_updateFreq1/
 epoch: &epoch 50
 accumulate_gradient: &acc_grad 1
 

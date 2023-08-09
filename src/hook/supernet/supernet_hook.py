@@ -36,6 +36,11 @@ class DARTSHOOK(HOOK):
 #        self.dataiter = iter(self.dataloader)
         self.dataiter = self.data_generator(self.dataloader)
 
+        self.after_train_epoch(runner)
+
+    def after_run(self, runner):
+        self.after_train_epoch(runner)
+
     def data_generator(self, dataloader):
         while True:
             yield from dataloader

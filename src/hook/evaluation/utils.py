@@ -1,3 +1,4 @@
+import numpy as np
 import torch.distributed as dist
 
 from app.distribute_utils import is_dist_avail_and_initialized

@@ -137,11 +137,15 @@ class CfgLoader(yaml.SafeLoader):
         crossRef = crossRef_replaceArgs[0].split(':')
         with open(crossRef[0], 'r') as f:
             data = yaml.load(f.read(), CfgLoader)
-        if len(crossRef) > 1:
-            data = {k: data[k] for k in crossRef[1:]}
         if len(crossRef_replaceArgs) > 1:
+            data = {k: data[k] for k in crossRef[1:]}
             self._update_dict(self, data, crossRef_replaceArgs[1])
 #            data.update(crossRef_replaceArgs[1])
+        else:
+            if len(crossRef) == 2:
+                data = data[crossRef[1]]
+            elif len(crossRef) > 2:
+                data = {k: data[k] for k in crossRef[1:]}
         return data
 
 CfgLoader.add_constructor(

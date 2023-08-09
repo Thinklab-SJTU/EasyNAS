@@ -13,78 +13,9 @@ from .base import  OpBuilder, SearchModule
 __all__ = ["ConvBNAct_search", "SepConvBNAct_search", "AFF", "SPP_search"]
 
 
-class SearchLayer(SearchModule):
-    def __init__(self):
-        super(SearchLayer, self).__init__()
-        self.set_outOp()
-        self.num_reserved_op = 1
-        self.num_reserved_ch = 1
-        self.num_reserved_edge = 2
-
-    def set_outOp(self, name=None):
-        setattr(self, 'outOp_name', self.__class__.__name__.rstrip("_search") if name is None else name)
-        setattr(self, 'outOp', get_layer(self.outOp_name))
-
-    def forward(self, x):
-        raise(NotImplementedError("No implementation"))
-
-    def get_norm_layer(self, ch_alphas, bn, gumbel_channel=True):
-        return bn[ch_alphas.argmax()] if gumbel_channel else bn
-
-    def init_arch_param(self, arch_name, *shape):
-        self.register_buffer(arch_name, torch.autograd.Variable(1e-3*torch.randn(*shape), requires_grad=True))
-
-    def set_arch_param(self, arch_name, arch_param):
-        if hasattr(self, arch_name): delattr(self, arch_name)
-        setattr(self, arch_name, arch_param)
-
-    def get_arch_param(self):
-        out = []
-        out.extend(self.get_op_arch_param())
-        out.extend(self.get_ch_arch_param())
-        out.extend(self.get_edge_arch_param())
-        return out
-
-    def get_op_arch_param(self):
-        out = getattr(self, op_arch_param, None)
-        return out
-
-    def get_ch_arch_param(self):
-        out = getattr(self, ch_arch_param, None)
-        return out
-
-    def get_edge_arch_param(self):
-        out = getattr(self, edge_arch_param, None)
-        return out
-
-    def norm_arch_param(self, alphas, gumbel=False):
-        return gumbel_softmax(F.log_softmax(alphas, dim=-1), hard=True) if gumbel else nn.functional.softmax(alphas, dim=-1)
-
-    def init_output_yaml(cls, arch_yaml, outOp_name=None):
-        new_arch = deepcopy(arch_yaml)
-        if outOp_name is not None:
-            outOp = get_layer(outOp_name)
-        else:
-            outOp_name, outOp = cls.outOp_name, cls.outOp
-        new_arch['submodule_name'] = outOp_name
-        # del unused variables
-        need_key = inspect.signature(outOp.__init__).parameters.keys()
-        for k in arch_yaml.keys():
-            if k not in need_key: del new_arch['args'][k]
-        return new_arch
-
-    def get_reserved_idx(self, num_reserved, weight):
-#        return weight.argmax(dim=-1).item() if num_reserved==1 else [x.item() for x in torch.topk(weight, k=num_reserved, dim=-1)[1]]
-        return [x.item() for x in torch.topk(weight, k=num_reserved, dim=-1)[1]]
-
-    @classmethod
-    def genotype(cls, cfg, op_alphas, ch_alphas, edge_alpha, num_reserved_op=1, num_reserved_edge=2):
-        raise(NotImplementedError(f"No Implementation of genotype func for {cls}"))
-
-
 class ConvBNAct_search(SearchModule):
     # Mixed Depthwise Conv https://arxiv.org/abs/1907.09595
-    def __init__(self, in_channel, out_channel, candidate_op=[(1,1), (3,1), (5,1), (3,2)], candidate_ch=[1.], gumbel_op=False, gumbel_channel=True, stride=1, pad=None, group=1, act=True, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=True)), independent_ch_arch_param=True, independent_op_arch_param=True, bias=False, merge_kernel=True):
+    def __init__(self, in_channel, out_channel, candidate_op=[(1,1), (3,1), (5,1), (3,2)], candidate_ch=[1.], gumbel_op=False, gumbel_channel=True, stride=1, pad=None, group=1, act=True, act_first=False, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=True)), independent_ch_arch_param=True, independent_op_arch_param=True, bias=False, merge_kernel=True):
         # k=0 means zero op; d=0 means skip-connection
         super(ConvBNAct_search, self).__init__()
         self.merge_kernel = merge_kernel
@@ -109,6 +40,7 @@ class ConvBNAct_search(SearchModule):
                 self.bias.append(self.init_bias(cout_max, self.weight[-1]))
 
         self.act = get_act(act)
+        self.act_first = act_first
 
         if self.gumbel_channel: self.bn = nn.ModuleList([get_norm(bn, int(self.cout*e)) for e in candidate_ch]) 
         else: self.bn = get_norm(bn, self.cout)
@@ -177,6 +109,8 @@ class ConvBNAct_search(SearchModule):
 
         
     def forward(self, x, op_alphas=None, ch_alphas=None):
+        x = self.act(x) if self.act_first and self.act is not None else x
+
         Cin = x.size(1)
         bias = self.bias
         op_alphas = op_alphas if op_alphas is not None else (self.norm_arch_parameters(self.op_alphas, self.gumbel_op) if hasattr(self, 'op_alphas') else [1.])
@@ -192,7 +126,7 @@ class ConvBNAct_search(SearchModule):
         out = torch.nn.functional.conv2d(x, merge_kernel, stride=self.stride, padding=self.padding, dilation=1, groups=self.group)
         out = out + bias.view(1,-1,1,1) if bias is not None else out
         out = bn(out) if bn is not None else out
-        out = self.act(out) if self.act is not None else out
+        out = self.act(out) if not self.act_first and self.act is not None else out
         return out
 
     def discretize(self, cfg=None, op_alphas=None, ch_alphas=None, edge_alphas=None, num_reserved_op=1, num_reserved_edge=None):
@@ -238,14 +172,20 @@ class SepConvBNAct_search(ConvBNAct_search):
                 tmp_ks = (k-1)*d + 1
                 start = int((self.k_max - tmp_ks) / 2)
                 end = int(self.k_max - start)
-                w = torch.zeros_like(w_base['depth_weight'])
-                w[:,:,start:end:d, start:end:d] = w_base['depth_weight'][:,:,start:end:d, start:end:d]
-                merge_kernel += w * alpha
+                if d == 1:
+                    w_pad = torch.nn.functional.pad(w_base['depth_weight'][:,:,start:end, start:end], (start,)*4, "constant", value=0)
+                    merge_kernel += w_pad * alpha
+                else:
+                    w = torch.zeros_like(w_base['depth_weight'])
+                    w[:,:,start:end:d, start:end:d] = w_base['depth_weight'][:,:,start:end:d, start:end:d]
+                    merge_kernel += w * alpha
         else:
             raise(ValueError("weight cannot be merged in SepConv if merge_kernel is False"))
         return merge_kernel
 
     def forward(self, x, op_alphas=None, ch_alphas=None):
+        x = self.act(x) if self.act_first and self.act is not None else x
+
         Cin = x.size(1)
         bias = self.bias
         op_alphas = op_alphas if op_alphas is not None else (self.norm_arch_parameters(self.op_alphas, self.gumbel_op) if hasattr(self, 'op_alphas') else [1.])
@@ -259,7 +199,7 @@ class SepConvBNAct_search(ConvBNAct_search):
             # out channel for point-wise conv
             point_weight = self.weight['point_weight']
             if len(self.candidate_ch) > 1:
-                merge_kernel, bias = self.deal_merge_kernel_cout(point_weight, ch_alphas, self.bias)
+                point_weight, bias = self.deal_merge_kernel_cout(point_weight, ch_alphas, self.bias)
             if Cin != point_weight.size(1): point_weight = point_weight[:,:Cin,:,:]
             out = torch.nn.functional.conv2d(out, point_weight, stride=1, padding=0, dilation=1, groups=self.group)
             out = out + bias.view(1,-1,1,1) if bias is not None else out
@@ -279,7 +219,7 @@ class SepConvBNAct_search(ConvBNAct_search):
                 out += op_alphas_norm[i] * (tmp_out + bias.view(1,-1,1,1) if bias is not None else tmp_out)
 
         out = bn(out) if bn is not None else out
-        out = self.act(out) if self.act is not None else out
+        out = self.act(out) if not self.act_first and self.act is not None else out
         return out
 
 
@@ -369,16 +309,19 @@ class AFF(SearchModule):
         if self.act: out = self.act(out)
 
         return out
-
+    
     def discretize_edge(self, edge_module, op_alphas, num_reserved_op=1):
         assert num_reserved_op == 1
-        op_alphas_idx = self.get_reserved_idx(num_reserved_op, op_alphas)[0]
+        op_alphas_idx = self.get_reserved_idx(min(num_reserved_op+1, len(op_alphas)), op_alphas)
 #        num_alphas_before = reduce(lambda x,y: x+[x[-1]+abs(y)] if isinstance(x, list) else [abs(x),abs(x)+abs(y)], self.num_alphas_each_op)
         num_alphas_before = list(accumulate(abs(x) for x in self.num_alphas_each_op))
-        op_idx = bisect.bisect_right(num_alphas_before, op_alphas_idx)
+        op_idx = [bisect.bisect_right(num_alphas_before, x) for x in op_alphas_idx]
+        for i in range(len(op_idx)-1, -1, -1):
+            if self.candidate_op[op_idx[i]]['submodule_name'] == 'Zero': op_idx.pop(i)
+        op_idx = op_idx[0]
         if self.num_alphas_each_op[op_idx] > 0: # (Sep)ConvBNAct_search
             select_op = self.candidate_op[op_idx]
-            layer_cfg = edge_module[op_idx].discretize(select_op, op_alphas=op_alphas, ch_alphas=None, edge_alphas=None, num_reserved_op=num_reserved_op)
+            layer_cfg = edge_module[op_idx].discretize(select_op, op_alphas=op_alphas[num_alphas_before[op_idx]:num_alphas_before[op_idx]+self.num_alphas_each_op[op_idx]], ch_alphas=None, edge_alphas=None, num_reserved_op=num_reserved_op)
             return edict(submodule_name=layer_cfg['submodule_name'], args=layer_cfg['args'])
         else:
             return deepcopy(self.candidate_op[op_idx])

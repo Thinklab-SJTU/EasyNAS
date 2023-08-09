@@ -139,11 +139,17 @@ class Cell_search(SearchModule):
             # set affine as True for each BN
             for edge_op in op['args']['ops']:
                 if isinstance(edge_op, (dict)) and edge_op.get('args', {}).get('bn', False):
-                    edge_op['args']['bn'] = dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True))
+                    if edge_op['submodule_name'] == 'PoolBNAct': # when DARTS retrains, pooling has no BN
+                        edge_op['args']['bn'] = False
+                    else: # when DARTS retrain, affine in BN is set as True
+                        edge_op['args']['bn'] = dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True))
                 else:
                     for sub_op in edge_op:
                         if 'bn' in sub_op.get('args', {}):
-                            sub_op['args']['bn'] = dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True))
+                            if sub_op['submodule_name'] == 'PoolBNAct': # when DARTS retrains, pooling has no BN
+                                sub_op['args']['bn'] = False
+                            else: # when DARTS retrain, affine in BN is set as True
+                                sub_op['args']['bn'] = dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True))
             edge = op.pop('input_idx')
             args['cell_ops'].append(op)
             args['edges'].append(edge)

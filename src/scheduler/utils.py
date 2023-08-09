@@ -1,3 +1,4 @@
+import math
 import bisect
 
 def one_cycle(x, start=0.0, end=1.0, steps=100):
