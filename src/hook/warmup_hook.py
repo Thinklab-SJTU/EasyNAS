@@ -6,42 +6,43 @@ import torch
 from .hook import HOOK, execute_period
 
 class WarmupHOOK(HOOK):
-    def __init__(self, max_iter, warmup_init_lr_rate, warmup_init_momentum_rate=None, priority=0, accumulate_gradient=1):
+    def __init__(self, max_iter, warmup_init_lr, warmup_init_momentum=None, max_epoch=0, priority=0, accumulate_gradient=1):
         self.count = 0
         self.max_iter = max_iter
+        self.max_epoch = max_epoch
         self.priority = priority
         self.accumulate_gradient = accumulate_gradient
-        self.warmup_init_momentum_rate = warmup_init_momentum_rate
-        self.warmup_init_lr_rate = warmup_init_lr_rate
+        self.warmup_init_momentum = warmup_init_momentum
+        self.warmup_init_lr = warmup_init_lr
 
-    def get_lr_rate(self, group_id):
+    def get_lr(self, group_id, final_lr):
         xi = [0, self.max_iter]  # x interp
-        # bias lr falls from 0.1 to lr0, all other lrs rise from 0.0 to lr0
-        warmup_init_lr_rate = self.warmup_init_lr_rate[group_id] if isinstance(self.warmup_init_lr_rate, (tuple, list)) else self.warmup_init_lr_rate
-        if warmup_init_lr_rate is None: return 1.
-        return np.interp(self.count, xi, [warmup_init_lr_rate, 1.]) / (np.interp(self.count-1, xi, [warmup_init_lr_rate, 1.]) if self.count > 0 else 1)
+        warmup_init_lr = self.warmup_init_lr[group_id] if isinstance(self.warmup_init_lr, (tuple, list)) else self.warmup_init_lr
+        if warmup_init_lr is None: return final_lr
+        return np.interp(self.count, xi, [warmup_init_lr, final_lr])
 
-    def get_momentum_rate(self):
+    def get_momentum(self, group_id, final_momentum):
         xi = [0, self.max_iter]  # x interp
-        return np.interp(self.count, xi, [self.warmup_init_momentum_rate, 1.]) / (np.interp(self.count-1, xi, [self.warmup_init_momentum_rate, 1.]) if self.count > 0 else 1)
+        warmup_init_momentum = self.warmup_init_momentum[group_id] if isinstance(self.warmup_init_momentum, (tuple, list)) else self.warmup_init_momentum
+        if warmup_init_momentum is None: return final_momentum
+        return np.interp(self.count, xi, [warmup_init_momentum, final_momentum])
 
     def update_lr_momentum(self, runner):
         for j, x in enumerate(runner.optimizer.param_groups):
-            # bias lr falls from 0.1 to lr0, all other lrs rise from 0.0 to lr0
-            lr_rate = self.get_lr_rate(j)
-            x['lr'] *= lr_rate
-#            x['lr'] = np.interp(ni, xi, [hyp['warmup_bias_lr'] if j == 2 else 0.0, x['initial_lr'] * lf(epoch)])
-            if self.warmup_init_momentum_rate:
-                momentum_rate = self.get_momentum_rate()
+            x['lr'] = self.get_lr(j, self.final_lr[j])
+            if self.warmup_init_momentum:
                 if 'momentum' in x:
-                    x['momentum'] *= momentum_rate
+                    x['momentum'] = self.get_momentum(j, self.final_momentum[j])
 
     def before_run(self, runner):
-        self.update_lr_momentum(runner)
-        self.count += 1
+        self.final_lr = [x['lr'] for x in runner.optimizer.param_groups]
+        self.final_momentum = [x.get('momentum', None) for x in runner.optimizer.param_groups]
+        self.max_iter = max(self.max_iter, self.max_epoch*len(runner.train_loader))
+#        self.update_lr_momentum(runner)
+#        self.count += 1
 
     @execute_period('accumulate_gradient')
-    def after_train_iter(self, runner):
+    def before_train_iter(self, runner):
         if self.count == self.max_iter:
             return
         self.update_lr_momentum(runner)

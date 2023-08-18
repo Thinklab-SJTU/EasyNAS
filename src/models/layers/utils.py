@@ -1,6 +1,7 @@
 from functools import partial
 import torch.nn as nn
 from collections import namedtuple
+import torch
 
 from builder.utils import get_submodule_by_name as utils_get_submodule_by_name
 

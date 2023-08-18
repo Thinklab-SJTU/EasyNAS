@@ -29,7 +29,7 @@ class DARTSHOOK(HOOK):
         self.optimizer = get_submodule_by_name(self.optimizer_cfg.get('submodule_name'), search_path=('torch.optim',))(**self.optimizer_cfg['args'])
         self.optimizer_hook = OptHOOK(self.optimizer, self.accumulate_gradient)
         if self.criterion_cfg is not None:
-            self.criterion = create_criterion(self.criterion_cfg)
+            self.criterion = create_criterion(self.criterion_cfg).to(runner.device)
         else:
             self.criterion = runner.criterion
         self.dataloader = runner.dataloaders[self.dataloader_name]
@@ -46,32 +46,37 @@ class DARTSHOOK(HOOK):
             yield from dataloader
 
     def backward_arch_param(self, runner):
-        arch_param = runner.model_without_ddp.arch_parameters()
+        arch_param = list(runner.model_without_ddp.arch_parameters())
 #        try:
 #            input_valid, target_valid = self.dataiter.next()
 #        except StopIteration:
 #            self.dataiter = iter(self.dataloader)
 #            input_valid, target_valid = self.dataiter.next()
-        input_valid, target_valid = next(self.dataiter)
+        input_valid, target_valid, *others = next(self.dataiter)
 
         target_valid = target_valid.to(runner.device, non_blocking=True)
         input_valid = input_valid.to(runner.device, non_blocking=True)
-        logits = runner.model(input_valid)
-        loss = self.criterion(logits, target_valid)
+        if runner.amp: 
+            input_valid = input_valid.half()
+        with torch.cuda.amp.autocast(enabled=runner.amp):
+            logits = runner.model(input_valid)
+        loss_items = self.criterion(logits, target_valid)
+        if isinstance(loss_items, (list, tuple)):
+            loss, loss_items = loss_items[0], loss_items[1:]
+        else:
+            loss, loss_items = loss_items, []
 
+        if runner.scaler:
+            loss = runner.scaler.scale(loss)
         grads =  torch.autograd.grad(loss, arch_param, grad_outputs=torch.ones_like(loss), allow_unused=True)
         for v, g in zip(arch_param, grads):
           if torch.isnan(g).any() or torch.isinf(g).any():
             raise(ValueError("gradient of architecture has NaN..."))
-          if v.grad is None:
-            if not (g is None):
-              v.grad = Variable(g.data)
-          else:
-            if not (g is None):
-              v.grad.data.add_(g.data)
-
-#    def before_train_epoch(self, runner):
-#        self.dataiter = iter(self.dataloader)
+          if g is not None:
+              if v.grad is None:
+                  v.grad = g.data.clone()
+              else:
+                  v.grad.data.add_(g.data)
 
     @execute_period("update_freq")
     def before_train_iter(self, runner):
@@ -81,7 +86,7 @@ class DARTSHOOK(HOOK):
 #            assert 0
 #        else: self.tmp += 1
 
-        self.optimizer_hook.before_train_iter(runner)
+        self.optimizer.zero_grad()
         self.backward_arch_param(runner)
         self.optimizer_hook.after_train_iter(runner)
 

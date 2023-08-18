@@ -1,7 +1,7 @@
 num_classes: 80
 input_size: &imgsz 640
-batch_size: &bs 96
-val_batch_size: &val_bs 192
+batch_size: &bs 40
+val_batch_size: &val_bs 80
 
 data_hyp: &hyp
   hsv_h: 0.015  # image HSV-Hue augmentation (fraction)
@@ -44,6 +44,16 @@ dataloader:
   train:
     dataset_name: train
     submodule_name: src.datasets.LOADER_YOLO
+    portion: 0.5
+    dataloader_args:
+      batch_size: *bs
+      pin_memory: True
+      num_workers: 8
+      collate_fn: !get_module [src.datasets.coco_yolo.collate_fn]
+  search_val:
+    dataset_name: train
+    submodule_name: src.datasets.LOADER_YOLO
+    portion: 0.5
     dataloader_args:
       batch_size: *bs
       pin_memory: True
@@ -59,4 +69,5 @@ dataloader:
       pin_memory: True
       num_workers: 4
       collate_fn: !get_module [src.datasets.coco_yolo.collate_fn]
+
 

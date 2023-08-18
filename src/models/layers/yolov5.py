@@ -1,3 +1,4 @@
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -228,9 +229,10 @@ class Classify(nn.Module):
 class YOLODetect(nn.Module):
     export = False  # onnx export
 
-    def __init__(self, in_channel, img_size, num_classes=80, anchors=()):  # detection layer
+    def __init__(self, in_channel, strides, num_classes=80, anchors=()):  # detection layer
         super(YOLODetect, self).__init__()
-        self.img_size = img_size
+        self.strides = strides
+        self.nc = num_classes
         self.no = num_classes + 5  # number of outputs per anchor
         self.nl = len(anchors)  # number of detection layers
         self.na = len(anchors[0]) // 2  # number of anchors
@@ -238,7 +240,20 @@ class YOLODetect(nn.Module):
         a = torch.tensor(anchors).float().view(self.nl, -1, 2)
         self.register_buffer('anchors', a)  # shape(nl,na,2)
         self.register_buffer('anchor_grid', a.clone().view(self.nl, 1, -1, 1, 1, 2))  # shape(nl,1,na,1,1,2)
+        self.anchors /= torch.tensor(strides).view(-1, 1, 1)
+        self.strides = strides
         self.m = nn.ModuleList(nn.Conv2d(x, self.no * self.na, 1) for x in in_channel)  # output conv
+
+        self._initialize_biases()
+
+    def _initialize_biases(self, cf=None):  # initialize biases into Detect(), cf is class frequency
+        # https://arxiv.org/abs/1708.02002 section 3.3
+        # cf = torch.bincount(torch.tensor(np.concatenate(dataset.labels, 0)[:, 0]).long(), minlength=nc) + 1.
+        for mi, s in zip(self.m, self.strides):  # from
+            b = mi.bias.view(self.na, -1)  # conv.bias(255) to (3,85)
+            b.data[:, 4] += math.log(8 / (640 / s) ** 2)  # obj (8 objects per 640 image)
+            b.data[:, 5:] += math.log(0.6 / (self.nc - 0.99)) if cf is None else torch.log(cf / cf.sum())  # cls
+            mi.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
 
     def forward(self, x):
         # x = x.copy()  # for profiling
@@ -256,7 +271,7 @@ class YOLODetect(nn.Module):
                     self.grid[i] = self._make_grid(nx, ny).to(tmp.device)
     
                 y = tmp.sigmoid()
-                y[..., 0:2] = (y[..., 0:2] * 2. - 0.5 + self.grid[i]) * self.img_size / ny  # xy
+                y[..., 0:2] = (y[..., 0:2] * 2. - 0.5 + self.grid[i]) * self.strides[i]  # xy
                 y[..., 2:4] = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh
                 z.append(y.view(bs, -1, self.no))
 

@@ -1,10 +1,27 @@
-root_path: &root_path runs/coco_yolov5s_v2_ModelEma_halfVal/
-epoch: &epoch 300
+root_path: &root_path runs/coco_EAutoDet-s/
+epoch: &epoch 50
 accumulate_gradient: &acc_grad 1
 
-data: &data cfg/dataset/coco_yolo.yaml
-criterion: &criterion cfg/criterion/yolov5.yaml
-model: &model cfg/model/yolov5s.yaml
+data: &data cfg/dataset/coco_yolo_search.yaml
+model: &model cfg/model/EAutoDet-s.yaml
+
+criterion: &criterion 
+  submodule_name: src.criterions.YOLOv5Loss
+  args:
+    hyp:
+      box: 0.05  # box loss gain
+      cls: 0.5  # cls loss gain
+      cls_pw: 1.0  # cls BCELoss positive_weight
+      obj: 1.0  # obj loss gain (scale with pixels)
+      obj_pw: 1.0  # obj BCELoss positive_weight
+      iou_t: 0.20  # IoU training threshold
+      anchor_t: 4.0  # anchor-multiple threshold
+      fl_gamma: 0.0  # focal loss gamma (efficientDet default gamma=1.5)
+    img_size: !cross_ref [!join [*data, ':input_size']]
+    strides: !cross_ref [!join [*model, ':strides']]
+    anchors: !cross_ref [!join [*model, ':anchors']]
+    iou_loss_ratio: 1.0
+    autobalance: False
 
 train_hyp: &hyp
   lr0: &lr0 0.01  # initial learning rate (SGD=1E-2, Adam=1E-3)
@@ -43,8 +60,23 @@ hooks: &hooks
     args: 
       priority: 5
       mode: epoch
+
+  darts_hook:
+    submodule_name: DARTSHOOK
+    args:
+      optimizer_cfg:
+        submodule_name: torch.optim.Adam
+        args:
+          lr: 3.e-4
+          betas: [0.5, 0.999]
+          weight_decay: 1.e-3
+      dataloader_name: search_val
+      criterion_cfg: *criterion
+      update_freq: 1
+      accumulate_gradient: *acc_grad
+      priority: 30
+      save_root: !join [*root_path, arch/]
   
-  #TODO
   eval_hook:
     submodule_name: EvalCOCOmAPHOOK
     args: 
@@ -88,7 +120,7 @@ hooks: &hooks
       accumulate_gradient: *acc_grad
   
   ema_hook:
-    submodule_name: ModelEMAHOOK
+    submodule_name: EMAHOOK
     args:
       decay: 0.9999
       priority: 5
@@ -99,11 +131,12 @@ engine:
   submodule_name: engines.NNEngine
   args:
     data: !cross_ref [*data]
-    criterion: !cross_ref [*criterion]
+    criterion: *criterion
     model: !cross_ref [*model]
     optimizer: *optimizer
     lr_scheduler: *scheduler
     hooks: *hooks
     amp: False
     amp_val: True
+
 

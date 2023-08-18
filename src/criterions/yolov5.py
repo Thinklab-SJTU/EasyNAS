@@ -128,21 +128,22 @@ class QFocalLoss(nn.Module):
 
 class YOLOv5Loss(nn.Module):
     # Compute losses
-    def __init__(self, hyp, anchors, iou_loss_ratio, num_classes=80, imgsz=640, stride=None, autobalance=False):
+    def __init__(self, hyp, anchors, strides, iou_loss_ratio, num_classes=80, img_size=640, autobalance=False):
         super(YOLOv5Loss, self).__init__()
         self.hyp = hyp  # hyperparameters
-        self.img_size = imgsz
+        self.img_size = [img_size, img_size] if isinstance(img_size, int) else img_size
         self.nl = len(anchors)
         self.na = len(anchors[0]) // 2
+        self.strides = strides
         a = torch.tensor(anchors).float().view(self.nl, -1, 2)
         self.register_buffer('anchors', a)  # shape(nl,na,2)
-        self.stride = stride
+        self.anchors /= torch.tensor(strides).view(-1, 1, 1)
         self.gr = iou_loss_ratio
         self.autobalance = autobalance
 
         self.hyp['box'] *= 3. / self.nl  # scale to layers
         self.hyp['cls'] *= num_classes / 80. * 3. / self.nl  # scale to classes and layers
-        self.hyp['obj'] *= (imgsz / 640) ** 2 * 3. / self.nl  # scale to image size and layers
+        self.hyp['obj'] *= (img_size / 640) ** 2 * 3. / self.nl  # scale to image size and layers
 
         # Define criteria
         BCEcls = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([self.hyp['cls_pw']]))
@@ -157,7 +158,7 @@ class YOLOv5Loss(nn.Module):
             BCEcls, BCEobj = FocalLoss(BCEcls, g), FocalLoss(BCEobj, g)
 
         self.balance = {3: [4.0, 1.0, 0.4]}.get(self.nl, [4.0, 1.0, 0.25, 0.06, .02])  # P3-P7
-        self.ssi = list(self.stride).index(16) if autobalance else 0  # stride 16 index
+        self.ssi = list(self.strides).index(16) if autobalance else 0  # stride 16 index
         self.BCEcls, self.BCEobj = BCEcls, BCEobj
 
     def __call__(self, p, targets):  # predictions, targets, model
@@ -224,7 +225,8 @@ class YOLOv5Loss(nn.Module):
                             ], device=targets.device).float() * g  # offsets
 
         for i in range(self.nl):
-            anchors = self.anchors[i] * p[i].shape[-2] / self.img_size
+            anchors = self.anchors[i]
+
             gain[2:6] = torch.tensor(p[i].shape)[[3, 2, 3, 2]]  # xyxy gain
 
             # Match targets to anchors

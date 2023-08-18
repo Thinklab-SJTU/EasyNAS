@@ -117,7 +117,7 @@ class CfgLoader(yaml.SafeLoader):
             return partial(module)
 
     def construct_python_edict(self, node):
-        return edict(self.construct_mapping(node))
+        return edict(self.construct_mapping(node, deep=True))
 
     def _update_dict(self, data, update):
         if update.pop('recurse', True):
@@ -137,16 +137,23 @@ class CfgLoader(yaml.SafeLoader):
         crossRef = crossRef_replaceArgs[0].split(':')
         with open(crossRef[0], 'r') as f:
             data = yaml.load(f.read(), CfgLoader)
-        if len(crossRef_replaceArgs) > 1:
+        if len(crossRef) == 2:
+            data = data[crossRef[1]]
+        elif len(crossRef) > 2:
             data = {k: data[k] for k in crossRef[1:]}
+
+        if len(crossRef_replaceArgs) > 1:
             self._update_dict(self, data, crossRef_replaceArgs[1])
 #            data.update(crossRef_replaceArgs[1])
-        else:
-            if len(crossRef) == 2:
-                data = data[crossRef[1]]
-            elif len(crossRef) > 2:
-                data = {k: data[k] for k in crossRef[1:]}
         return data
+
+    def construct_expression(self, node):
+        def check_standard_expr(expr):
+            for char in expr:
+                assert (ord(char)>=48 and ord(char)<=58) or char in ['(', ')', '+', '-', '*', '/', ' ', '.']
+        expr = ''.join([str(x) for x in self.construct_sequence(node, deep=True)])
+        check_standard_expr(expr)
+        return eval(expr)
 
 CfgLoader.add_constructor(
     '!tuple', CfgLoader.construct_python_tuple)
@@ -155,6 +162,7 @@ CfgLoader.add_constructor('!get_module', CfgLoader.get_module)
 CfgLoader.add_constructor('!get_func', CfgLoader.get_module)
 CfgLoader.add_constructor('!edict', CfgLoader.construct_python_edict)
 CfgLoader.add_constructor('!cross_ref', CfgLoader.construct_crossRef)
+CfgLoader.add_constructor('!expr', CfgLoader.construct_expression)
 
 class CfgDumper(yaml.SafeDumper):
     def represent_python_edict(self, data):

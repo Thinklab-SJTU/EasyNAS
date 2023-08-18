@@ -1,4 +1,4 @@
-base_path: &base_path runs/cifar10_noPermutation_mergenas_noEdgeAlpha_noCutout_noActEachOp_SepConvInterReLU_alphaInit1e-3_actBeforeOp_gradClip5/
+base_path: &base_path runs/cifar10_noPermutation_mergenas_noEdgeAlpha_noCutout_SepConvInterReLU_alphaInit1e-3_actBeforeOp_gradClip5_noInitW_updateFreq1_withZeroOp/
 root_path: &root_path !join [*base_path, retrain_drop_path0.2/]
 epoch: &epoch 600
 accumulate_gradient: &acc_grad 1
@@ -68,6 +68,7 @@ hooks: &hooks
   opt_hook:
     submodule_name: OptHOOK
     args:
+      grad_clip: 5
       priority: 0
       accumulate_gradient: *acc_grad
   
@@ -76,6 +77,13 @@ hooks: &hooks
     args: 
       priority: 5
       mode: epoch
+
+  drop_path_hook:
+    submodule_name: DropPathProbHOOK
+    args:
+      mode: epoch
+      apply_period: 1
+      priority: 5
 
   eval_hook:
     submodule_name: EvalAccHOOK
@@ -107,7 +115,7 @@ hooks: &hooks
   
 
 engine:
-  submodule_name: NNengine
+  submodule_name: NNEngine
   args:
     data: !cross_ref [cfg/dataset/cifar10.yaml]
     model: !cross_ref [!join [*base_path, arch/architecture_49.yaml]]

@@ -58,8 +58,7 @@ class BaseModel(nn.Module):
     def info(self, input_size=None):
         if input_size:
             input_size = [input_size, input_size] if isinstance(input_size, int) else input_size
-#            self.logger.info("param size = %fMB, FLOPS=%10.3fG", count_parameters_in_MB(self), thop.profile(self, inputs=(torch.ones(1, self.input_ch, *input_size),), verbose=False)[0] / 1E9 if thop else 0)
-            self.logger.info("param size = %fMB", count_parameters_in_MB(self))
+            self.logger.info("param size = %fMB, FLOPS=%10.3fG", count_parameters_in_MB(self), thop.profile(self, inputs=(torch.zeros(1, self.input_ch, *input_size),), verbose=False)[0] / 1E9 if thop else 0)
         else:
             self.logger.info("param size = %fMB", count_parameters_in_MB(self))
 
@@ -144,7 +143,9 @@ class BaseModel(nn.Module):
 
 class SearchModel(BaseModel, SearchModule):
     def __init__(self, architecture, output_ch, input_ch=3, input_size=None, depth_multiple=1., width_multiple=1., log_path=None, init_func=None, local_rank=-1):
-        super(SearchModel, self).__init__(architecture, output_ch, input_ch=input_ch, input_size=input_size, log_path=log_path, init_func=init_func, local_rank=local_rank)
+        super(SearchModel, self).__init__(architecture, output_ch, input_ch=input_ch, input_size=input_size, 
+                depth_multiple=depth_multiple, width_multiple=width_multiple,
+                log_path=log_path, init_func=init_func, local_rank=local_rank)
         self.init_arch_parameters()
         self.info_arch()
 

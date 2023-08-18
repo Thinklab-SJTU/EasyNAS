@@ -26,6 +26,7 @@ darts_conv = (
                        )
 
 darts = (
+       edict(submodule_name='Zero', args={}),
        [edict(submodule_name='torch.nn.ReLU', args=dict(inplace=False)), edict(submodule_name='SepConvBNAct', args=dict(kernel=3, dilation=1, pad=None, group=1, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=False)), act='torch.nn.ReLU', num_pair=1)), edict(submodule_name='SepConvBNAct', args=dict(kernel=3, dilation=1, pad=None, group=1, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=False)), act=False, num_pair=1))],
        [edict(submodule_name='torch.nn.ReLU', args=dict(inplace=False)), edict(submodule_name='SepConvBNAct', args=dict(kernel=5, dilation=1, pad=None, group=1, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=False)), act='torch.nn.ReLU', num_pair=1)), edict(submodule_name='SepConvBNAct', args=dict(kernel=5, dilation=1, pad=None, group=1, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=False)), act=False, num_pair=1))],
        [edict(submodule_name='torch.nn.ReLU', args=dict(inplace=False)), edict(submodule_name='SepConvBNAct', args=dict(kernel=3, dilation=2, pad=None, group=1, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=False)), act=False, num_pair=1))],

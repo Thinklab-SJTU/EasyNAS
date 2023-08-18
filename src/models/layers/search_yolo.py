@@ -1,19 +1,25 @@
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
 from .search_common import ConvBNAct_search, SepConvBNAct_search
+from .yolov5 import YOLODetect
 from .base import SearchModule
+from .utils import gumbel_softmax
 
 class YOLOBottleneck_search(SearchModule):
     # Standard bottleneck
-    def __init__(self, in_channel, out_channel, candidate_kernel_dilation=[(3,1),(5,1),(3,2)], candidate_ch=[1.], shortcut=True, group=1, expansion=0.5, gumbel_channel=False, separable=False, merge_kernel=True):  # ch_in, ch_out, shortcut, groups, expansion
+    def __init__(self, in_channel, out_channel, candidate_op=[(3,1),(5,1),(3,2)], candidate_ch=[1.], shortcut=True, group=1, expansion=0.5, gumbel_channel=False, separable=False, merge_kernel=True):  # ch_in, ch_out, shortcut, groups, expansion
         super(YOLOBottleneck_search, self).__init__()
         self.gumbel_channel = gumbel_channel
         self.expansion = expansion
 
-        c_ = int(out_channel * e)  # hidden channels
+        c_ = int(out_channel * expansion)  # hidden channels
         c_max = int(c_ * max(candidate_ch))
-        self.cv1 = ConvBNAct_search(in_channel, c_max, candidate_kernel_dilation=[(1,1)], candidate_ch=candidate_ch, stride=1, gumbel_channel=gumbel_channel, act=nn.SiLU, bn=True, merge_kernel=merge_kernel)
+        self.cv1 = ConvBNAct_search(in_channel, c_max, candidate_op=[(1,1)], candidate_ch=candidate_ch, stride=1, gumbel_channel=gumbel_channel, act=nn.SiLU, bn=nn.BatchNorm2d, merge_kernel=merge_kernel)
         if separable: my_conv = SepConvBNAct_search
         else: my_conv = ConvBNAct_search
-        self.cv2 = my_conv(c_max, out_channel, candidate_kernel_dialtion, candidate_ch=[1.], stride=1, group=group, gumbel_channel=gumbel_channel, act=nn.SiLU, bn=True, merge_kernel=merge_kernel)
+        self.cv2 = my_conv(c_max, out_channel, candidate_op, candidate_ch=[1.], stride=1, group=group, gumbel_channel=gumbel_channel, act=nn.SiLU, bn=nn.BatchNorm2d, merge_kernel=merge_kernel)
         self.add = shortcut and in_channel == out_channel
 
     def forward(self, x, op_alphas=None, ch_alphas=None):
@@ -26,7 +32,7 @@ class YOLOBottleneck_search(SearchModule):
 
 class YOLOC3_search(SearchModule):
     # CSP Bottleneck with 3 convolutions
-    def __init__(self, in_channel, out_channel, num_repeat=1, candidate_kernel_dilation=[(3,1),(5,1),(3,2)], candidate_ch=[1.], shortcut=True, group=1, expansion=0.5, e_bottleneck=1., search_out_channel=None, gumbel_channel=False, separable=False, merge_kernel=True):  # ch_in, ch_out, number, shortcut, groups, expansion
+    def __init__(self, in_channel, out_channel, num_repeat=1, candidate_op=[(3,1),(5,1),(3,2)], candidate_ch=[1.], shortcut=True, group=1, expansion=0.5, e_bottleneck=1., search_out_channel=None, gumbel_channel=False, separable=False, merge_kernel=True):  # ch_in, ch_out, number, shortcut, groups, expansion
         super(YOLOC3_search, self).__init__()
         if search_out_channel==True:
             self.search_out_channel = candidate_ch
@@ -39,30 +45,30 @@ class YOLOC3_search(SearchModule):
         self.gumbel_channel = gumbel_channel
         self.out_channel = out_channel
         self.candidate_ch = candidate_ch
-        self.candidate_op = candidate_kernel_dilation
+        self.candidate_op = candidate_op
         self.e_bottleneck = [e_bottleneck for _ in range(num_repeat)] if isinstance(e_bottleneck, float) else e_bottleneck
 
         out_channel = out_channel * max(self.search_out_channel)
         c_ = int(out_channel * expansion)  # hidden channels
-        self.cv1 = ConvBNAct_search(in_channel, c_, candidate_kernel_dilation=[(1,1)], candidate_ch=self.search_out_channel, stride=1, gumbel_channel=gumbel_channel, independent_ch_arch_param=False, merge_kernel=merge_kernel)
-        self.cv2 = ConvBNAct_search(in_channel, c_, candidate_kernel_dilation=[(1,1)], candidate_ch=self.search_out_channel, stride=1, gumbel_channel=gumbel_channel, independent_ch_arch_param=False, merge_kernel=merge_kernel)
+        self.cv1 = ConvBNAct_search(in_channel, c_, candidate_op=[(1,1)], candidate_ch=self.search_out_channel, stride=1, gumbel_channel=gumbel_channel, independent_ch_arch_param=False, merge_kernel=merge_kernel, bn=nn.BatchNorm2d, act=nn.SiLU())
+        self.cv2 = ConvBNAct_search(in_channel, c_, candidate_op=[(1,1)], candidate_ch=self.search_out_channel, stride=1, gumbel_channel=gumbel_channel, independent_ch_arch_param=False, merge_kernel=merge_kernel, bn=nn.BatchNorm2d, act=nn.SiLU())
         if gumbel_channel:
-            self.cv3 = nn.ModuleList([ConvBNAct_search(c_, out_channel, candidate_kernel_dilation=[(1,1)], candidate_ch=self.search_out_channel, stride=1, gumbel_channel=gumbel_channel, act=False, bn=False, independent_ch_arch_param=False) for _ in range(2)])  
+            self.cv3 = nn.ModuleList([ConvBNAct_search(c_, out_channel, candidate_op=[(1,1)], candidate_ch=self.search_out_channel, stride=1, gumbel_channel=gumbel_channel, act=False, bn=False, independent_ch_arch_param=False) for _ in range(2)])  
             self.cv3_bn = nn.ModuleList([nn.BatchNorm2d(int(out_channel*e)) for e in self.search_out_channel])
             self.cv3_act = nn.SiLU()
         else:
-            self.cv3 = ConvBNAct_search(2 * c_, out_channel, candidate_kernel_dilation=[(1,1)], candidate_ch=self.search_out_channel, stride=1, act=nn.SiLU(), bn=True, gumbel_channel=gumbel_channel, independent_ch_arch_param=False, merge_kernel=merge_kernel)  
+            self.cv3 = ConvBNAct_search(2 * c_, out_channel, candidate_op=[(1,1)], candidate_ch=self.search_out_channel, stride=1, gumbel_channel=gumbel_channel, independent_ch_arch_param=False, merge_kernel=merge_kernel, bn=nn.BatchNorm2d, act=nn.SiLU())  
 
         if len(self.search_out_channel) > 1:
             self.register_buffer('ch_alphas', torch.autograd.Variable(1e-3*torch.randn(len(self.search_out_channel)), requires_grad=True))
 
-        self.m = nn.Sequential(*[YOLOBottleneck_search(c_, c_, candidate_kernel_dilation, candidate_ch, shortcut, group, expansion=self.e_bottleneck[i], gumbel_channel=gumbel_channel, separable=separable, merge_kernel=merge_kernel) for i in range(num_repeat)])
+        self.m = nn.Sequential(*[YOLOBottleneck_search(c_, c_, candidate_op, candidate_ch, shortcut, group, expansion=self.e_bottleneck[i], gumbel_channel=gumbel_channel, separable=separable, merge_kernel=merge_kernel) for i in range(num_repeat)])
 
     def forward(self, x):
         if self.gumbel_channel:
             ch_alphas = gumbel_softmax(F.log_softmax(self.ch_alphas, dim=-1), hard=True) if hasattr(self, 'ch_alphas') else None 
-            out = self.cv3[0](self.m(self.cv1.forward_withAlpha(x, alphas_channel)), ch_alphas=ch_alphas) + self.cv3[1](self.cv2.forward_withAlpha(x, alphas_channel), ch_alphas=ch_alphas)
-            a_e, idx = ch_alphas.max()
+            out = self.cv3[0](self.m(self.cv1(x, ch_alphas=ch_alphas)), ch_alphas=ch_alphas) + self.cv3[1](self.cv2(x, ch_alphas=ch_alphas), ch_alphas=ch_alphas)
+            a_e, idx = ch_alphas.max(dim=-1)
             return self.cv3_act(self.cv3_bn[idx](out))
         else:
             ch_alphas = nn.functional.softmax(self.ch_alphas, dim=-1) if hasattr(self, 'ch_alphas') else None
@@ -94,8 +100,24 @@ class YOLOC3_search(SearchModule):
 
         args['kernel'] = kernel
         args['dilation'] = dilation
-        args['e_bottleck'] = e_bottleneck
+        args['e_bottleneck'] = e_bottleneck
 
         new_cfg = self.init_output_yaml(cfg, outOp_name='YOLOC3', input_idx=-1, **args)
         return new_cfg
+
+class YOLODetect_search(YOLODetect, SearchModule):
+    def __init__(self, in_channel, strides, num_classes=80, anchors=()):  # detection layer
+        super(YOLODetect_search, self).__init__(in_channel, strides, num_classes=num_classes, anchors=anchors)
+        delattr(self, 'm')
+        self.m = nn.ModuleList(ConvBNAct_search(x, self.no * self.na, candidate_op=[(1,1)], candidate_ch=[1.], stride=1, bias=True) for x in in_channel)  # output conv
+
+        self._initialize_biases()
+
+#    def forward(self, x):
+#        return self.forward
+#        return YOLODetect_search.__mro__[0].forward(self, x)
+
+    def discretize(self, cfg=None, op_alphas=None, ch_alphas=None, edge_alphas=None, num_reserved_op=1, num_reserved_edge=2):
+        return self.init_output_yaml(cfg, outOp_name='YOLODetect')
+
 

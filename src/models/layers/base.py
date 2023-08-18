@@ -5,14 +5,15 @@ from inspect import isfunction
 from easydict import EasyDict as edict
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
-from .utils import get_layer
+from .utils import get_layer, gumbel_softmax
 
 #OP_CFG = namedtuple('OP_CFG', ['submodule_name', 'args'])
 
 
 class SearchModule(nn.Module):
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         super(SearchModule, self).__init__()
         self._arch_parameters = {}
 
@@ -147,7 +148,7 @@ class OpBuilder(object):
     def __init__(self, auto_refine=False, adjust_ch_op=None, upsample_op=None): 
         self.auto_refine = auto_refine
         self.adjust_ch_op = edict(submodule_name='ConvBNAct', args=dict(kernel=1, dilation=1, bn=False, act=None)) if adjust_ch_op is None else adjust_ch_op
-        self.upsample_op = edict(submodule_name=nn.Upsample, args=dict(size=None, scale_factor=None, mode='nearest', align_corners=None)) if upsample_op is None else upsample_op
+        self.upsample_op = edict(submodule_name=nn.Upsample, args=dict(size=None, scale_factor=None, mode='nearest', align_corners=None)) if upsample_op is None else edict(upsample_op)
 
     def refine_C_stride_sequence(self, op, in_channel, out_channel, stride, **update_args):
         if isinstance(op, (tuple, list)):
@@ -156,7 +157,8 @@ class OpBuilder(object):
             for i in range(len(op)-1):
                 op[i], stride = self.refine_C_stride_sequence(op[i], in_channel, in_channel, stride, **update_args)
             op[-1], s = self.refine_C_stride_sequence(op[-1], in_channel, out_channel, stride, **update_args)
-        elif isinstance(op, edict):
+        elif isinstance(op, (dict, edict)):
+            op = edict(op)
             up_s, s = int(1./stride), max(1, stride)
             adjust_ch = False
             tmp_module = get_layer(op.submodule_name)
@@ -165,7 +167,7 @@ class OpBuilder(object):
             else:
                 arg_names = inspect.getfullargspec(tmp_module.__init__).args
             if 'stride' in arg_names:
-                op.args.update(stride=stride, **update_args)
+                op.args.update(stride=s, **update_args)
                 s = 1
             if 'in_channel' in arg_names: 
                 op.args.update(in_channel=in_channel)
@@ -174,7 +176,7 @@ class OpBuilder(object):
             if in_channel != out_channel and ('in_channel' not in arg_names or 'out_channel' not in arg_names):
                 Warning("Input channel should be the same as output channel. Otherwise, you should set auto_refine as True")
                 adjust_ch = True
-            if self.auto_refine and up_s > 1: 
+            if up_s > 1: 
                 upsample_op = deepcopy(self.upsample_op)
                 upsample_op.args.update(scale_factor=up_s)
                 op = [op]
@@ -195,7 +197,7 @@ class OpBuilder(object):
         refined_op_config = []
         if isinstance(in_channel, int): in_channel = (in_channel,)*len(op_config)
         if isinstance(out_channel, int): out_channel = (out_channel,)*len(op_config)
-        if isinstance(stride, int): stride = (stride,)*len(op_config)
+        if isinstance(stride, (int, float)): stride = (stride,)*len(op_config)
         for idx, (cin, cout, s, op) in enumerate(zip(in_channel, out_channel, stride, op_config)):
             refined_op = deepcopy(op)
             tmp_update_args = {}

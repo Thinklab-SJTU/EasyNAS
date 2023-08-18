@@ -1,3 +1,4 @@
+import math
 from copy import deepcopy
 import bisect
 from functools import reduce
@@ -15,7 +16,7 @@ __all__ = ["ConvBNAct_search", "SepConvBNAct_search", "AFF", "SPP_search"]
 
 class ConvBNAct_search(SearchModule):
     # Mixed Depthwise Conv https://arxiv.org/abs/1907.09595
-    def __init__(self, in_channel, out_channel, candidate_op=[(1,1), (3,1), (5,1), (3,2)], candidate_ch=[1.], gumbel_op=False, gumbel_channel=True, stride=1, pad=None, group=1, act=True, act_first=False, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=True)), independent_ch_arch_param=True, independent_op_arch_param=True, bias=False, merge_kernel=True):
+    def __init__(self, in_channel, out_channel, candidate_op=[(1,1), (3,1), (5,1), (3,2)], candidate_ch=[1.], gumbel_op=False, gumbel_channel=True, stride=1, pad=None, group=1, act=True, act_first=False, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True)), independent_ch_arch_param=True, independent_op_arch_param=True, bias=False, merge_kernel=True):
         # k=0 means zero op; d=0 means skip-connection
         super(ConvBNAct_search, self).__init__()
         self.merge_kernel = merge_kernel
@@ -96,8 +97,8 @@ class ConvBNAct_search(SearchModule):
         Cout = merge_kernel.size(0)
         channel_mask = torch.zeros([Cout], dtype=merge_kernel.dtype, device=merge_kernel.device)
         if self.gumbel_channel:
-            a_e, idx = alphas.max()
-            merge_kernel = merge_kernel[:int(self.cout*self.candidate_e[idx]),:,:,:] * a_e
+            a_e, idx = alphas.max(dim=-1)
+            merge_kernel = merge_kernel[:int(self.cout*self.candidate_ch[idx]),:,:,:] * a_e
             if bias is not None: bias = bias[:int(self.cout*e)] 
         else:
             channel_idx = torch.arange(0, Cout, dtype=merge_kernel.dtype, device=merge_kernel.device).long()
@@ -232,7 +233,7 @@ class AFF(SearchModule):
     auto_refine=False, adjust_ch_op=None, up_sample_op=None, 
     candidate_ch=[1.], gumbel_channel=True, 
     gumbel_edge=False, 
-    act=nn.ReLU(), bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=True)), 
+    act=nn.ReLU(), bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True)), 
     independent_ch_arch_param=True, independent_op_arch_param=True, independent_edge_arch_param=True):
         """
         strides: a list indicating the scale for each edge. Whether to up-sampling or down-sampling, and how much the degree is
@@ -270,7 +271,7 @@ class AFF(SearchModule):
         else: self.bn = get_norm(bn, self.cout)
 
     def init_arch_parameters(self, ind_op_alpha, ind_ch_alpha, ind_edge_alpha):
-        if len(self.candidate_op) > 1 and ind_op_alpha:
+        if self.num_op_alphas > 1 and ind_op_alpha:
             super().init_arch_parameters('op_alphas', len(self.cin), self.num_op_alphas)
         if len(self.candidate_ch) > 1 and ind_ch_alpha:
             super().init_arch_parameters('ch_alphas', len(self.candidate_ch))
@@ -285,7 +286,15 @@ class AFF(SearchModule):
         for idx, (op, num_alphas_each_op) in enumerate(zip(edge_module, self.num_alphas_each_op)):
             if num_alphas_each_op > 0: 
                 end_ptr = ptr + num_alphas_each_op
-                out = out + op(x, op_alphas=op_alphas[ptr:end_ptr], ch_alphas=ch_alphas)
+                if isinstance(op, nn.Sequential):
+                    tmp = x
+                    for sub_op in op:
+                        if isinstance(sub_op, SearchModule):
+                            tmp = sub_op(tmp, op_alphas=op_alphas[ptr:end_ptr], ch_alphas=ch_alphas)
+                        else: tmp = sub_op(tmp)
+                    out = out + tmp
+                else:
+                    out = out + op(x, op_alphas=op_alphas[ptr:end_ptr], ch_alphas=ch_alphas)
                 ptr = end_ptr
             else: 
                 out = out + op_alphas[ptr] * op(x)
@@ -310,21 +319,48 @@ class AFF(SearchModule):
 
         return out
     
-    def discretize_edge(self, edge_module, op_alphas, num_reserved_op=1):
+    def discretize_edge(self, edge_module, op_alphas, num_reserved_op=1, exclude_alpha_idx=[]):
         assert num_reserved_op == 1
-        op_alphas_idx = self.get_reserved_idx(min(num_reserved_op+1, len(op_alphas)), op_alphas)
+        op_alphas_idx = self.get_reserved_idx(min(num_reserved_op+len(exclude_alpha_idx), len(op_alphas)), op_alphas)
+        op_alphas_idx = [idx for idx in op_alphas_idx if idx not in exclude_alpha_idx]
 #        num_alphas_before = reduce(lambda x,y: x+[x[-1]+abs(y)] if isinstance(x, list) else [abs(x),abs(x)+abs(y)], self.num_alphas_each_op)
         num_alphas_before = list(accumulate(abs(x) for x in self.num_alphas_each_op))
         op_idx = [bisect.bisect_right(num_alphas_before, x) for x in op_alphas_idx]
-        for i in range(len(op_idx)-1, -1, -1):
-            if self.candidate_op[op_idx[i]]['submodule_name'] == 'Zero': op_idx.pop(i)
-        op_idx = op_idx[0]
+        op_idx, op_alphas_idx = op_idx[0], op_alphas_idx[0]
         if self.num_alphas_each_op[op_idx] > 0: # (Sep)ConvBNAct_search
-            select_op = self.candidate_op[op_idx]
-            layer_cfg = edge_module[op_idx].discretize(select_op, op_alphas=op_alphas[num_alphas_before[op_idx]:num_alphas_before[op_idx]+self.num_alphas_each_op[op_idx]], ch_alphas=None, edge_alphas=None, num_reserved_op=num_reserved_op)
-            return edict(submodule_name=layer_cfg['submodule_name'], args=layer_cfg['args'])
+            select_op = deepcopy(self.candidate_op[op_idx])
+            if isinstance(edge_module[op_idx], SearchModule): 
+                return edge_module[op_idx].discretize(select_op, op_alphas=op_alphas[(0 if op_idx==0 else num_alphas_before[op_idx-1]):num_alphas_before[op_idx]], ch_alphas=None, edge_alphas=None, num_reserved_op=num_reserved_op)
+            else:
+                layer_cfg = []
+                select_op_iter = iter([select_op] if isinstance(select_op, dict) else select_op)
+                tmp_cfg = next(select_op_iter)
+                tmp_module = get_layer(tmp_cfg['submodule_name']) 
+                for sub_m_idx, sub_m in enumerate(edge_module[op_idx]):
+                    if isinstance(sub_m, tmp_module):
+                        layer_cfg.append(
+                                sub_m.discretize(select_op, op_alphas=op_alphas[(0 if op_idx==0 else num_alphas_before[op_idx-1]):num_alphas_before[op_idx]], ch_alphas=None, edge_alphas=None, num_reserved_op=num_reserved_op) if isinstance(sub_m, SearchModule) else tmp_cfg)
+                        try:
+                            tmp_cfg = next(select_op_iter)
+                        except StopIteration as e:
+                            break
+                        tmp_module = get_layer(tmp_cfg['submodule_name']) 
+                return layer_cfg
         else:
             return deepcopy(self.candidate_op[op_idx])
+
+    def get_exclude_op_idx(self, parallel_op, exclude_ops):
+        num_alphas_before = list(accumulate(abs(x) for x in self.num_alphas_each_op))
+        exclude_op_idx, exclude_alpha_idx = [], []
+        for i in range(len(parallel_op)-1, -1, -1):
+            sequence_op = parallel_op[i] 
+            if isinstance(sequence_op, edict): sequence_op = [sequence_op]
+            for op in sequence_op:
+                if op['submodule_name'] in exclude_ops: 
+                    exclude_op_idx.append(i)
+                    exclude_alpha_idx += list(range((0 if i==0 else num_alphas_before[i-1]), num_alphas_before[i]))
+                    break
+        return exclude_op_idx, exclude_alpha_idx
 
     def discretize(self, cfg=None, op_alphas=None, ch_alphas=None, edge_alphas=None, num_reserved_op=1, num_reserved_edge=2):
         assert num_reserved_op==1
@@ -339,11 +375,16 @@ class AFF(SearchModule):
                 args['out_channel'] = self.cout * self.candidate_ch[ch_alphas_idx]
 
         if op_alphas is None: op_alphas = self.op_alphas
-        if edge_alphas is None: edge_alphas = getattr(self, 'edge_alphas', op_alphas.max(dim=1)[0])
-        edge_alphas_idx = self.get_reserved_idx(num_reserved_edge, edge_alphas)
+        op_alphas = F.softmax(op_alphas, dim=-1).detach()
+        if edge_alphas is None: 
+            exclude_op_idx, exclude_alpha_idx = self.get_exclude_op_idx(self.candidate_op, ['Zero']) 
+            edge_alphas_idx = sorted(range(op_alphas.shape[0]), key=lambda x: -max(op_alphas[x][k] for k in range(len(op_alphas[x])) if k not in exclude_alpha_idx))[:num_reserved_edge]
+        else:
+            edge_alphas_idx = self.get_reserved_idx(num_reserved_edge, edge_alphas)
+
         args['ops'], args['strides'] = [], []
         for idx in edge_alphas_idx:
-            edge_op = self.discretize_edge(self.m[idx], op_alphas[idx], num_reserved_op)
+            edge_op = self.discretize_edge(self.m[idx], op_alphas[idx], num_reserved_op, exclude_alpha_idx)
             args['ops'].append(edge_op)
             args['strides'].append(self.strides[idx])
         new_cfg = self.init_output_yaml(cfg, outOp_name='FuseLayer', input_idx=edge_alphas_idx, **args)
@@ -352,14 +393,18 @@ class AFF(SearchModule):
  
 class SPP_search(SearchModule):
     # Spatial pyramid pooling layer used in YOLOv3-SPP
-    def __init__(self, in_channel, out_channel, kernel=(5, 9, 13)):
+    def __init__(self, in_channel, out_channel, kernels=(5, 9, 13), bn=torch.nn.BatchNorm2d, act=nn.SiLU):
         super(SPP_search, self).__init__()
         c_ = in_channel // 2  # hidden channels
-        self.cv1 = ConvBNAct_search(in_channel, out_channel, candidate_op=[(1,1)], candidate_ch=[1.], stride=1, act=nn.SiLU(), bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=True)), merge_kernel=True)
-        self.cv2 = ConvBNAct(c_ * (len(k) + 1), out_channel, kernel=1, dilation=1, stride=1, act=nn.SiLU(), bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=True)))
+        self.cv1 = ConvBNAct_search(in_channel, c_, candidate_op=[(1,1)], candidate_ch=[1.], stride=1, act=act, bn=bn, merge_kernel=True)
+        self.cv2 = ConvBNAct_search(c_ * (len(kernels) + 1), out_channel, candidate_op=[(1,1)], candidate_ch=[1.], stride=1, act=act, bn=bn, merge_kernel=True)
 
-        self.m = nn.ModuleList([nn.MaxPool2d(kernel_size=x, stride=1, padding=x // 2) for x in kernel])
+        self.m = nn.ModuleList([nn.MaxPool2d(kernel_size=x, stride=1, padding=x // 2) for x in kernels])
 
     def forward(self, x):
         x = self.cv1(x)
         return self.cv2(torch.cat([x] + [m(x) for m in self.m], 1))
+
+    def discretize(self, cfg=None):
+        new_cfg = self.init_output_yaml(cfg, outOp_name='SPP')
+

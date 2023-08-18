@@ -64,8 +64,6 @@ def create_dataloader(cfg: dict) -> dict:
         else:
             sampler = torch.utils.data.RandomSampler(dataset) if shuffle else None
 
-        print(sampler)
-
        	submodule_name = cfg.pop('submodule_name', 'torch.utils.data.DataLoader')
         Dataloader = get_submodule_by_name(submodule_name, search_path='src.datasets')
         dataloaders[loader_name] = Dataloader(dataset, sampler=sampler, **cfg.get('dataloader_args', {}))

@@ -3,7 +3,7 @@ import random
 import argparse
 import numpy as np
 import torch
-torch.backends.cudnn.deterministic = True
+#torch.backends.cudnn.deterministic = True
 
 from builder import parse_cfg, get_submodule_by_name
 from distribute_utils import ddp_ctx, get_rank
@@ -37,7 +37,7 @@ def main():
                 print("\n", k, v)
             if cfg.get('root_path', None):
                 os.makedirs(cfg.get('root_path'), exist_ok=True)
-    
+
         # build engine
         engine_cfg = cfg['engine']
         engine = get_submodule_by_name(engine_cfg['submodule_name'], search_path='engines')(

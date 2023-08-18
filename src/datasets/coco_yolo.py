@@ -399,7 +399,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         self.rect = False if image_weights else rect
         self.mosaic = self.augment and not self.rect  # load 4 images at a time into a mosaic (only during training)
         self.mosaic_border = [-img_size // 2, -img_size // 2]
-        self.stride = stride
+        self.stride = stride if isinstance(stride, int) else int(max(max(stride), 32))
         self.path = path
 
         try:
@@ -632,7 +632,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, to 3x416x416
         img = np.ascontiguousarray(img)
 
-        return torch.from_numpy(img).float()/255.0, labels_out, self.img_files[index], shapes
+        return torch.from_numpy(img).float() / 255., labels_out, self.img_files[index], shapes
 
 def collate_fn(batch):
     img, label, path, shapes = zip(*batch)  # transposed

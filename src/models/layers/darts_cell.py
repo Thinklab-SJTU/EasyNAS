@@ -1,3 +1,4 @@
+from easydict import EasyDict as edict
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -137,19 +138,31 @@ class Cell_search(SearchModule):
         for i in range(self._steps):
             op = self._ops[i].discretize()
             # set affine as True for each BN
-            for edge_op in op['args']['ops']:
-                if isinstance(edge_op, (dict)) and edge_op.get('args', {}).get('bn', False):
-                    if edge_op['submodule_name'] == 'PoolBNAct': # when DARTS retrains, pooling has no BN
-                        edge_op['args']['bn'] = False
-                    else: # when DARTS retrain, affine in BN is set as True
-                        edge_op['args']['bn'] = dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True))
+            for edge_idx, edge_op in enumerate(op['args']['ops']):
+                if isinstance(edge_op, (dict)):
+                    if edge_op.get('args', {}).get('bn', False):
+                        if edge_op['submodule_name'] == 'PoolBNAct': # when DARTS retrains, pooling has no BN
+                            edge_op['args']['bn'] = False
+                        else: # when DARTS retrain, affine in BN is set as True
+                            edge_op['args']['bn'] = dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True))
+                    if edge_op.get('args', {}).get('act', False) and 'Conv' in edge_op['submodule_name']:
+                       edge_op['args']['act'] = False
+                       op['args']['ops'][edge_idx] = [edict(submodule_name='torch.nn.ReLU', args=dict(inplace=False)), edge_op]
                 else:
-                    for sub_op in edge_op:
-                        if 'bn' in sub_op.get('args', {}):
+                    j, no_act_before = 0, True
+                    while j < len(edge_op):
+                        sub_op = edge_op[j]
+                        if 'ReLU' in sub_op['submodule_name']: no_act_before = False
+                        if sub_op.get('args', {}).get('bn', False):
                             if sub_op['submodule_name'] == 'PoolBNAct': # when DARTS retrains, pooling has no BN
                                 sub_op['args']['bn'] = False
                             else: # when DARTS retrain, affine in BN is set as True
                                 sub_op['args']['bn'] = dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True))
+                        if no_act_before and sub_op.get('args', {}).get('act', False) and 'Conv' in sub_op['submodule_name']:
+                                sub_op['args']['act'] = False
+                                edge_op.insert(j, edict(submodule_name='torch.nn.ReLU', args=dict(inplace=False)))
+                        j += 1
+
             edge = op.pop('input_idx')
             args['cell_ops'].append(op)
             args['edges'].append(edge)

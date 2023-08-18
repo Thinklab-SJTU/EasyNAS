@@ -31,6 +31,9 @@ class EvalCOCOmAPHOOK(HOOK):
 
     def before_train_epoch(self, runner):
         self.loss.reset()
+        self.loss_box.reset()
+        self.loss_obj.reset()
+        self.loss_cls.reset()
 
     def after_train_iter(self, runner):
         target, iter_loss, iter_loss_items = runner.info.train_bs_target, runner.info.train_bs_loss, runner.info.train_bs_loss_items
@@ -45,8 +48,12 @@ class EvalCOCOmAPHOOK(HOOK):
         runner.info.results.train.loss_obj = self.loss_obj.avg
         runner.info.results.train.loss_cls = self.loss_cls.avg
 
+    def before_val_epoch(self, runner):
+        self.stats, self.jdict, self.img_files = [], [], []
+
     def after_val_iter(self, runner):
         img, logits, targets = runner.info.val_bs_input, runner.info.val_bs_logits, runner.info.val_bs_target
+        self.nc = logits.shape[2] - 5  # number of classes
         paths, shapes = runner.info.val_bs_others
         self.jdict = getattr(self, 'jdict', [])
         self.stats = getattr(self, 'stats', [])
@@ -126,18 +133,22 @@ class EvalCOCOmAPHOOK(HOOK):
     def after_val_epoch(self, runner):
         # Compute statistics
         stats = [np.concatenate(x, 0) for x in zip(*self.stats)]  # to numpy
-        nc = np.unique(stats[-1]).shape[0]
+
         if len(stats) and stats[0].any():
             p, r, ap, f1, ap_class = ap_per_class(*stats)
             ap50, ap = ap[:, 0], ap.mean(1)  # AP@0.5, AP@0.5:0.95
             mp, mr, map50, map = p.mean(), r.mean(), ap50.mean(), ap.mean()
-            nt = np.bincount(stats[3].astype(np.int64), minlength=nc)  # number of targets per class
+            nt = np.bincount(stats[3].astype(np.int64), minlength=self.nc)  # number of targets per class
             runner.info.results.val.precision = mp
             runner.info.results.val.recall = mr
             runner.info.results.val['map@.5'] = map50
             runner.info.results.val['map@.5:.95'] = map
+            best_map = runner.info.results.val.get('best_map', 0)
+            runner.info.results.is_best = best_map < map 
+            if runner.info.results.is_best:
+                runner.info.results.val.best_map = map
             # Results per class
-            if self.verbose_per_class and nc > 1:
+            if self.verbose_per_class and self.nc > 1:
                 runner.info.results.val['per_class'] = {
                         str(c): {'precision': p[i], 'recall': r[i], 'map@.5': ap50[i], 'map@.5:.95': ap[i]}
                         for i, c in enumerate(ap_class)
@@ -162,6 +173,7 @@ class EvalCOCOmAPHOOK(HOOK):
             except Exception as e:
                 print(f'pycocotools unable to run: {e}')
         del self.jdict[:], self.stats[:], self.img_files[:]
+
         
 
 

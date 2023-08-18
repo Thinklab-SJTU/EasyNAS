@@ -7,13 +7,15 @@ anchors: &anchors
   - [30,61, 62,45, 59,119]  # P4/16
   - [116,90, 156,198, 373,326]  # P5/32
 
+strides: &strides [8, 16, 32]
+
 submodule_name: src.models.BaseModel
 args:
   log_path: model.log
   depth_multiple: 0.33  # model depth multiple
   width_multiple: 0.50  # layer channel multiple
   output_ch: &output_ch 255
-  init_func: null
+  init_func: !get_module [src.models.utils.yolov5_init_weights]
   architecture:
 # YOLOv5 backbone
     - input_idx: -1 # 0-P1/2
@@ -120,7 +122,7 @@ args:
       submodule_name: ConvBNAct 
       args: 
         out_channel: 256
-        kernel: 3
+        kernel: 1
         dilation: 1
         stride: 1
         bias: False
@@ -191,5 +193,5 @@ args:
       args: 
         num_classes: *num_classes
         anchors: *anchors
-        img_size: !cross_ref [cfg/dataset/coco_yolo.yaml:input_size]
+        strides: *strides
 

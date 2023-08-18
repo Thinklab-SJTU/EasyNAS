@@ -12,6 +12,8 @@ loss_hyp: &hyp
 submodule_name: src.criterions.YOLOv5Loss
 args:
   hyp: *hyp
+  img_size: !cross_ref [cfg/dataset/coco_yolo.yaml:input_size]
+  strides: !cross_ref [cfg/model/yolov5s.yaml:strides]
   anchors: !cross_ref [cfg/model/yolov5s.yaml:anchors]
   iou_loss_ratio: 1.0
   autobalance: False
