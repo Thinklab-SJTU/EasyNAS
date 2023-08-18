@@ -242,9 +242,11 @@ class YOLODetect(nn.Module):
         self.register_buffer('anchor_grid', a.clone().view(self.nl, 1, -1, 1, 1, 2))  # shape(nl,1,na,1,1,2)
         self.anchors /= torch.tensor(strides).view(-1, 1, 1)
         self.strides = strides
-        self.m = nn.ModuleList(nn.Conv2d(x, self.no * self.na, 1) for x in in_channel)  # output conv
-
+        self._initialize_modules(in_channel)
         self._initialize_biases()
+
+    def _initialize_modules(self, in_channel):
+        self.m = nn.ModuleList(nn.Conv2d(x, self.no * self.na, 1) for x in in_channel)  # output conv
 
     def _initialize_biases(self, cf=None):  # initialize biases into Detect(), cf is class frequency
         # https://arxiv.org/abs/1708.02002 section 3.3
@@ -278,8 +280,8 @@ class YOLODetect(nn.Module):
         return logits if self.training else torch.cat(z, 1)
 
 
-    @staticmethod
-    def _make_grid(nx=20, ny=20):
+#    @staticmethod
+    def _make_grid(self, nx=20, ny=20):
         yv, xv = torch.meshgrid([torch.arange(ny), torch.arange(nx)])
         return torch.stack((xv, yv), 2).view((1, 1, ny, nx, 2)).float()
 

@@ -88,7 +88,7 @@ hooks: &hooks
       accumulate_gradient: *acc_grad
   
   ema_hook:
-    submodule_name: ModelEMAHOOK
+    submodule_name: EMAHOOK
     args:
       decay: 0.9999
       priority: 5
@@ -104,6 +104,6 @@ engine:
     optimizer: *optimizer
     lr_scheduler: *scheduler
     hooks: *hooks
-    amp: False
+    amp: True
     amp_val: True
 

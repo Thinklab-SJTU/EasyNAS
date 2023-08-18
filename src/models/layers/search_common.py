@@ -44,7 +44,7 @@ class ConvBNAct_search(SearchModule):
         self.act_first = act_first
 
         if self.gumbel_channel: self.bn = nn.ModuleList([get_norm(bn, int(self.cout*e)) for e in candidate_ch]) 
-        else: self.bn = get_norm(bn, self.cout)
+        else: self.bn = get_norm(bn, cout_max)
 
         self.init_arch_parameters(independent_ch_arch_param, independent_op_arch_param)
 

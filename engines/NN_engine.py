@@ -119,14 +119,14 @@ class NNEngine(object):
             getattr(hook, fn_name)(self)
 
     def train_one_epoch(self, train_loader, model, criterion):
-        if self.amp: model.half()
+#        if self.amp: model.half()
         for step, (input, target, *bs_args) in enumerate(train_loader):
 #            self.call_hook('before_train_iter')
             with hooks_train_iter(self._hooks, self):
                 self.info.current_iter = step
                 target = target.to(self.device, non_blocking=True)
                 input = input.to(self.device, non_blocking=True)
-                if self.amp: input = input.half()
+#                if self.amp: input = input.half()
                 self.info.train_bs_input = input
                 self.info.train_bs_target = target
                 self.info.train_bs_others = bs_args
@@ -144,7 +144,7 @@ class NNEngine(object):
                     self.scaler.scale(loss).backward()
                 else:
                     loss.backward()
-        if self.amp: model.float()
+#        if self.amp: model.float()
 
     def val(self, val_loader, model, criterion):
         with torch.no_grad():

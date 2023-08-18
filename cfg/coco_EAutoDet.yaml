@@ -136,7 +136,7 @@ engine:
     optimizer: *optimizer
     lr_scheduler: *scheduler
     hooks: *hooks
-    amp: False
+    amp: True
     amp_val: True
 
 

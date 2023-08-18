@@ -8,9 +8,10 @@ from ..hook import HOOK, execute_period, only_master
 from .. import OptHOOK
 
 class DARTSHOOK(HOOK):
-    def __init__(self, optimizer_cfg, dataloader_name, criterion_cfg=None, update_freq=1, accumulate_gradient=1, priority=0, save_root=None):
+    def __init__(self, optimizer_cfg, dataloader_name, criterion_cfg=None, grad_clip=None,  update_freq=1, accumulate_gradient=1, priority=0, save_root=None):
         self.priority = priority
         self.optimizer_cfg = optimizer_cfg
+        self.grad_clip = grad_clip
         self.dataloader_name = dataloader_name
         self.criterion_cfg = criterion_cfg
         self.update_freq = update_freq  
@@ -27,7 +28,7 @@ class DARTSHOOK(HOOK):
         self.optimizer_cfg['args']['params'] = runner.model_without_ddp.arch_parameters()
 #        self._initialize_arch_param(arch_param)
         self.optimizer = get_submodule_by_name(self.optimizer_cfg.get('submodule_name'), search_path=('torch.optim',))(**self.optimizer_cfg['args'])
-        self.optimizer_hook = OptHOOK(self.optimizer, self.accumulate_gradient)
+        self.optimizer_hook = OptHOOK(self.optimizer, self.accumulate_gradient, grad_clip=self.grad_clip)
         if self.criterion_cfg is not None:
             self.criterion = create_criterion(self.criterion_cfg).to(runner.device)
         else:
@@ -56,10 +57,10 @@ class DARTSHOOK(HOOK):
 
         target_valid = target_valid.to(runner.device, non_blocking=True)
         input_valid = input_valid.to(runner.device, non_blocking=True)
-        if runner.amp: 
-            input_valid = input_valid.half()
-        with torch.cuda.amp.autocast(enabled=runner.amp):
-            logits = runner.model(input_valid)
+#        if runner.amp: 
+#            input_valid = input_valid.half()
+#        with torch.cuda.amp.autocast(enabled=runner.amp):
+        logits = runner.model(input_valid)
         loss_items = self.criterion(logits, target_valid)
         if isinstance(loss_items, (list, tuple)):
             loss, loss_items = loss_items[0], loss_items[1:]

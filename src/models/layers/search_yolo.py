@@ -108,10 +108,9 @@ class YOLOC3_search(SearchModule):
 class YOLODetect_search(YOLODetect, SearchModule):
     def __init__(self, in_channel, strides, num_classes=80, anchors=()):  # detection layer
         super(YOLODetect_search, self).__init__(in_channel, strides, num_classes=num_classes, anchors=anchors)
-        delattr(self, 'm')
-        self.m = nn.ModuleList(ConvBNAct_search(x, self.no * self.na, candidate_op=[(1,1)], candidate_ch=[1.], stride=1, bias=True) for x in in_channel)  # output conv
 
-        self._initialize_biases()
+    def _initialize_modules(self, in_channel):
+        self.m = nn.ModuleList(ConvBNAct_search(x, self.no * self.na, candidate_op=[(1,1)], candidate_ch=[1.], stride=1, bias=True, act=False, bn=False) for x in in_channel)  # output conv
 
 #    def forward(self, x):
 #        return self.forward
