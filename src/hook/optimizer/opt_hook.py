@@ -14,7 +14,6 @@ class OptHOOK(HOOK):
     def before_run(self, runner):
         if self.optimizer is None:
             self.optimizer = runner.optimizer
-        self.amp = runner.amp
         self.optimizer.zero_grad()
 
 #    @execute_period('accumulate_gradient')
@@ -23,11 +22,14 @@ class OptHOOK(HOOK):
 
     @execute_period('accumulate_gradient')
     def after_train_iter(self, runner):
+        scaler = getattr(runner, 'scaler', None)
         if self.grad_clip:
             if scaler: scaler.unscale_(self.optimizer)
-            torch.nn.utils.clip_grad_norm_(set.union(pg['param'] for pg in self.optimizer.group_params), self.grad_clip)
+            params_require_grad = []
+            for pg in self.optimizer.param_groups:
+                params_require_grad.extend(pg['params'])
+            torch.nn.utils.clip_grad_norm_(params_require_grad, self.grad_clip)
 #            torch.nn.utils.clip_grad_norm_(runner.model.parameters(), self.grad_clip)
-        scaler = getattr(runner, 'scaler', None)
         if scaler:
             scaler.step(self.optimizer)
             scaler.update()

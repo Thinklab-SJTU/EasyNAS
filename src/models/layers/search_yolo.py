@@ -1,3 +1,4 @@
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -60,7 +61,7 @@ class YOLOC3_search(SearchModule):
             self.cv3 = ConvBNAct_search(2 * c_, out_channel, candidate_op=[(1,1)], candidate_ch=self.search_out_channel, stride=1, gumbel_channel=gumbel_channel, independent_ch_arch_param=False, merge_kernel=merge_kernel, bn=nn.BatchNorm2d, act=nn.SiLU())  
 
         if len(self.search_out_channel) > 1:
-            self.register_buffer('ch_alphas', torch.autograd.Variable(1e-3*torch.randn(len(self.search_out_channel)), requires_grad=True))
+            self.init_arch_parameters('ch_alphas', len(self.search_out_channel))
 
         self.m = nn.Sequential(*[YOLOBottleneck_search(c_, c_, candidate_op, candidate_ch, shortcut, group, expansion=self.e_bottleneck[i], gumbel_channel=gumbel_channel, separable=separable, merge_kernel=merge_kernel) for i in range(num_repeat)])
 
@@ -110,11 +111,17 @@ class YOLODetect_search(YOLODetect, SearchModule):
         super(YOLODetect_search, self).__init__(in_channel, strides, num_classes=num_classes, anchors=anchors)
 
     def _initialize_modules(self, in_channel):
-        self.m = nn.ModuleList(ConvBNAct_search(x, self.no * self.na, candidate_op=[(1,1)], candidate_ch=[1.], stride=1, bias=True, act=False, bn=False) for x in in_channel)  # output conv
+        self.m = nn.ModuleList(ConvBNAct_search(x, self.no * self.na, candidate_op=[(1,1)], candidate_ch=[1.], stride=1, bias=False, act=nn.SiLU, bn=nn.BatchNorm2d) for x in in_channel)  # output conv
 
-#    def forward(self, x):
-#        return self.forward
-#        return YOLODetect_search.__mro__[0].forward(self, x)
+    def _initialize_biases(self, cf=None):  # initialize biases into Detect(), cf is class frequency
+        # https://arxiv.org/abs/1708.02002 section 3.3
+        # cf = torch.bincount(torch.tensor(np.concatenate(dataset.labels, 0)[:, 0]).long(), minlength=nc) + 1.
+        self.bias = nn.ParameterList([])
+        for mi, s in zip(self.m, self.strides):  # from
+            b = torch.zeros(self.na, self.no)  # conv.bias(255) to (3,85)
+            b.data[:, 4] += math.log(8 / (640 / s) ** 2)  # obj (8 objects per 640 image)
+            b.data[:, 5:] += math.log(0.6 / (self.nc - 0.99)) if cf is None else torch.log(cf / cf.sum())  # cls
+            self.bias.append(torch.nn.Parameter(b.view(-1), requires_grad=True))
 
     def discretize(self, cfg=None, op_alphas=None, ch_alphas=None, edge_alphas=None, num_reserved_op=1, num_reserved_edge=2):
         return self.init_output_yaml(cfg, outOp_name='YOLODetect')

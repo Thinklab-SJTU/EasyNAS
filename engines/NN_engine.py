@@ -1,6 +1,7 @@
 from easydict import EasyDict
 from typing import Union, List
 import bisect
+from itertools import chain
 import torch
 
 from builder import create_dataloader, create_model, create_optimizer, create_criterion, create_hook, create_scheduler
@@ -141,9 +142,12 @@ class NNEngine(object):
                     self.info.train_bs_loss = loss
                     self.info.train_bs_loss_items = loss_items
                 if self.scaler:
-                    self.scaler.scale(loss).backward()
-                else:
-                    loss.backward()
+                    loss = self.scaler.scale(loss)
+                params_require_grad = []
+                for pg in self.optimizer.param_groups:
+                    params_require_grad.extend(pg['params'])
+                loss.backward(inputs=params_require_grad)
+
 #        if self.amp: model.float()
 
     def val(self, val_loader, model, criterion):

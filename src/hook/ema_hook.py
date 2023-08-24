@@ -5,6 +5,7 @@ from itertools import chain
 
 from .hook import HOOK, execute_period, only_master
 from app.distribute_utils import is_parallel
+from ..models.layers.base import SearchModule
 
 class ModelEMA():
     def __init__(self, decay=0.9999):
@@ -98,6 +99,9 @@ class EMA():
                 param.data = self.shadow[name]
  
     def restore(self, model):
+#        if isinstance(model, SearchModule):
+#            msd = chain(model.named_parameters(), model.named_buffers(), model.named_arch_parameters())
+#        else:
         msd = chain(model.named_parameters(), model.named_buffers())
         for name, param in msd:
             if param.dtype.is_floating_point:

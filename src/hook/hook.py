@@ -11,6 +11,7 @@ def execute_period(attr_name=None, n=None):
         def inner(self_, *args, **kwargs):
             setattr(self_, 'execute_period_count', getattr(self_, 'execute_period_count', {}))
             count = self_.execute_period_count.get(func.__name__, 0)
+#            count = getattr(self_, 'execute_period_count', {}).get(func.__name__, 0)
             if count == 0:
                 func(self_, *args, **kwargs)
 

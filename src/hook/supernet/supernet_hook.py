@@ -4,14 +4,15 @@ import json
 import yaml
 
 from builder import get_submodule_by_name, create_criterion, CfgDumper
-from ..hook import HOOK, execute_period, only_master
+from ..hook import HOOK, execute_period, only_master, hooks_train_iter
 from .. import OptHOOK
 
 class DARTSHOOK(HOOK):
-    def __init__(self, optimizer_cfg, dataloader_name, criterion_cfg=None, grad_clip=None,  update_freq=1, accumulate_gradient=1, priority=0, save_root=None):
+    def __init__(self, optimizer_cfg, dataloader_name, criterion_cfg=None, grad_clip=None,  update_freq=1, accumulate_gradient=1, priority=0, save_root=None, discretize_depth=1., discretize_width=1.):
         self.priority = priority
         self.optimizer_cfg = optimizer_cfg
         self.grad_clip = grad_clip
+        self.scaler = None
         self.dataloader_name = dataloader_name
         self.criterion_cfg = criterion_cfg
         self.update_freq = update_freq  
@@ -19,6 +20,8 @@ class DARTSHOOK(HOOK):
         self.save_root = save_root
         if self.save_root: 
             os.makedirs(self.save_root, exist_ok=True)
+        self.discretize_depth = discretize_depth
+        self.discretize_width = discretize_width
 
 #    def _initialize_arch_param(arch_params):
 #        for p in arch_params:
@@ -28,6 +31,7 @@ class DARTSHOOK(HOOK):
         self.optimizer_cfg['args']['params'] = runner.model_without_ddp.arch_parameters()
 #        self._initialize_arch_param(arch_param)
         self.optimizer = get_submodule_by_name(self.optimizer_cfg.get('submodule_name'), search_path=('torch.optim',))(**self.optimizer_cfg['args'])
+        self.optimizer.zero_grad()
         self.optimizer_hook = OptHOOK(self.optimizer, self.accumulate_gradient, grad_clip=self.grad_clip)
         if self.criterion_cfg is not None:
             self.criterion = create_criterion(self.criterion_cfg).to(runner.device)
@@ -59,25 +63,27 @@ class DARTSHOOK(HOOK):
         input_valid = input_valid.to(runner.device, non_blocking=True)
 #        if runner.amp: 
 #            input_valid = input_valid.half()
-#        with torch.cuda.amp.autocast(enabled=runner.amp):
-        logits = runner.model(input_valid)
+        with torch.cuda.amp.autocast(enabled=runner.amp):
+            logits = runner.model(input_valid)
         loss_items = self.criterion(logits, target_valid)
         if isinstance(loss_items, (list, tuple)):
             loss, loss_items = loss_items[0], loss_items[1:]
         else:
             loss, loss_items = loss_items, []
 
-        if runner.scaler:
-            loss = runner.scaler.scale(loss)
-        grads =  torch.autograd.grad(loss, arch_param, grad_outputs=torch.ones_like(loss), allow_unused=True)
-        for v, g in zip(arch_param, grads):
-          if torch.isnan(g).any() or torch.isinf(g).any():
-            raise(ValueError("gradient of architecture has NaN..."))
-          if g is not None:
-              if v.grad is None:
-                  v.grad = g.data.clone()
-              else:
-                  v.grad.data.add_(g.data)
+        if getattr(self, 'scaler', None):
+            loss = self.scaler.scale(loss)
+        loss.backward(inputs=arch_param)
+
+#        grads =  torch.autograd.grad(loss, arch_param, grad_outputs=torch.ones_like(loss), allow_unused=True)
+#        for v, g in zip(arch_param, grads):
+#          if torch.isnan(g).any() or torch.isinf(g).any():
+#            raise(ValueError("gradient of architecture has NaN..."))
+#          if g is not None:
+#              if v.grad is None:
+#                  v.grad = g.data.clone().detach()
+#              else:
+#                  v.grad.data.add_(g.data.detach())
 
     @execute_period("update_freq")
     def before_train_iter(self, runner):
@@ -87,9 +93,8 @@ class DARTSHOOK(HOOK):
 #            assert 0
 #        else: self.tmp += 1
 
-        self.optimizer.zero_grad()
-        self.backward_arch_param(runner)
-        self.optimizer_hook.after_train_iter(runner)
+        with hooks_train_iter([self.optimizer_hook], self):
+            self.backward_arch_param(runner)
 
     @only_master
     def after_train_epoch(self, runner):
@@ -97,7 +102,7 @@ class DARTSHOOK(HOOK):
         alpha_file = os.path.join(self.save_root, "alpha_%d.json"%runner.info.current_epoch)
         with open(alpha_file, 'w') as f:
           json.dump(arch_param, f)
-        out_model_yaml = runner.model_without_ddp.discretize(depth_multiple=5, width_multiple=2.25)
+        out_model_yaml = runner.model_without_ddp.discretize(depth_multiple=self.discretize_depth, width_multiple=self.discretize_width)
         yaml_file = os.path.join(self.save_root, "architecture_%d.yaml"%runner.info.current_epoch)
         with open(yaml_file, encoding='utf-8', mode='w') as f:
             try:

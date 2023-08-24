@@ -376,8 +376,10 @@ class AFF(SearchModule):
 
         if op_alphas is None: op_alphas = self.op_alphas
         op_alphas = F.softmax(op_alphas, dim=-1).detach()
+        exclude_op_idx, exclude_alpha_idx = self.get_exclude_op_idx(self.candidate_op, ['Zero']) 
+
+        edge_alphas = getattr(self, 'edge_alphas', None) if edge_alphas is None else edge_alphas
         if edge_alphas is None: 
-            exclude_op_idx, exclude_alpha_idx = self.get_exclude_op_idx(self.candidate_op, ['Zero']) 
             edge_alphas_idx = sorted(range(op_alphas.shape[0]), key=lambda x: -max(op_alphas[x][k] for k in range(len(op_alphas[x])) if k not in exclude_alpha_idx))[:num_reserved_edge]
         else:
             edge_alphas_idx = self.get_reserved_idx(num_reserved_edge, edge_alphas)
@@ -387,7 +389,12 @@ class AFF(SearchModule):
             edge_op = self.discretize_edge(self.m[idx], op_alphas[idx], num_reserved_op, exclude_alpha_idx)
             args['ops'].append(edge_op)
             args['strides'].append(self.strides[idx])
-        new_cfg = self.init_output_yaml(cfg, outOp_name='FuseLayer', input_idx=edge_alphas_idx, **args)
+
+        input_idx = getattr(self, 'arch_yaml', {}).get('input_idx', None)
+        if cfg is not None:
+            input_idx = cfg.get('input_idx', input_idx)
+        input_idx = edge_alphas_idx if input_idx is None else [input_idx[ei] for ei in edge_alphas_idx]
+        new_cfg = self.init_output_yaml(cfg, outOp_name='FuseLayer', input_idx=input_idx, **args)
         return new_cfg
 
  

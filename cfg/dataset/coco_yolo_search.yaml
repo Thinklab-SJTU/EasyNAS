@@ -1,7 +1,7 @@
 num_classes: 80
 input_size: &imgsz 640
-batch_size: &bs 40
-val_batch_size: &val_bs 80
+batch_size: &bs 64
+val_batch_size: &val_bs 128
 
 data_hyp: &hyp
   hsv_h: 0.015  # image HSV-Hue augmentation (fraction)

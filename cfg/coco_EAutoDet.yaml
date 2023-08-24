@@ -76,12 +76,14 @@ hooks: &hooks
       accumulate_gradient: *acc_grad
       priority: 30
       save_root: !join [*root_path, arch/]
+      discretize_width: 1.
+      discretize_depth: 1.
   
   eval_hook:
     submodule_name: EvalCOCOmAPHOOK
     args: 
       anno_file: 'data/coco2017/annotations/instances_val2017.json'
-      iou_thres: 0.6
+      iou_thres: 0.7
       conf_thres: 0.001
       eval_by_cocotools: True
       priority: 10
