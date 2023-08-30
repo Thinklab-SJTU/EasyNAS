@@ -1,0 +1,55 @@
+root_path: &root_path runs/coco_EAutoDet-s/validate/
+
+data: &data cfg/dataset/coco_yolo_search.yaml
+model: &model cfg/model/EAutoDet-s.yaml
+
+hooks: &hooks
+  eval_hook:
+    submodule_name: EvalCOCOmAPHOOK
+    args: 
+      anno_file: 'data/coco2017/annotations/instances_val2017.json'
+      iou_thres: 0.6
+      conf_thres: 0.001
+      eval_by_cocotools: True
+      priority: 10
+  
+  ddp_hook:
+    submodule_name: DDPHOOK
+    args:
+      priority: 10
+  
+  log_hook:
+    submodule_name: LogHOOK
+    args:
+      logger_name: ValidatePip
+      log_path: !join [*root_path, validate.log]
+      print_freq: 100
+      only_master: True
+      priority: 20
+  
+  ckpt_hook:
+    submodule_name: CkptHOOK
+    args:
+      save_root: !join [*root_path, ckpt/]
+      pretrain: runs/coco_EAutoDet-s/ckpt/last.pt
+      only_master: True
+      priority: 20
+  
+  ema_hook:
+    submodule_name: EMAHOOK
+    args:
+      decay: 0.9999
+      priority: 5
+
+
+engine:
+  submodule_name: engines.NNEngine
+  args:
+    data: !cross_ref [*data]
+    model: !cross_ref [*model]
+    hooks: *hooks
+    amp: True
+    amp_val: True
+
+
+

@@ -1,5 +1,7 @@
 num_classes: 10
 input_size: 32
+batch_size: &bs 256
+val_batch_size: &val_bs 96
 dataset:
   train:
     submodule_name: src.datasets.CIFAR10
@@ -22,20 +24,20 @@ dataloader:
     dataset_name: train
     portion: 0.5
     dataloader_args:
-      batch_size: 64
+      batch_size: *bs
       pin_memory: True
       num_workers: 4
   search_val:
     dataset_name: train
     portion: 0.5
     dataloader_args:
-      batch_size: 64
+      batch_size: *bs
       pin_memory: True
       num_workers: 4
   val:
     dataset_name: val
     use_dist: False
     dataloader_args:
-      batch_size: 96
+      batch_size: *val_bs
       pin_memory: True
       num_workers: 4

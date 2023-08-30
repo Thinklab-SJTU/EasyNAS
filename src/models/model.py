@@ -149,6 +149,7 @@ class SearchModel(BaseModel, SearchModule):
         self.init_arch_parameters()
         self.info_arch()
 
+
     def init_arch_parameters(self):
         for i, m_ in enumerate(self.model):
             layer, arch_yaml = m_.type, m_.arch_yaml

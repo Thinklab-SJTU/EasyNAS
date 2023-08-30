@@ -125,7 +125,7 @@ args:
         out_channel: 1024
         strides: [1, 2, 4]
         candidate_op: *ss_AFF
-        up_sample_op: 
+        upsample_op: 
           submodule_name: torch.nn.Upsample
           args:
             mode: nearest
@@ -153,7 +153,7 @@ args:
         out_channel: 512
         strides: [0.5, 0.5, 1, 2]
         candidate_op: *ss_AFF
-        up_sample_op: 
+        upsample_op: 
           submodule_name: torch.nn.Upsample
           args:
             mode: nearest
@@ -181,7 +181,7 @@ args:
         out_channel: 256
         strides: [0.5, 0.25, 0.25, 0.5, 1]
         candidate_op: *ss_AFF
-        up_sample_op: 
+        upsample_op: 
           submodule_name: torch.nn.Upsample
           args:
             mode: nearest
@@ -209,7 +209,7 @@ args:
         out_channel: 256
         strides: [1, 0.5, 0.25]
         candidate_op: *ss_AFF
-        up_sample_op: 
+        upsample_op: 
           submodule_name: torch.nn.Upsample
           args:
             mode: nearest
@@ -237,7 +237,7 @@ args:
         out_channel: 512
         strides: [2, 2, 1, 0.5]
         candidate_op: *ss_AFF
-        up_sample_op: 
+        upsample_op: 
           submodule_name: torch.nn.Upsample
           args:
             mode: nearest
@@ -265,7 +265,7 @@ args:
         out_channel: 1024
         strides: [2, 4, 4, 2, 1]
         candidate_op: *ss_AFF
-        up_sample_op: 
+        upsample_op: 
           submodule_name: torch.nn.Upsample
           args:
             mode: nearest

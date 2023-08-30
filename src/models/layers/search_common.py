@@ -16,7 +16,9 @@ __all__ = ["ConvBNAct_search", "SepConvBNAct_search", "AFF", "SPP_search"]
 
 class ConvBNAct_search(SearchModule):
     # Mixed Depthwise Conv https://arxiv.org/abs/1907.09595
-    def __init__(self, in_channel, out_channel, candidate_op=[(1,1), (3,1), (5,1), (3,2)], candidate_ch=[1.], gumbel_op=False, gumbel_channel=True, stride=1, pad=None, group=1, act=True, act_first=False, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True)), independent_ch_arch_param=True, independent_op_arch_param=True, bias=False, merge_kernel=True):
+    def __init__(self, in_channel, out_channel, candidate_op=[(1,1), (3,1), (5,1), (3,2)], candidate_ch=[1.], gumbel_op=False, 
+            gumbel_channel=True, 
+            stride=1, pad=None, group=1, act=True, act_first=False, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True)), independent_ch_arch_param=True, independent_op_arch_param=True, bias=False, merge_kernel=True):
         # k=0 means zero op; d=0 means skip-connection
         super(ConvBNAct_search, self).__init__()
         self.merge_kernel = merge_kernel
@@ -43,7 +45,7 @@ class ConvBNAct_search(SearchModule):
         self.act = get_act(act)
         self.act_first = act_first
 
-        if self.gumbel_channel: self.bn = nn.ModuleList([get_norm(bn, int(self.cout*e)) for e in candidate_ch]) 
+        if bn and self.gumbel_channel: self.bn = nn.ModuleList([get_norm(bn, int(self.cout*e)) for e in candidate_ch]) 
         else: self.bn = get_norm(bn, cout_max)
 
         self.init_arch_parameters(independent_ch_arch_param, independent_op_arch_param)
@@ -110,7 +112,7 @@ class ConvBNAct_search(SearchModule):
 
         
     def forward(self, x, op_alphas=None, ch_alphas=None):
-        x = self.act(x) if self.act_first and self.act is not None else x
+        if self.act_first and self.act: x = self.act(x)
 
         Cin = x.size(1)
         bias = self.bias
@@ -127,7 +129,8 @@ class ConvBNAct_search(SearchModule):
         out = torch.nn.functional.conv2d(x, merge_kernel, stride=self.stride, padding=self.padding, dilation=1, groups=self.group)
         out = out + bias.view(1,-1,1,1) if bias is not None else out
         out = bn(out) if bn is not None else out
-        out = self.act(out) if not self.act_first and self.act is not None else out
+        if (not self.act_first) and self.act: 
+            out = self.act(out)
         return out
 
     def discretize(self, cfg=None, op_alphas=None, ch_alphas=None, edge_alphas=None, num_reserved_op=1, num_reserved_edge=None):
@@ -230,7 +233,7 @@ class AFF(SearchModule):
     #self.adjust_ch_op = edict(submodule_name='ConvBNAct_search', args=dict(candidate_op=[(1,1)], candidate_ch=candidate_ch, gumbel_channel=gumbel_channel, stride=1, bn=False, act=None, independent_ch_arch_param=False))
     def __init__(self, in_channel, out_channel, strides, 
     candidate_op, gumbel_op=False, 
-    auto_refine=False, adjust_ch_op=None, up_sample_op=None, 
+    auto_refine=False, adjust_ch_op=None, upsample_op=None, 
     candidate_ch=[1.], gumbel_channel=True, 
     gumbel_edge=False, 
     act=nn.ReLU(), bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True)), 
@@ -254,7 +257,7 @@ class AFF(SearchModule):
         op_builder = OpBuilder(
               auto_refine=auto_refine,
               adjust_ch_op=adjust_ch_op,
-              upsample_op=up_sample_op
+              upsample_op=upsample_op
         )
         self.m = nn.ModuleList([])
         for cin, s in zip(in_channel, strides):
@@ -297,7 +300,8 @@ class AFF(SearchModule):
                     out = out + op(x, op_alphas=op_alphas[ptr:end_ptr], ch_alphas=ch_alphas)
                 ptr = end_ptr
             else: 
-                out = out + op_alphas[ptr] * op(x)
+                if op_alphas[ptr] > 0:
+                    out = out + op_alphas[ptr] * op(x)
                 ptr += 1
 
         return out
@@ -414,4 +418,5 @@ class SPP_search(SearchModule):
 
     def discretize(self, cfg=None):
         new_cfg = self.init_output_yaml(cfg, outOp_name='SPP')
+        return new_cfg
 

@@ -8,7 +8,8 @@ import torch
 from builder import parse_cfg, get_submodule_by_name
 from distribute_utils import ddp_ctx, get_rank
 
-parser = argparse.ArgumentParser("train")
+parser = argparse.ArgumentParser("Run")
+parser.add_argument('--mode', type=str, default='train', help='train or validate')
 parser.add_argument('--cfg', type=str, help='location of the config file')
 parser.add_argument('--seed', default=-1, type=int,
                     help='random seed')
@@ -45,54 +46,10 @@ def main():
                           local_rank=args.local_rank,
                           )
         print("Engine is running...")
-        engine.run(cfg['epoch'])
-
-#    # build submodules
-#    # build data
-#    print("Building dataloader")
-#    datasets, dataloaders = create_dataloader(cfg['data'])
-#
-#    # parse model
-#    print("Building model")
-##    assert cfg['data']['num_classes'] == cfg['model']['args']['output_ch']
-#    model = create_model(cfg['model'], input_size=cfg['data'].get('input_size', None), local_rank=args.local_rank)
-#
-#    # parse criterion
-#    print("Building criterion")
-#    criterion = create_criterion(cfg['criterion'], local_rank=args.local_rank)
-#
-#    # parse optimizer
-#    print("Building optimizer")
-#    optimizer = create_optimizer(model, cfg['optimizer'], criterion)
-#
-#    # parse scheduler
-#    print("Building lr scheduler")
-#    cfg['lr_scheduler']['args']['optimizer'] = optimizer
-#    scheduler = create_scheduler(cfg['lr_scheduler'])
-#
-#    # parse other hooks
-#    print("Building hooks")
-#    hooks = []
-#    for k, v in cfg['hooks'].items():
-#        if (not v.get('args', {}).get('only_master', False)) or args.local_rank in [-1, 0]:
-#            hooks.append(create_hook(v))
-#
-#
-#    # build trainer
-#    trainer = Trainer(dataloaders=dataloaders, 
-#                      model=model, 
-#                      criterion=criterion, 
-#                      optimizer=optimizer,
-#                      lr_scheduler=scheduler,
-#                      hooks=hooks,
-#                      local_rank=args.local_rank,
-#                      amp=cfg['amp']
-#                      )
-#    print("Training...")
-#    trainer.run(cfg['epoch'])
-#
-#    dist.barrier()
-#    dist.destroy_process_group()
+        if args.mode == 'train':
+            engine.run(cfg['epoch'])
+        elif args.mode == 'validate':
+            engine.validate()
     
 
 if __name__ == '__main__':

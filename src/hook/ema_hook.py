@@ -46,7 +46,7 @@ class ModelEMAHOOK(HOOK):
     def load_state_dict(self, ckpt_ema): 
         self.ema.load_state_dict(ckpt_ema)
 
-    def state_dict(self):
+    def state_dict(self, runner):
         return self.ema.state_dict()
 
     @only_master
@@ -77,33 +77,35 @@ class EMA():
         self.decay = lambda x: decay * (1 - math.exp(-x / 2000))  # decay exponential ramp (to help early epochs)
         self.shadow = {}
         self.backup = {}
+
+    def get_named_parameters(self, model):
+        if isinstance(model, SearchModule):
+            msd = chain(model.named_parameters(), model.named_buffers(), model.named_arch_parameters())
+#            msd = chain(model.named_parameters(), model.named_buffers())
+        else:
+            msd = chain(model.named_parameters(), model.named_buffers())
+        return  msd
  
     def update(self, model):
-        msd = chain(model.named_parameters(), model.named_buffers())
         if self.updates == 0:
-            for name, param in msd:
+            for name, param in self.get_named_parameters(model):
                 if param.dtype.is_floating_point:
                     self.shadow[name] = param.data.clone().detach()
         else:
             d = self.decay(self.updates)
-            for name, param in msd:
+            for name, param in self.get_named_parameters(model):
                 if param.dtype.is_floating_point:
                     self.shadow[name].mul_(d).add_((1.0 - d) * param.detach())
         self.updates += 1
  
     def apply_shadow(self, model):
-        msd = chain(model.named_parameters(), model.named_buffers())
-        for name, param in msd:
+        for name, param in self.get_named_parameters(model):
             if param.dtype.is_floating_point:
                 self.backup[name] = param.data #.clone().detach()
                 param.data = self.shadow[name]
  
     def restore(self, model):
-#        if isinstance(model, SearchModule):
-#            msd = chain(model.named_parameters(), model.named_buffers(), model.named_arch_parameters())
-#        else:
-        msd = chain(model.named_parameters(), model.named_buffers())
-        for name, param in msd:
+        for name, param in self.get_named_parameters(model):
             if param.dtype.is_floating_point:
                 param.data = self.backup[name]
         self.backup = {}
@@ -129,7 +131,7 @@ class EMAHOOK(HOOK):
     def load_state_dict(self, ckpt_ema): 
         self.ema.load_state_dict(ckpt_ema)
 
-    def state_dict(self):
+    def state_dict(self, runner):
         return self.ema.state_dict()
 
     @only_master

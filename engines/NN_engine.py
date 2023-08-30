@@ -8,7 +8,7 @@ from builder import create_dataloader, create_model, create_optimizer, create_cr
 from src.hook import HOOK, OptHOOK, hooks_run, hooks_epoch, hooks_train_epoch, hooks_val_epoch, hooks_train_iter, hooks_val_iter
 
 class NNEngine(object):
-    def __init__(self, data, model, criterion, optimizer, lr_scheduler, hooks=tuple(), local_rank=-1, sync_bn=False, amp=False, amp_val=False):
+    def __init__(self, data, model, criterion=None, optimizer=None, lr_scheduler=None, hooks=tuple(), local_rank=-1, sync_bn=False, amp=False, amp_val=False):
 
         self.local_rank = local_rank
         self.device = torch.device('cuda', max(local_rank, 0))
@@ -60,17 +60,23 @@ class NNEngine(object):
         model = create_model(model_cfg, input_size=data_cfg.get('input_size', None), local_rank=self.local_rank)
 
         # build criterion
-        print("Building criterion")
-        criterion = create_criterion(criterion_cfg, local_rank=self.local_rank).to(self.device)
+        if criterion_cfg:
+            print("Building criterion")
+            criterion = create_criterion(criterion_cfg, local_rank=self.local_rank).to(self.device)
+        else: criterion = None
 
         # build optimizer
-        print("Building optimizer")
-        optimizer = create_optimizer(model, optimizer_cfg, criterion)
+        if optimizer_cfg:
+            print("Building optimizer")
+            optimizer = create_optimizer(model, optimizer_cfg, criterion)
+        else: optimizer = None
 
         # build scheduler
-        print("Building lr scheduler")
-        lr_scheduler_cfg['args']['optimizer'] = optimizer
-        lr_scheduler = create_scheduler(lr_scheduler_cfg)
+        if lr_scheduler_cfg:
+            print("Building lr scheduler")
+            lr_scheduler_cfg['args']['optimizer'] = optimizer
+            lr_scheduler = create_scheduler(lr_scheduler_cfg)
+        else: lr_scheduler = None
 
         # build other hooks
         print("Building hooks")
@@ -188,4 +194,19 @@ class NNEngine(object):
                         with hooks_val_epoch(self._hooks, self):
                             self.val(self.val_loader, self.model, self.criterion)
 #        self.call_hook('after_run')
+
+    def validate(self):
+        import json
+        alpha_file = "runs/coco_EAutoDet-s/arch/alpha_49.json"
+        with open(alpha_file, 'r') as f:
+            arch_param = json.load(f)
+        with torch.no_grad():
+            for n, p in self.model.named_arch_parameters():
+                assert n in arch_param
+                p.copy_(torch.tensor(arch_param[n]))
+
+        with hooks_run(self._hooks, self):
+            self.model.eval()
+            with hooks_val_epoch(self._hooks, self):
+                self.val(self.val_loader, self.model, self.criterion)
         

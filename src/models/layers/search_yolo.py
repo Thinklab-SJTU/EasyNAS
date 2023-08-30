@@ -83,9 +83,9 @@ class YOLOC3_search(SearchModule):
         if ch_alphas is not None:
             ch_alphas_idx = self.get_reserved_idx(1, ch_alphas)[0]
             if cfg is not None:
-                args['out_channel'] = cfg['args']['out_channel'] * cfg['args']['candidate_ch'][ch_alphas_idx]
+                args['out_channel'] = cfg['args']['out_channel'] * cfg['args']['search_out_channel'][ch_alphas_idx]
             else:
-                args['out_channel'] = self.out_channel * self.candidate_ch[ch_alphas_idx]
+                args['out_channel'] = self.out_channel * self.search_out_channel[ch_alphas_idx]
         kernel, dilation, e_bottleneck = [], [], []
         for m in self.m:
             if op_alphas is None: op_alphas = m.cv2.op_alphas
@@ -111,13 +111,14 @@ class YOLODetect_search(YOLODetect, SearchModule):
         super(YOLODetect_search, self).__init__(in_channel, strides, num_classes=num_classes, anchors=anchors)
 
     def _initialize_modules(self, in_channel):
-        self.m = nn.ModuleList(ConvBNAct_search(x, self.no * self.na, candidate_op=[(1,1)], candidate_ch=[1.], stride=1, bias=False, act=nn.SiLU, bn=nn.BatchNorm2d) for x in in_channel)  # output conv
+#        self.m = nn.ModuleList(ConvBNAct_search(x, self.no * self.na, candidate_op=[(1,1)], candidate_ch=[1.], stride=1, bias=False, act=nn.SiLU, bn=nn.BatchNorm2d) for x in in_channel)  # output conv
+        self.m = nn.ModuleList(ConvBNAct_search(x, self.no * self.na, candidate_op=[(1,1)], candidate_ch=[1.], stride=1, bias=False, act=nn.SiLU, bn=None) for x in in_channel)  # output conv
 
     def _initialize_biases(self, cf=None):  # initialize biases into Detect(), cf is class frequency
         # https://arxiv.org/abs/1708.02002 section 3.3
         # cf = torch.bincount(torch.tensor(np.concatenate(dataset.labels, 0)[:, 0]).long(), minlength=nc) + 1.
         self.bias = nn.ParameterList([])
-        for mi, s in zip(self.m, self.strides):  # from
+        for s in self.strides:  # from
             b = torch.zeros(self.na, self.no)  # conv.bias(255) to (3,85)
             b.data[:, 4] += math.log(8 / (640 / s) ** 2)  # obj (8 objects per 640 image)
             b.data[:, 5:] += math.log(0.6 / (self.nc - 0.99)) if cf is None else torch.log(cf / cf.sum())  # cls

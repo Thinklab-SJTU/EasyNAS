@@ -1,10 +1,6 @@
 #!/bin/sh
 
-#cfg=cfg/coco_yolov5s.yaml
-#cfg=cfg/coco_EAutoDet.yaml
-#cfg=cfg/coco_retrain_EAutoDet.yaml
-#cfg=cfg/cifar10_gdas.yaml
-cfg=cfg/cifar10_retrain_gdas.yaml
+cfg=cfg/validate/coco_EAutoDet.yaml
 
 gpu=( $@ )
 gpu_num=$#
@@ -30,15 +26,13 @@ case $Answer in
     Yes|yes|y|Y|"")
 #        echo "Start the process. Log file is saved to logs/${NAME}.log"
         CUDA_VISIBLE_DEVICES=$gpustr ${START_CMD} app/train.py \
+		--mode validate \
 		--cfg ${cfg} \
-		> logs/retrain_gdas_bs256.log 2>& 1 &
-#		> logs/EAutoDet-s_EMA_noBNinDetect.log 2>&1 &
-#		> logs/EAutoDet-s_EMA_noBNinDetect.log 2>&1 &
-#                > logs/yolov5s.log 2>&1 &
-#        	> logs/retrain_mergenas_noPermutation_noEdgeAlpha_noCutout_noActEachOp_SepConvInterReLU_alphaInit1e-3_actBeforeOp_gradClip5_noInitW_updateFreq1_withZeroOp.log 2>&1 &
+#		> logs/validate.log 2>&1 &
         ;;
     No|no|N|n)
         echo "The process is killed!"
         ;;
 esac
+
 

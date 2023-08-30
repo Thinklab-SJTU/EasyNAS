@@ -16,41 +16,7 @@ class SearchModule(nn.Module):
     def __init__(self, *args, **kwargs):
         super(SearchModule, self).__init__()
         self._arch_parameters = {}
-
-    def set_outOp(self, name=None):
-        setattr(self, 'outOp_name', self.__class__.__name__.rstrip("_search") if name is None else name)
-        setattr(self, 'outOp', get_layer(self.outOp_name))
-
-    def init_output_yaml(self, arch_yaml=None, outOp_name=None, input_idx=-1, **kwargs):
-        if outOp_name is not None:
-            outOp = get_layer(outOp_name)
-        elif hasattr(self, 'outOp_name'):
-            outOp_name, outOp = self.outOp_name, self.outOp
-        else:
-            self.set_outOp()
-            outOp_name, outOp = self.outOp_name, self.outOp
-
-#            arch_yaml = {
-#                'args': {k: getattr(self, k) for k in inspect.signature(self.__init__).parameters.keys() if hassttr(self, k)}
-#                }
-        if arch_yaml is None:
-            new_arch = dict(submodule_name=outOp_name, input_idx=input_idx, args={})
-        else:
-            new_arch = deepcopy(arch_yaml)
-            new_arch['submodule_name'] = outOp_name
-            new_arch['input_idx'] = input_idx
-
-        # del unused variables
-        need_key = inspect.signature(outOp.__init__).parameters.keys()
-        if arch_yaml is not None:
-            for k in arch_yaml['args'].keys():
-                if k not in need_key: del new_arch['args'][k]
-
-        for k, v in kwargs.items():
-            assert k in need_key
-            new_arch['args'][k] = v
-
-        return new_arch
+        self._temperatures = {}
 
     def init_arch_parameters(self, arch_name, *shape):
 #        arch_param = 1e-3*torch.randn(*shape, requires_grad=True)
@@ -60,6 +26,22 @@ class SearchModule(nn.Module):
             delattr(self, arch_name)
         setattr(self, arch_name, arch_param)
         self._arch_parameters[arch_name] = arch_param
+        self._temperatures[arch_name] = 1.0
+
+    def get_arch_parameters_name(self, alpha):
+        for k, v in self._arch_parameters.items():
+            if v is alpha: return k
+        raise(ValueError("Can not find the arch parameter"))
+
+    def get_temperature(self, name):
+        return self._temperatures.get(name, 1.)
+
+    def set_temperature(self, name, value):
+        if name is None or name=='all':
+            for n in self._temperatures:
+                self._temperatures[n] = value
+        else:
+            self._temperatures[name] = value
 
     def apply_arch_parameters(self, fn, recurse=True, memo=None):
         if memo is None:
@@ -95,7 +77,7 @@ class SearchModule(nn.Module):
 
 
 
-    def set_arch_parameters(self, module_or_dict, recurse=True, memo=None):
+    def set_arch_parameters(self, module_or_dict, temperature_dict=None, recurse=True, memo=None):
         if memo is None:
             memo = set()
         if isinstance(module_or_dict, dict):
@@ -105,11 +87,15 @@ class SearchModule(nn.Module):
                 self._arch_parameters[na] = np
                 delattr(self, na)
                 setattr(self, na, np)
+            if temperature_dict is not None:
+                for na, np in temperature_dict.items():
+                    assert na in self._temperatures
+                    self._temperatures[na] = np
 
         elif isinstance(module_or_dict, SearchModule):
             if module_or_dict in memo: return 
             memo.add(module_or_dict)
-            self.set_arch_parameters(module_or_dict._arch_parameters)
+            self.set_arch_parameters(module_or_dict._arch_parameters, module_or_dict._temperatures)
             if recurse:
                 src_named_modules = {k: v for k, v in module_or_dict.named_modules(prefix="") if isinstance(v, SearchModule)}
                 for dist_name, dist_module in self.named_modules(prefix=""):
@@ -129,8 +115,10 @@ class SearchModule(nn.Module):
             )
         yield from gen
 
-    def norm_arch_parameters(self, alphas, gumbel=False):
-        return gumbel_softmax(F.log_softmax(alphas, dim=-1), hard=True) if gumbel else nn.functional.softmax(alphas, dim=-1)
+    def norm_arch_parameters(self, alphas, gumbel=False, temperature=None):
+        if temperature is None:
+            temperature = self.get_temperature(self.get_arch_parameters_name(alphas))
+        return gumbel_softmax(F.log_softmax(alphas, dim=-1), temperature=temperature, hard=True) if gumbel else nn.functional.softmax(alphas/temperature, dim=-1)
 
     def get_norm_layer(self, ch_alphas, bn, gumbel_channel=True):
         return bn[ch_alphas.argmax()] if gumbel_channel and isinstance(bn, nn.ModuleList) else bn
@@ -141,6 +129,45 @@ class SearchModule(nn.Module):
     def discretize(self):
         raise(NotImplementedError(f"No Implementation of genotype func for {self}"))
 
+    def set_outOp(self, name=None):
+        setattr(self, 'outOp_name', self.__class__.__name__.rstrip("_search") if name is None else name)
+        setattr(self, 'outOp', get_layer(self.outOp_name))
+
+    def init_output_yaml(self, arch_yaml=None, outOp_name=None, input_idx=None, **kwargs):
+        if input_idx is None:
+            input_idx = -1 if arch_yaml is None else arch_yaml['input_idx']
+
+        if outOp_name is not None:
+            outOp = get_layer(outOp_name)
+        elif hasattr(self, 'outOp_name'):
+            outOp_name, outOp = self.outOp_name, self.outOp
+        else:
+            self.set_outOp()
+            outOp_name, outOp = self.outOp_name, self.outOp
+
+#            arch_yaml = {
+#                'args': {k: getattr(self, k) for k in inspect.signature(self.__init__).parameters.keys() if hassttr(self, k)}
+#                }
+        if arch_yaml is None:
+            new_arch = dict(submodule_name=outOp_name, input_idx=input_idx, args={})
+        else:
+            new_arch = deepcopy(arch_yaml)
+            new_arch['submodule_name'] = outOp_name
+            new_arch['input_idx'] = input_idx
+
+        # del unused variables
+        need_key = inspect.signature(outOp.__init__).parameters.keys()
+        if arch_yaml is not None:
+            for k in arch_yaml['args'].keys():
+                if k not in need_key: del new_arch['args'][k]
+
+        for k, v in kwargs.items():
+            assert k in need_key
+            new_arch['args'][k] = v
+
+        return new_arch
+
+
     def forward(self, x):
         raise(NotImplementedError("No implementation"))
 
@@ -148,15 +175,19 @@ class OpBuilder(object):
     def __init__(self, auto_refine=False, adjust_ch_op=None, upsample_op=None): 
         self.auto_refine = auto_refine
         self.adjust_ch_op = edict(submodule_name='ConvBNAct', args=dict(kernel=1, dilation=1, bn=False, act=None)) if adjust_ch_op is None else adjust_ch_op
-        self.upsample_op = edict(submodule_name=nn.Upsample, args=dict(size=None, scale_factor=None, mode='nearest', align_corners=None)) if upsample_op is None else edict(upsample_op)
+        self.upsample_op = edict(submodule_name='torch.nn.Upsample', args=dict(size=None, scale_factor=None, mode='nearest', align_corners=None)) if upsample_op is None else edict(upsample_op)
 
     def refine_C_stride_sequence(self, op, in_channel, out_channel, stride, **update_args):
         if isinstance(op, (tuple, list)):
             Warning("Sequential op will set the out_channel of last op as cout, and set the out_channel and in_channel of other ops as cin; set stride of first op as stride and set others' as 1.")
-            op = list(op)
+            op, refined_op = list(op), []
             for i in range(len(op)-1):
                 op[i], stride = self.refine_C_stride_sequence(op[i], in_channel, in_channel, stride, **update_args)
             op[-1], s = self.refine_C_stride_sequence(op[-1], in_channel, out_channel, stride, **update_args)
+            for tmp in op:
+                if isinstance(tmp, list): refined_op.extend(tmp)
+                else: refined_op.append(tmp)
+            op = refined_op
         elif isinstance(op, (dict, edict)):
             op = edict(op)
             up_s, s = int(1./stride), max(1, stride)

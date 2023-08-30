@@ -10,7 +10,7 @@ class LrScheduleHOOK(HOOK):
     def before_run(self, runner):
         self.lr_scheduler = runner.lr_scheduler
 
-    def state_dict(self):
+    def state_dict(self, runner):
         return self.lr_scheduler.state_dict()
 
     def load_state_dict(self, state_dict):

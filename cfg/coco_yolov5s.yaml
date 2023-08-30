@@ -1,4 +1,4 @@
-root_path: &root_path runs/coco_yolov5s_v2_ModelEma_halfVal/
+root_path: &root_path runs/coco_yolov5s/
 epoch: &epoch 300
 accumulate_gradient: &acc_grad 1
 
@@ -10,7 +10,8 @@ train_hyp: &hyp
   lr0: &lr0 0.01  # initial learning rate (SGD=1E-2, Adam=1E-3)
   lrf: &lrf 0.2  # final OneCycleLR learning rate (lr0 * lrf)
   momentum: &momentum 0.937  # SGD momentum/Adam beta1
-  weight_decay: &wd !expr ['0.0005/64*', !cross_ref [!join [*data, ":batch_size"]]]  # optimizer weight decay 5e-4 * bs / 64
+  weight_decay: &wd 0.0005
+  #  weight_decay: &wd !expr ['0.0005/64*', !cross_ref [!join [*data, ":batch_size"]]]  # optimizer weight decay 5e-4 * bs / 64
   warmup_epochs: 3.0  # warmup epochs (fractions ok)
   warmup_init_momentum: &warmup_init_momentum 0.8 
   warmup_bias_lr: &warmup_bias_lr 0.1  
