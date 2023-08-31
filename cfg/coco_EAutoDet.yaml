@@ -1,4 +1,4 @@
-root_path: &root_path runs/coco_EAutoDet-s/
+root_path: &root_path runs/coco_EAutoDet-s_noActBNinDetect/
 epoch: &epoch 50
 accumulate_gradient: &acc_grad 1
 
@@ -36,7 +36,7 @@ train_hyp: &hyp
 optimizer: &optimizer
   submodule_name: torch.optim.SGD
   args:
-    params: [{'params': conv_parameters, 'weight_decay': *wd}, {'params': bias_parameters}, {'params': all_parameters}]
+    params: [{'params': bn_parameters}, {'params': bias_parameters}, {'params': all_parameters, 'weight_decay': *wd}]
     lr: *lr0
     momentum: *momentum
     nesterov: True

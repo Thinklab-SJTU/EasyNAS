@@ -146,6 +146,7 @@ class SearchModel(BaseModel, SearchModule):
         super(SearchModel, self).__init__(architecture, output_ch, input_ch=input_ch, input_size=input_size, 
                 depth_multiple=depth_multiple, width_multiple=width_multiple,
                 log_path=log_path, init_func=init_func, local_rank=local_rank)
+
         self.init_arch_parameters()
         self.info_arch()
 

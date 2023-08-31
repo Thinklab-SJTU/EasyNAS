@@ -51,8 +51,8 @@ class YOLOC3_search(SearchModule):
 
         out_channel = out_channel * max(self.search_out_channel)
         c_ = int(out_channel * expansion)  # hidden channels
-        self.cv1 = ConvBNAct_search(in_channel, c_, candidate_op=[(1,1)], candidate_ch=self.search_out_channel, stride=1, gumbel_channel=gumbel_channel, independent_ch_arch_param=False, merge_kernel=merge_kernel, bn=nn.BatchNorm2d, act=nn.SiLU())
-        self.cv2 = ConvBNAct_search(in_channel, c_, candidate_op=[(1,1)], candidate_ch=self.search_out_channel, stride=1, gumbel_channel=gumbel_channel, independent_ch_arch_param=False, merge_kernel=merge_kernel, bn=nn.BatchNorm2d, act=nn.SiLU())
+        self.cv1 = ConvBNAct_search(in_channel, c_, candidate_op=[(1,1)], candidate_ch=self.search_out_channel, stride=1, gumbel_channel=gumbel_channel, independent_ch_arch_param=False, merge_kernel=merge_kernel, bn=nn.BatchNorm2d, act=nn.SiLU)
+        self.cv2 = ConvBNAct_search(in_channel, c_, candidate_op=[(1,1)], candidate_ch=self.search_out_channel, stride=1, gumbel_channel=gumbel_channel, independent_ch_arch_param=False, merge_kernel=merge_kernel, bn=nn.BatchNorm2d, act=nn.SiLU)
         if gumbel_channel:
             self.cv3 = nn.ModuleList([ConvBNAct_search(c_, out_channel, candidate_op=[(1,1)], candidate_ch=self.search_out_channel, stride=1, gumbel_channel=gumbel_channel, act=False, bn=False, independent_ch_arch_param=False) for _ in range(2)])  
             self.cv3_bn = nn.ModuleList([nn.BatchNorm2d(int(out_channel*e)) for e in self.search_out_channel])
@@ -111,18 +111,16 @@ class YOLODetect_search(YOLODetect, SearchModule):
         super(YOLODetect_search, self).__init__(in_channel, strides, num_classes=num_classes, anchors=anchors)
 
     def _initialize_modules(self, in_channel):
-#        self.m = nn.ModuleList(ConvBNAct_search(x, self.no * self.na, candidate_op=[(1,1)], candidate_ch=[1.], stride=1, bias=False, act=nn.SiLU, bn=nn.BatchNorm2d) for x in in_channel)  # output conv
-        self.m = nn.ModuleList(ConvBNAct_search(x, self.no * self.na, candidate_op=[(1,1)], candidate_ch=[1.], stride=1, bias=False, act=nn.SiLU, bn=None) for x in in_channel)  # output conv
+        self.m = nn.ModuleList(ConvBNAct_search(x, self.no * self.na, candidate_op=[(1,1)], candidate_ch=[1.], stride=1, bias=False, act=nn.SiLU, bn=nn.BatchNorm2d) for x in in_channel)  # output conv
+#        self.m = nn.ModuleList(ConvBNAct_search(x, self.no * self.na, candidate_op=[(1,1)], candidate_ch=[1.], stride=1, bias=False, act=None, bn=None) for x in in_channel)  # output conv
 
     def _initialize_biases(self, cf=None):  # initialize biases into Detect(), cf is class frequency
         # https://arxiv.org/abs/1708.02002 section 3.3
         # cf = torch.bincount(torch.tensor(np.concatenate(dataset.labels, 0)[:, 0]).long(), minlength=nc) + 1.
-        self.bias = nn.ParameterList([])
-        for s in self.strides:  # from
-            b = torch.zeros(self.na, self.no)  # conv.bias(255) to (3,85)
-            b.data[:, 4] += math.log(8 / (640 / s) ** 2)  # obj (8 objects per 640 image)
-            b.data[:, 5:] += math.log(0.6 / (self.nc - 0.99)) if cf is None else torch.log(cf / cf.sum())  # cls
-            self.bias.append(torch.nn.Parameter(b.view(-1), requires_grad=True))
+        self.bias = torch.nn.Parameter(torch.zeros(len(self.strides), self.na, self.no), requires_grad=True)
+        for i, s in enumerate(self.strides):  # from
+            self.bias.data[i, :, 4] += math.log(8 / (640 / s) ** 2)  # obj (8 objects per 640 image)
+        self.bias.data[:, :, 5:] += math.log(0.6 / (self.nc - 0.99)) if cf is None else torch.log(cf / cf.sum())  # cls
 
     def discretize(self, cfg=None, op_alphas=None, ch_alphas=None, edge_alphas=None, num_reserved_op=1, num_reserved_edge=2):
         return self.init_output_yaml(cfg, outOp_name='YOLODetect')

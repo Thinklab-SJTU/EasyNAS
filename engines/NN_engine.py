@@ -17,16 +17,6 @@ class NNEngine(object):
         self.train_loader, self.val_loader, self.test_loader = self.dataloaders.get('train', None), self.dataloaders.get('val', None), self.dataloaders.get('test', None)
         assert self.train_loader is not None
 
-#        for i, (img, target, path, shapes) in enumerate(self.val_loader):
-#            print(path)
-#            model.train()
-#            logits = model(img.to(self.device))
-#            logits = [torch.ones_like(l)*0.1 for l in logits]
-#            loss = self.criterion(logits, target.to(self.device))
-#            print(loss)
-#            if i == 0: break
-#        assert 0
-
         self.amp, self.amp_val = amp, amp_val
         self.scaler = torch.cuda.amp.GradScaler(enabled=True) if amp else None
 
@@ -39,6 +29,7 @@ class NNEngine(object):
         else:
             self.model = model
 #            self.model = model.to(self.device)
+
 
         self.start_epoch = 0
         self._hooks = []

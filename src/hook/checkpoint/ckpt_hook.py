@@ -76,7 +76,7 @@ class CkptHOOK(HOOK):
     def save_model(self, runner):
 #        model_name = runner.info['current_epoch']
         self._save_model(runner, 'last.pt')
-        if runner.info.get('is_best', False):
+        if runner.info.results.get('is_best', False):
             self._save_model(runner, 'best.pt')
         
 
