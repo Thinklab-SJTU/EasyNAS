@@ -246,16 +246,21 @@ class YOLODetect(nn.Module):
         self._initialize_biases()
 
     def _initialize_modules(self, in_channel):
-        self.m = nn.ModuleList(nn.Conv2d(x, self.no * self.na, 1) for x in in_channel)  # output conv
+#        self.m = nn.ModuleList(nn.Conv2d(x, self.no * self.na, 1) for x in in_channel)  # output conv
+        self.m = nn.ModuleList(ConvBNAct(x, self.no * self.na, kernel=1, dilation=1, stride=1, bn=nn.BatchNorm2d, act=nn.SiLU) for x in in_channel)  # output conv
 
     def _initialize_biases(self, cf=None):  # initialize biases into Detect(), cf is class frequency
         # https://arxiv.org/abs/1708.02002 section 3.3
         # cf = torch.bincount(torch.tensor(np.concatenate(dataset.labels, 0)[:, 0]).long(), minlength=nc) + 1.
-        for mi, s in zip(self.m, self.strides):  # from
-            b = mi.bias.view(self.na, -1)  # conv.bias(255) to (3,85)
-            b.data[:, 4] += math.log(8 / (640 / s) ** 2)  # obj (8 objects per 640 image)
-            b.data[:, 5:] += math.log(0.6 / (self.nc - 0.99)) if cf is None else torch.log(cf / cf.sum())  # cls
-            mi.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
+#        for mi, s in zip(self.m, self.strides):  # from
+#            b = mi.bias.view(self.na, -1)  # conv.bias(255) to (3,85)
+#            b.data[:, 4] += math.log(8 / (640 / s) ** 2)  # obj (8 objects per 640 image)
+#            b.data[:, 5:] += math.log(0.6 / (self.nc - 0.99)) if cf is None else torch.log(cf / cf.sum())  # cls
+#            mi.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
+        self.bias = torch.nn.Parameter(torch.zeros(len(self.strides), self.na, self.no), requires_grad=True)
+        for i, s in enumerate(self.strides):  # from
+            self.bias.data[i, :, 4] += math.log(8 / (640 / s) ** 2)  # obj (8 objects per 640 image)
+        self.bias.data[:, :, 5:] += math.log(0.6 / (self.nc - 0.99)) if cf is None else torch.log(cf / cf.sum())  # cls
 
     def forward(self, x):
         # x = x.copy()  # for profiling

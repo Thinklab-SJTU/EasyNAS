@@ -1,4 +1,4 @@
-root_path: &root_path runs/cifar10_noPermutation_mergenas_noEdgeAlpha_noCutout_SepConvInterReLU_alphaInit1e-3_actBeforeOp_gradClip5_noInitW_updateFreq1_withZeroOp/
+root_path: &root_path runs/cifar10_mergenas_bs64/
 epoch: &epoch 50
 accumulate_gradient: &acc_grad 1
 

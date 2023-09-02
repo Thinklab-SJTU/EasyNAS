@@ -1,6 +1,6 @@
 num_classes: 10
 input_size: 32
-batch_size: &bs 256
+batch_size: &bs 64
 val_batch_size: &val_bs 96
 dataset:
   train:

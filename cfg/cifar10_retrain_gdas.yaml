@@ -109,7 +109,7 @@ hooks: &hooks
     submodule_name: CkptHOOK
     args:
       save_root: !join [*root_path, ckpt/]
-      pretrain: 
+      pretrain: !join [*root_path, ckpt/last.pt]
       only_master: True
       priority: 20
   

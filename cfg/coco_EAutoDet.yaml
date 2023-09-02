@@ -1,4 +1,4 @@
-root_path: &root_path runs/coco_EAutoDet-s_noActBNinDetect/
+root_path: &root_path runs/coco_EAutoDet-s/
 epoch: &epoch 50
 accumulate_gradient: &acc_grad 1
 
