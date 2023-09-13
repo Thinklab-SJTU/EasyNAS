@@ -20,7 +20,7 @@ parser.add_argument('--dist_backend', default='nccl', help='backend of distribut
 
 args = parser.parse_args()
 
-def main():
+def main(args):
     # fix the seed for reproducibility
     args.seed = args.seed if args.seed >= 0 else random.randint(0, 1e4)
     seed = args.seed + get_rank()
@@ -53,4 +53,4 @@ def main():
     
 
 if __name__ == '__main__':
-    main()
+    main(args)

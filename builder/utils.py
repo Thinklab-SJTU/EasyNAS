@@ -8,6 +8,8 @@ from easydict import EasyDict as edict
 import yaml
 import importlib
 
+from src.search_space.base import SearchSpace
+
 
 def _get_submodule(submodule_name: str, module_name: str='dataset.datasets', package_path: str=None):
 #    print(importlib.util.find_spec("dataset.datasets"))
@@ -21,7 +23,7 @@ def _get_submodule(submodule_name: str, module_name: str='dataset.datasets', pac
         try:
             submodule= getattr(module, submodule_name)
             return submodule
-        except AttributeError:
+        except AttributeError as e:
             raise(ImportError(e))
         except Exception as e:
             raise(e)
@@ -58,7 +60,10 @@ def get_submodule_by_name(name, search_path=None, loaded_submodule=None):
                 if not name.startswith(p):
                     try:
                         submodule = get_submodule_by_name('.'.join([p, name]))
-                    except: pass
+                    except ImportError:
+                        pass
+                    except Exception as ee:
+                        raise(ee)
                     else:
                         if loaded_submodule:
                             loaded_submodule[name] = submodule
@@ -85,7 +90,7 @@ def parse_cfg(yaml_file):
     if isinstance(tmp_cfg, dict):
         cfg = {}
         for k, v in tmp_cfg.items():
-            cfg[k] = parse_cfg(v) if isinstance(v, str) and os.path.isfile(v) else v
+            cfg[k] = parse_cfg(v) if isinstance(v, str) and v.endswith('yaml') and os.path.isfile(v) else v
     elif isinstance(tmp_cfg, list):
         cfg = []
         for v in tmp_cfg:
@@ -128,13 +133,18 @@ class CfgLoader(yaml.SafeLoader):
             else:
                 data[k] = v
 
-    # !include [crossFile]
+    # !include crossFile
     # !include [crossFile, dict(kwargs)]
-    # !include [crossFile:key1:key2:...]
+    # !include crossFile:key1:key2:...
     # !include [crossFile:key1:key2:..., dict(kwargs)]
     def construct_crossRef(self, node):
-        crossRef_replaceArgs = self.construct_sequence(node, deep=True)
-        crossRef = crossRef_replaceArgs[0].split(':')
+        if isinstance(node, yaml.ScalarNode):
+            crossRef, replaceArgs = self.construct_scalar(node), {}
+        elif isinstance(node, yaml.SequenceNode):
+            crossRef_replaceArgs = self.construct_sequence(node, deep=True)
+            crossRef, replaceArgs = crossRef_replaceArgs[0], {} if len(crossRef_replaceArgs)==1 else crossRef_replaceArgs[1]
+
+        crossRef = crossRef.split(':')
         with open(crossRef[0], 'r') as f:
             data = yaml.load(f.read(), CfgLoader)
         if len(crossRef) == 2:
@@ -142,8 +152,8 @@ class CfgLoader(yaml.SafeLoader):
         elif len(crossRef) > 2:
             data = {k: data[k] for k in crossRef[1:]}
 
-        if len(crossRef_replaceArgs) > 1:
-            self._update_dict(self, data, crossRef_replaceArgs[1])
+        if replaceArgs:
+            self._update_dict(self, data, replaceArgs)
 #            data.update(crossRef_replaceArgs[1])
         return data
 
@@ -155,6 +165,21 @@ class CfgLoader(yaml.SafeLoader):
         check_standard_expr(expr)
         return eval(expr)
 
+    def construct_search_space(self, node):
+        if isinstance(node, yaml.ScalarNode):
+            ss_args = {'candidates': self.construct_scalar(node)}
+        elif isinstance(node, yaml.SequenceNode):
+            ss_args = {'candidates': self.construct_sequence(node, deep=True)}
+        elif isinstance(node, yaml.MappingNode):
+            ss_args = self.construct_mapping(node, deep=True)
+            return SearchSpace(**ss_args)
+#        def foo_constructor(loader, node):
+#            instance = Foo.__new__(Foo)
+#            yield instance
+#            state = loader.construct_mapping(node, deep=True)
+#            instance.__init__(**state)
+
+
 CfgLoader.add_constructor(
     '!tuple', CfgLoader.construct_python_tuple)
 CfgLoader.add_constructor('!join', CfgLoader.join)
@@ -163,6 +188,7 @@ CfgLoader.add_constructor('!get_func', CfgLoader.get_module)
 CfgLoader.add_constructor('!edict', CfgLoader.construct_python_edict)
 CfgLoader.add_constructor('!cross_ref', CfgLoader.construct_crossRef)
 CfgLoader.add_constructor('!expr', CfgLoader.construct_expression)
+CfgLoader.add_constructor('!search_space', CfgLoader.construct_search_space)
 
 class CfgDumper(yaml.SafeDumper):
     def represent_python_edict(self, data):

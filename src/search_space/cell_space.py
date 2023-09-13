@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 from easydict import EasyDict as edict
 
-#from .base import OP_CFG
 from builder.utils import get_submodule_by_name
 
 def get_search_space(ss):

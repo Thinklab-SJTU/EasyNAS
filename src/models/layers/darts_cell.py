@@ -6,7 +6,7 @@ from torch.autograd import Variable
 #from mish_cuda import MishCuda as Mish
 
 from .base import SearchModule
-from .search_space import get_search_space, darts
+from src.search_space.cell_space import get_search_space, darts
 from .common import ConvBNAct, FactorizedReduce
 from .search_common import AFF
 from .utils import get_act, get_layer

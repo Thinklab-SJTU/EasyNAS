@@ -6,8 +6,9 @@ import torch
 
 from builder import create_dataloader, create_model, create_optimizer, create_criterion, create_hook, create_scheduler
 from src.hook import HOOK, OptHOOK, hooks_run, hooks_epoch, hooks_train_epoch, hooks_val_epoch, hooks_train_iter, hooks_val_iter
+from .base import BaseEngine
 
-class NNEngine(object):
+class NNEngine(BaseEngine):
     def __init__(self, data, model, criterion=None, optimizer=None, lr_scheduler=None, hooks=tuple(), local_rank=-1, sync_bn=False, amp=False, amp_val=False):
 
         self.local_rank = local_rank
@@ -79,42 +80,8 @@ class NNEngine(object):
                 hooks.append(create_hook(v))
         return dataloaders, model, criterion, optimizer, lr_scheduler, hooks
 
-    @property
-    def hooks(self):
-        return self._hooks
-
     def is_ddp(self):
         return self.local_rank >= 0
-
-    def register_hook(self, hook: HOOK, priority: int=-1):
-        """Register a hook into the hook list.
-        The hook will be inserted into a priority queue, with the specified
-        priority (See :class:`Priority` for details of priorities).
-        For hooks with the same priority, they will be triggered in the same
-        order as they are registered.
-        Args:
-            hook (:obj:`Hook`): The hook to be registered.
-            priority (int or str or :obj:`Priority`): Hook priority.
-                Lower value means higher priority.
-        """
-        assert isinstance(hook, HOOK)
-        if priority < 0:
-            assert hasattr(hook, 'priority')
-        else:
-            hook.priority = priority
-        # insert the hook to a sorted list
-        idx = bisect.bisect_right([h.priority for h in self._hooks], hook.priority)
-        self._hooks.insert(idx, hook)
-
-    def call_hook(self, fn_name:str):
-        """Call all hooks.
-        Args:
-            fn_name (str): The function name in each hook to be called, such as
-                "before_train_epoch".
-        """
-        for hook in self._hooks:
-            if getattr(hook, 'only_master', False) and self.local_rank not in [-1, 0]: continue
-            getattr(hook, fn_name)(self)
 
     def train_one_epoch(self, train_loader, model, criterion):
 #        if self.amp: model.half()
@@ -187,14 +154,14 @@ class NNEngine(object):
 #        self.call_hook('after_run')
 
     def validate(self):
-        import json
-        alpha_file = "runs/coco_EAutoDet-s/arch/alpha_49.json"
-        with open(alpha_file, 'r') as f:
-            arch_param = json.load(f)
-        with torch.no_grad():
-            for n, p in self.model.named_arch_parameters():
-                assert n in arch_param
-                p.copy_(torch.tensor(arch_param[n]))
+#        import json
+#        alpha_file = "runs/coco_EAutoDet-s/arch/alpha_49.json"
+#        with open(alpha_file, 'r') as f:
+#            arch_param = json.load(f)
+#        with torch.no_grad():
+#            for n, p in self.model.named_arch_parameters():
+#                assert n in arch_param
+#                p.copy_(torch.tensor(arch_param[n]))
 
         with hooks_run(self._hooks, self):
             self.model.eval()

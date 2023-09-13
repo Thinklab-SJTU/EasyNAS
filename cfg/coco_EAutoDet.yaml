@@ -1,9 +1,10 @@
-root_path: &root_path runs/coco_EAutoDet-s/
+root_path: &root_path runs/coco_EAutoDet-m/
 epoch: &epoch 50
 accumulate_gradient: &acc_grad 1
 
 data: &data cfg/dataset/coco_yolo_search.yaml
-model: &model cfg/model/EAutoDet-s.yaml
+model: &model cfg/model/EAutoDet-m.yaml
+pretrain: &pretrain null # runs/coco_EAutoDet-m/ckpt/last.pt
 
 criterion: &criterion 
   submodule_name: src.criterions.YOLOv5Loss
@@ -101,15 +102,15 @@ hooks: &hooks
       log_path: !join [*root_path, train.log]
       print_freq: 100
       only_master: True
-      priority: 20
+      priority: 30
   
   ckpt_hook:
     submodule_name: CkptHOOK
     args:
       save_root: !join [*root_path, ckpt/]
-      pretrain: 
+      pretrain: *pretrain
       only_master: True
-      priority: 20
+      priority: 30
   
   warmup_hook:
     submodule_name: WarmupHOOK
