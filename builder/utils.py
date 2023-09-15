@@ -2,11 +2,11 @@ import sys
 import os
 sys.path.append(os.getcwd())
 import inspect
+import importlib
 from functools import partial
 from easydict import EasyDict as edict
-
 import yaml
-import importlib
+import numpy as np
 
 from src.search_space.base import SearchSpace
 
@@ -167,12 +167,17 @@ class CfgLoader(yaml.SafeLoader):
 
     def construct_search_space(self, node):
         if isinstance(node, yaml.ScalarNode):
-            ss_args = {'candidates': self.construct_scalar(node)}
+            ss_args = self.construct_scalar(node).split(':')
+            if len(ss_args) == 2:
+                ss_args = {'start': float(ss_args[0]), 'end': float(ss_args[1])}
+            else:
+                assert len(ss_args) == 3
+                ss_args = {'candidates': np.arange(*[float(tmp) for tmp in ss_args]).tolist()}
         elif isinstance(node, yaml.SequenceNode):
             ss_args = {'candidates': self.construct_sequence(node, deep=True)}
         elif isinstance(node, yaml.MappingNode):
             ss_args = self.construct_mapping(node, deep=True)
-            return SearchSpace(**ss_args)
+        return SearchSpace(**ss_args)
 #        def foo_constructor(loader, node):
 #            instance = Foo.__new__(Foo)
 #            yield instance

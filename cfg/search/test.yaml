@@ -1,0 +1,35 @@
+space: &search_space
+  a: !search_space 0.1:0.3
+  b: !search_space 0.2:0.8:0.1
+  c: !search_space [1,2,3,4]
+  d:
+    d1: d1
+    d2: !search_space [d21, d22, d23]
+    d3: !search_space [d31, d32, d33]
+
+  e: !search_space
+    - e1
+    - !search_space
+      cfg:
+          e21: e21
+          e22: !search_space [e221, e222, e223]
+    - !search_space
+      cfg:
+          e31: !search_space 0.3:0.6
+          e32: !search_space 0.8:1.8:0.1
+  f: !search_space
+    cfg:
+      f1: f1
+      f2: !search_space [f21, f22, f23]
+      f3: !search_space [f31, f32, f33]
+
+
+engine:
+  submodule_name: engines.SearchEngine
+  args:
+    search_space: *search_space
+    searcher: null
+    evaluater: null
+    hooks: []
+
+

@@ -6,6 +6,7 @@ import inspect
 from .utils import CfgLoader, CfgDumper, parse_cfg, get_submodule_by_name
 from .dataloader import create_dataloader 
 from .optimizer import create_optimizer
+from src.search_space.base import SearchSpace
 
 def create_criterion(cfg: dict, local_rank=-1):
     cls = get_submodule_by_name(cfg.get('submodule_name'), search_path='torch.nn.criterion')
@@ -24,3 +25,12 @@ def create_model(cfg: dict, input_size=None, root_path=None, local_rank=-1):
 
 def create_hook(cfg: dict):
     return get_submodule_by_name(cfg.get('submodule_name'), search_path='src.hook')(**cfg.get('args', {}))
+
+def create_search_space(cfg: dict):
+    return get_submodule_by_name('SearchSpace', search_path='src.search_space.base')(cfg=cfg)
+
+def create_searcher(cfg: dict):
+    return get_submodule_by_name(cfg.get('submodule_name'), search_path='src.searcher')(**cfg.get('args', {}))
+
+def create_evaluater(cfg: dict):
+    return get_submodule_by_name(cfg.get('submodule_name'), search_path='engines')(**cfg.get('args', {}))
