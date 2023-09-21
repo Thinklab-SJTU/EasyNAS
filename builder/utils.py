@@ -114,7 +114,11 @@ class CfgLoader(yaml.SafeLoader):
     def get_module(self, node):
 #        module_name = str(self.construct_scalar(node.value[0])).split('.')
 #        args = self.construct_mapping(node.value[1])
-        name_args = self.construct_sequence(node, deep=True)
+        if isinstance(node, yaml.ScalarNode):
+            name = self.construct_scalar(node)
+            name_args = [name, {}]
+        elif isinstance(node, yaml.SequenceNode):
+            name_args = self.construct_sequence(node, deep=True)
         module = get_submodule_by_name(name_args[0])
         if len(name_args) > 1:
             return partial(module, **name_args[1])

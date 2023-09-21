@@ -38,7 +38,7 @@ def main(args):
                       **engine_cfg['args'],
                       )
     print("Engine is running...")
-    engine.run(cfg['epoch'])
+    engine.run()
     
 
 if __name__ == '__main__':

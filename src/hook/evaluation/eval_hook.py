@@ -47,10 +47,10 @@ class EvalAccHOOK(HOOK):
         runner.info.results.val.top5 = self.val_top5.avg
 
     def after_val_epoch(self, runner):
-        best_top1 = runner.info.results.val.get('best_top1', 0)
-        runner.info.results.is_best = best_top1 < runner.info.results.val.top1
+        best = runner.info.results.val.get('best', 0)
+        runner.info.results.is_best = best < runner.info.results.val.top1
         if runner.info.results.is_best:
-            runner.info.results.val.best_top1 = runner.info.results.val.top1
+            runner.info.results.val.best = runner.info.results.val.top1
         
 
 

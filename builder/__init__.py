@@ -23,8 +23,8 @@ def create_model(cfg: dict, input_size=None, root_path=None, local_rank=-1):
     model = get_submodule_by_name(cfg.get('submodule_name'), search_path=['src.models'])
     return model(input_size=input_size, local_rank=local_rank, **cfg['args'])
 
-def create_hook(cfg: dict):
-    return get_submodule_by_name(cfg.get('submodule_name'), search_path='src.hook')(**cfg.get('args', {}))
+def create_hook(cfg: dict, search_path='src.hook'):
+    return get_submodule_by_name(cfg.get('submodule_name'), search_path=search_path)(**cfg.get('args', {}))
 
 def create_search_space(cfg: dict):
     return get_submodule_by_name('SearchSpace', search_path='src.search_space.base')(cfg=cfg)
@@ -33,4 +33,7 @@ def create_searcher(cfg: dict):
     return get_submodule_by_name(cfg.get('submodule_name'), search_path='src.searcher')(**cfg.get('args', {}))
 
 def create_evaluater(cfg: dict):
-    return get_submodule_by_name(cfg.get('submodule_name'), search_path='engines')(**cfg.get('args', {}))
+    return get_submodule_by_name(cfg.get('submodule_name'), search_path='src.evaluater')(**cfg.get('args', {}))
+
+def create_module(cfg: dict, search_path=None):
+    return get_submodule_by_name(cfg.get('submodule_name'), search_path=search_path)(**cfg.get('args', {}))

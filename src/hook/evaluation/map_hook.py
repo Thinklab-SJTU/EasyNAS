@@ -143,10 +143,10 @@ class EvalCOCOmAPHOOK(HOOK):
             runner.info.results.val.recall = mr
             runner.info.results.val['map@.5'] = map50
             runner.info.results.val['map@.5:.95'] = map
-            best_map = runner.info.results.val.get('best_map', 0)
-            runner.info.results.is_best = best_map < map 
+            best = runner.info.results.val.get('best', 0)
+            runner.info.results.is_best = best < map 
             if runner.info.results.is_best:
-                runner.info.results.val.best_map = map
+                runner.info.results.val.best = map
             # Results per class
             if self.verbose_per_class and self.nc > 1:
                 runner.info.results.val['per_class'] = {
