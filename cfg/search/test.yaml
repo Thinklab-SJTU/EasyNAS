@@ -1,3 +1,5 @@
+root_path: &root_path runs/search_test/
+
 space: &search_space
   a: !search_space 0.1:0.3
   b: !search_space 0.2:0.8:0.1
@@ -34,6 +36,13 @@ evaluater: &evaluater
     eval_fns:
       performance: !get_module src.evaluater.performance.get_test
 
+hooks: &hooks
+  ckpt_hook:
+    submodule_name: SearchCkptHOOK
+    args:
+      priority: 30
+      save_root: null
+
 
 engine:
   submodule_name: engines.SearchEngine
@@ -41,8 +50,7 @@ engine:
     search_space: *search_space
     searcher: *searcher
     evaluater: *evaluater
-    hooks: []
+    hooks: *hooks
     num_eval_workers: 1
-    root_path: runs/search_test/
 
 

@@ -5,6 +5,7 @@ from .scheduler.scheduler_hook import LrScheduleHOOK
 from .evaluation.eval_hook import EvalAccHOOK
 from .evaluation.map_hook import EvalCOCOmAPHOOK
 from .checkpoint.ckpt_hook import CkptHOOK
+from .checkpoint.search_ckpt_hook import SearchCkptHOOK
 from .logger.log_hook import LogHOOK
 from .ddp.ddp_hook import DDPHOOK
 from .supernet.supernet_hook import DARTSHOOK

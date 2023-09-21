@@ -22,7 +22,6 @@ class Evaluater(object):
             task = sample_queue.get()
             if task is None:
 #                sample_queue.task_done()
-                reward_queue.put(None)
                 break
             rewards = {}
             for key, fn in self.eval_fns.items():

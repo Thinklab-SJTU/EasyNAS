@@ -2,7 +2,7 @@ from builder import get_submodule_by_name
 import numpy as np
 
 def get_test(task):
-    return np.random.randn(1)
+    return np.random.randn(1)[0]
 
 def get_performance(task):
     print('='*20)
