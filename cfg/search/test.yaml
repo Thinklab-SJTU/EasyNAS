@@ -26,9 +26,10 @@ space: &search_space
       f3: !search_space [f31, f32, f33]
 
 searcher: &searcher
-  submodule_name: src.searcher.RandomSearch
+  submodule_name: src.searcher.Hyperband
   args:
     num_initial: 20
+    reward_name: performance
 
 evaluater: &evaluater
   submodule_name: src.evaluater.Evaluater

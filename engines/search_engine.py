@@ -69,9 +69,10 @@ class SearchEngine(BaseEngine):
                             if r != 'waiting': 
                                 self.searcher.current_queries.pop(q)
                                 self.searcher.history_reward[-1][q] = r
-                        next_queries = self.query_next()
+                        next_queries = self.searcher.query_next()
+                        print(len(self.searcher.current_queries), len(self.searcher.history_reward[-1]), len(next_queries))
                         for q in next_queries:
-                            self.preprocess_cfg(q)
+                            self.searcher.preprocess_cfg(q)
                             sample_queue.put(q)
                         self.searcher.current_queries.update({q: 'waiting' for q in next_queries})
                         self.info.current_epoch += 1
@@ -89,5 +90,10 @@ class SearchEngine(BaseEngine):
             for p in eval_ps:
                 p.join()
 
-        print(self.info.results.best)
+        for i, rewards in enumerate(self.searcher.history_reward):
+            print("Iter", i)
+            for q, r in rewards.items():
+                print(hash(q), r)
+
+        print(self.info.results.best, hash(self.info.results.best[0]))
 
