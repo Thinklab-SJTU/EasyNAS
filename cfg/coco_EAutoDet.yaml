@@ -1,10 +1,10 @@
-root_path: &root_path runs/coco_EAutoDet-m/
+root_path: &root_path runs/coco_EAutoDet-s_debug/
 epoch: &epoch 50
 accumulate_gradient: &acc_grad 1
 
 data: &data cfg/dataset/coco_yolo_search.yaml
-model: &model cfg/model/EAutoDet-m.yaml
-pretrain: &pretrain null # runs/coco_EAutoDet-m/ckpt/last.pt
+model: &model cfg/model/EAutoDet-s.yaml
+pretrain: &pretrain runs/coco_EAutoDet-s/ckpt/best.pt
 
 criterion: &criterion 
   submodule_name: src.criterions.YOLOv5Loss

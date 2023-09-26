@@ -34,7 +34,7 @@ class SearchCkptHOOK(HOOK):
             runner.info.results.best = self.get_best(history_reward[-1])
 
     def get_best(self, query_reward):
-        best_query = max(query_reward, key=lambda k: query_reward[k]['performance'])
+        best_query = max(query_reward, key=lambda k: query_reward[k])
         return best_query, query_reward[best_query]
 
     def after_epoch(self, runner):
@@ -42,7 +42,7 @@ class SearchCkptHOOK(HOOK):
         current_epoch_reward = runner.searcher.history_reward[-1]
         current_epoch_best = self.get_best(current_epoch_reward)
         best = runner.info.results.get('best', None)
-        if best is None or current_epoch_best[-1]['performance'] > runner.info.results.best[-1]['performance']:
+        if best is None or current_epoch_best[-1] > runner.info.results.best[-1]:
             runner.info.results.best = current_epoch_best
 
         # save reward

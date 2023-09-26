@@ -45,7 +45,6 @@ hooks: &hooks
       priority: 5
       mode: epoch
   
-  #TODO
   eval_hook:
     submodule_name: EvalCOCOmAPHOOK
     args: 

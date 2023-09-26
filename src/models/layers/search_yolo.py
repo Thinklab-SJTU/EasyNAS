@@ -1,4 +1,5 @@
 import math
+from collections import abc
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -39,10 +40,10 @@ class YOLOC3_search(SearchModule):
             self.search_out_channel = candidate_ch
         elif search_out_channel in [False, None]:
             self.search_out_channel = [1.]
-        elif isinstance(search_out_channel, list):
+        elif isinstance(search_out_channel, abc.Iterable):
             self.search_out_channel = search_out_channel
         else:
-            raise(ValueError("search_out_channel has to be bool or None or a list of float"))
+            raise(ValueError("search_out_channel has to be bool or None or an iterable instance of float"))
         self.gumbel_channel = gumbel_channel
         self.out_channel = out_channel
         self.candidate_ch = candidate_ch

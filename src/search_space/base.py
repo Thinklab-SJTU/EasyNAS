@@ -180,10 +180,15 @@ class DiscreteSpace(SearchSpace):
                 embed[int(cand_idx)] = 1./self.num_reserve
             return tuple(embed)
 
+    def __iter__(self):
+        return iter(self.candidates)
     def __getitem__(self, idx):
         return self.candidates[idx]
     def __len__(self):
         return len(self.candidates)
+    def __repr__(self):
+        string = f"DiscreteSpace(candidate={self.candidates})"
+        return string
         
 class ContinuousSpace(SearchSpace):
     def __new__(cls, *args, **kwargs):

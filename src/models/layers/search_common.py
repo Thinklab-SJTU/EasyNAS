@@ -247,7 +247,6 @@ class AFF(SearchModule):
         self.cin = in_channel
         self.cout = out_channel
         self.strides = strides
-        self.candidate_ch = candidate_ch
         self.gumbel_op = gumbel_op
         self.gumbel_channel = gumbel_channel and len(candidate_ch)>1
         self.gumbel_edge = gumbel_edge

@@ -29,13 +29,11 @@ searcher: &searcher
   submodule_name: src.searcher.Hyperband
   args:
     num_initial: 20
-    reward_name: performance
 
 evaluater: &evaluater
   submodule_name: src.evaluater.Evaluater
   args:
-    eval_fns:
-      performance: !get_module src.evaluater.performance.get_test
+    eval_fns: !get_module src.evaluater.performance.get_test
 
 hooks: &hooks
   ckpt_hook:

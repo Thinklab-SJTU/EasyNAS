@@ -3,11 +3,13 @@ import torch.nn as nn
 from easydict import EasyDict as edict
 
 from builder.utils import get_submodule_by_name
+from .base import DiscreteSpace
 
 def get_search_space(ss):
     if isinstance(ss, str):
         try:
-            return globals()[ss]
+            return DiscreteSpace(candidates=globals()[ss], num_reserve=1)
+#            return globals()[ss]
         except KeyError:
             return get_submodule_by_name(ss)
         except Exception as e:

@@ -1,4 +1,5 @@
 import sys
+from collections.abc import Iterable
 import inspect
 from copy import deepcopy
 from functools import partial
@@ -101,7 +102,7 @@ class BaseModel(nn.Module):
             args = v['args']
             if 'num_repeat' in args.keys(): args['num_repeat'] = max(round(args['num_repeat'] * gd), 1)
 
-            cin = [ch[idx] for idx in in_idx] if isinstance(in_idx, (list, tuple)) else ch[in_idx]
+            cin = [ch[idx] for idx in in_idx] if isinstance(in_idx, Iterable) else ch[in_idx]
             arg_names = inspect.getfullargspec(layer.__init__).args
             if 'in_channel' in arg_names:
                 args['in_channel'] = cin
@@ -118,7 +119,7 @@ class BaseModel(nn.Module):
             m_ = layer(**args)
             if num_repeat > 1:
                 if 'in_channel' in args and 'out_channel' in args: 
-                    if isinstance(in_idx, (list, tuple)):
+                    if isinstance(in_idx, Iterable):
                         cin = ch + [cout]
                         args['in_channel'] = [cin[idx] for idx in in_idx]
                     else:
@@ -157,7 +158,7 @@ class SearchModel(BaseModel, SearchModule):
             if issubclass(layer, SearchModule):
                 arch_idx = arch_yaml.get('arch_idx', None)
                 num_repeat = arch_yaml.get('num_repeat', 1)
-                if arch_idx is not None:
+                if arch_idx is not None: # same architecture as the (arch_idx)-th layer
                     module = self.model[arch_idx if arch_idx >=0 else i+arch_idx]
                     assert(type(module) == type(m_))
                     if num_repeat > 1:
@@ -165,7 +166,7 @@ class SearchModel(BaseModel, SearchModule):
                             m_[l].set_arch_parameters(module[l], recurse=True)
                     else:
                         m_.set_arch_parameters(module, recurse=True)
-                elif arch_yaml.get('repeat_arch', False) and num_repeat > 1:
+                elif arch_yaml.get('repeat_arch', False) and num_repeat > 1: # repeat the same architecture
                     m_[0].apply_arch_parameters(lambda x: x.to(self.device))
                     for l in range(1, num_repeat):
                         m_[l].set_arch_parameters(m_[0], recurse=True)

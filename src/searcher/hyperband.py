@@ -3,7 +3,7 @@ import math
 from .base import Searcher
 
 class Hyperband(Searcher):
-    def __init__(self, search_space, num_initial, reward_name, max_resource_inner_loop={'epoch': 81}, reserve_rate=3, with_outer_loop=False, num_reward_one_deal=-1):
+    def __init__(self, search_space, num_initial, max_resource_inner_loop={'epoch': 81}, reserve_rate=3, with_outer_loop=False, num_reward_one_deal=-1):
         """
         max_resource_inner_loop should be a dict, whose key is the resource name in training cfg, whose value is the maximum resource restriction.
         """
@@ -14,7 +14,6 @@ class Hyperband(Searcher):
         super(Hyperband, self).__init__(search_space, num_initial, num_reward_one_deal)
 
         self.current_outer_loop, self.current_inner_loop = 0, 0
-        self.reward_name = reward_name
         
     def stop_search(self):
         return self.current_outer_loop >= len(self.num_inner_loop) or len(self.current_queries) <= 0
@@ -30,7 +29,7 @@ class Hyperband(Searcher):
         return self._query_initial(self.num_initial)
 
     def get_topk(self, cands, k):
-        return sorted(cands, key=lambda query: cands[query].get(self.reward_name), reverse=True)[:k]
+        return sorted(cands, key=lambda query: cands[query][0], reverse=True)[:k]
 
     def query_next(self):
         s = self.num_inner_loop[self.current_outer_loop]
