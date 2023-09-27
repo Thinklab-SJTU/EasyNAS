@@ -28,7 +28,7 @@ space: &search_space
 searcher: &searcher
   submodule_name: src.searcher.Hyperband
   args:
-    num_initial: 20
+    num_initial: 9
 
 evaluater: &evaluater
   submodule_name: src.evaluater.Evaluater

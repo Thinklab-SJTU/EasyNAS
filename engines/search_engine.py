@@ -54,13 +54,14 @@ class SearchEngine(BaseEngine):
             # initialize queries
             init_queries = self.searcher.query_initial()
             for q in init_queries:
-                self.searcher.preprocess_cfg(q)
+                q = self.searcher.preprocess_cfg(q)
                 sample_queue.put(q)
                 self.searcher.current_queries[q] = 'waiting'
 
             # iterablely search
             while not self.searcher.stop_search():
                 q, r = reward_queue.get()
+                assert q in self.searcher.current_queries
                 self.searcher.current_queries[q] = r
                 if self.searcher.get_enough_rewards():
                     with hooks_epoch(self._hooks, self):

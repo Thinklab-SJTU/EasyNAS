@@ -1,3 +1,4 @@
+from copy import deepcopy
 import time
 from collections import UserList
 from multiprocessing import Process, JoinableQueue, Queue

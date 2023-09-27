@@ -44,7 +44,6 @@ class YOLOC3_search(SearchModule):
             self.search_out_channel = search_out_channel
         else:
             raise(ValueError("search_out_channel has to be bool or None or an iterable instance of float"))
-        self.gumbel_channel = gumbel_channel
         self.out_channel = out_channel
         self.candidate_ch = candidate_ch
         self.candidate_op = candidate_op
@@ -54,7 +53,9 @@ class YOLOC3_search(SearchModule):
         c_ = int(out_channel * expansion)  # hidden channels
         self.cv1 = ConvBNAct_search(in_channel, c_, candidate_op=[(1,1)], candidate_ch=self.search_out_channel, stride=1, gumbel_channel=gumbel_channel, independent_ch_arch_param=False, merge_kernel=merge_kernel, bn=nn.BatchNorm2d, act=nn.SiLU)
         self.cv2 = ConvBNAct_search(in_channel, c_, candidate_op=[(1,1)], candidate_ch=self.search_out_channel, stride=1, gumbel_channel=gumbel_channel, independent_ch_arch_param=False, merge_kernel=merge_kernel, bn=nn.BatchNorm2d, act=nn.SiLU)
-        if gumbel_channel:
+
+        self.gumbel_channel = gumbel_channel and len(self.search_out_channel) > 1
+        if self.gumbel_channel :
             self.cv3 = nn.ModuleList([ConvBNAct_search(c_, out_channel, candidate_op=[(1,1)], candidate_ch=self.search_out_channel, stride=1, gumbel_channel=gumbel_channel, act=False, bn=False, independent_ch_arch_param=False) for _ in range(2)])  
             self.cv3_bn = nn.ModuleList([nn.BatchNorm2d(int(out_channel*e)) for e in self.search_out_channel])
             self.cv3_act = nn.SiLU()

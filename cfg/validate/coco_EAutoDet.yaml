@@ -2,6 +2,7 @@ root_path: &root_path runs/coco_EAutoDet-s/validate/
 
 data: &data cfg/dataset/coco_yolo_search.yaml
 model: &model cfg/model/EAutoDet-s.yaml
+pretrain: &pretrain runs/coco_EAutoDet-s/ckpt/last.pt
 
 hooks: &hooks
   eval_hook:
@@ -22,7 +23,7 @@ hooks: &hooks
     submodule_name: LogHOOK
     args:
       logger_name: ValidatePip
-      log_path: !join [*root_path, validate.log]
+#      log_path: !join [*root_path, validate.log]
       print_freq: 100
       only_master: True
       priority: 20
@@ -31,7 +32,7 @@ hooks: &hooks
     submodule_name: CkptHOOK
     args:
       save_root: !join [*root_path, ckpt/]
-      pretrain: runs/coco_EAutoDet-s/ckpt/last.pt
+      pretrain: *pretrain
       only_master: True
       priority: 20
   

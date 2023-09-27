@@ -22,11 +22,7 @@ class Hyperband(Searcher):
         return self.search_space.sample(n, replace=False)
 
     def query_initial(self):
-        self.current_inner_loop = (self.current_inner_loop + 1) % (self.num_inner_loop[self.current_outer_loop]+1)
-        if self.current_inner_loop == 0:
-            self.current_outer_loop += 1
-
-        return self._query_initial(self.num_initial)
+        return self.query_next()
 
     def get_topk(self, cands, k):
         return sorted(cands, key=lambda query: cands[query][0], reverse=True)[:k]
@@ -34,7 +30,7 @@ class Hyperband(Searcher):
     def query_next(self):
         s = self.num_inner_loop[self.current_outer_loop]
         n = math.floor(self.num_initial / math.pow(self.eta, self.current_outer_loop+self.current_inner_loop) * (self.num_inner_loop[0]+1) / (s+1))
-        if self.current_outer_loop > 0 and self.current_inner_loop == 0:
+        if self.current_inner_loop == 0:
             next_queries = self._query_initial(n)
         else:
             last_query_reward = self.history_reward[-1]

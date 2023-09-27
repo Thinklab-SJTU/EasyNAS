@@ -306,7 +306,7 @@ class AFF(SearchModule):
         return out
 
     def forward(self, xs, op_alphas=None, ch_alphas=None, edge_alphas=None):
-        op_alphas = op_alphas if op_alphas is not None else (self.norm_arch_parameters(self.op_alphas, self.gumbel_op) if hasattr(self, 'op_alphas') else [1.])
+        op_alphas = op_alphas if op_alphas is not None else (self.norm_arch_parameters(self.op_alphas, self.gumbel_op) if hasattr(self, 'op_alphas') else [[1.]] * len(self.cin))
         ch_alphas = ch_alphas if ch_alphas is not None else (self.norm_arch_parameters(self.ch_alphas, self.gumbel_channel) if hasattr(self, 'ch_alphas') else [1.])
         edge_alphas = edge_alphas if edge_alphas is not None else (self.norm_arch_parameters(self.edge_alphas, self.gumbel_edge) if hasattr(self, 'edge_alphas') else [1.]*len(self.cin))
         bn = self.get_norm_layer(ch_alphas, self.bn, self.gumbel_channel)

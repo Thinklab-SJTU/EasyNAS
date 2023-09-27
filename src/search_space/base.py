@@ -15,7 +15,8 @@ class SampleNode(object):
         self.cfg = space.build_cfg(sample)
 
     def __eq__(self, other):
-        return self.cfg == other.cfg
+        return hash(self) == hash(other)
+#        return self.cfg == other.cfg
 
     def __hash__(self):
         return hash((self.embedding, *self.sample.values()))
@@ -133,7 +134,7 @@ class DiscreteSpace(SearchSpace):
     def __new__(cls, *args, **kwargs):
         return object.__new__(cls)
     def __init__(self, candidates, num_reserve=1, reserve_replace=False, distribution=None, random_seed=None, embed_fn=None):
-        self.candidates = candidates
+        self.candidates = self.to_tuple(candidates)
         self.num_reserve = num_reserve
         self.reserve_replace = reserve_replace
         self.rdm = np.random.RandomState(random_seed)
@@ -142,6 +143,13 @@ class DiscreteSpace(SearchSpace):
 
         self.distribution = [s/self._size for s in self.cand_sizes] if distribution is None else distribution
         self.embed_fn = embed_fn
+
+    def to_tuple(self, candidates):
+        for i in range(len(candidates)):
+            if isinstance(candidates[i], list):
+                candidates[i] = tuple(candidates[i])
+        return candidates
+
 
     @sample_monitor
     def sample(self, num_to_sample=1, replace=True):

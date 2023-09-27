@@ -36,7 +36,7 @@ class NNEngine(BaseEngine):
         self._hooks = []
         for hook in hooks: self.register_hook(hook)
         self.info = EasyDict({
-            'results': {'train': {}, 'val': {}},
+            'results': {'train': {'best': 0}, 'val': {'best': 0}},
             'current_iter': 0,
             'current_epoch': 0,
             })

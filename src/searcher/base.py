@@ -30,6 +30,7 @@ class Searcher(object):
     def preprocess_cfg(self, q):
         if q.cfg.get('root_path', None):
             q.cfg['root_path'] = os.path.join(q.cfg['root_path'], 'hash%d'%(hash(q)))
+        return q
 
 
 

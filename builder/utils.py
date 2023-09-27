@@ -129,7 +129,7 @@ class CfgLoader(yaml.SafeLoader):
         return edict(self.construct_mapping(node, deep=True))
 
     def _update_dict(self, data, update):
-        if update.pop('recurse', True):
+        if not update.pop('recurse', True):
             return data.update(update)
         for k, v in update.items():
             if k in data and isinstance(v, dict):
@@ -157,7 +157,7 @@ class CfgLoader(yaml.SafeLoader):
             data = {k: data[k] for k in crossRef[1:]}
 
         if replaceArgs:
-            self._update_dict(self, data, replaceArgs)
+            self._update_dict(data, replaceArgs)
 #            data.update(crossRef_replaceArgs[1])
         return data
 
