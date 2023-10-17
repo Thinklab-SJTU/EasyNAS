@@ -13,6 +13,16 @@ from .base import  OpBuilder, SearchModule
 
 __all__ = ["ConvBNAct_search", "SepConvBNAct_search", "AFF", "SPP_search"]
 
+def check_nesting(src, least_depth):
+    tmp_src = src
+    while least_depth > 0:
+        if not isinstance(tmp_src, (list, tuple)): break
+        least_depth -= 1
+        tmp_src = tmp_src[0]
+    while least_depth > 0:
+        src = [src]
+        least_depth -= 1
+    return src
 
 class ConvBNAct_search(SearchModule):
     # Mixed Depthwise Conv https://arxiv.org/abs/1907.09595
@@ -22,30 +32,30 @@ class ConvBNAct_search(SearchModule):
         # k=0 means zero op; d=0 means skip-connection
         super(ConvBNAct_search, self).__init__()
         self.merge_kernel = merge_kernel
-        self.kd = candidate_op
-        self.candidate_ch = candidate_ch
+        self.kd = check_nesting(candidate_op, 2)
+        self.candidate_ch = check_nesting(candidate_ch, 1)
         self.stride = stride
         self.group = group
-        self.gumbel_op = gumbel_op and len(candidate_op)>1
-        self.gumbel_channel = gumbel_channel and len(candidate_ch)>1
+        self.gumbel_op = gumbel_op and len(self.kd)>1
+        self.gumbel_channel = gumbel_channel and len(self.candidate_ch)>1
         self.cout = out_channel
-        cout_max = int(out_channel * max(candidate_ch))
+        cout_max = int(out_channel * max(self.candidate_ch))
 
-        self.k_max = int(max([(k-1)*d+1 for k, d in candidate_op]))
+        self.k_max = int(max([(k-1)*d+1 for k, d in self.kd]))
         if merge_kernel:
             self.padding = (self.k_max - 1)//2
             self.weight = self.init_weight(cout_max, in_channel, self.k_max)
             self.bias = self.init_bias(cout_max, self.weight) if bias else None
         else:
             self.weight, self.bias = nn.ParameterList([]), nn.ParameterList([])
-            for k, d in candidate_op:
+            for k, d in self.kd:
                 self.weight.append(self.init_weight(cout_max, in_channel, k))
                 self.bias.append(self.init_bias(cout_max, self.weight[-1]))
 
         self.act = get_act(act)
         self.act_first = act_first
 
-        if bn and self.gumbel_channel: self.bn = nn.ModuleList([get_norm(bn, int(self.cout*e)) for e in candidate_ch]) 
+        if bn and self.gumbel_channel: self.bn = nn.ModuleList([get_norm(bn, int(self.cout*e)) for e in self.candidate_ch]) 
         else: self.bn = get_norm(bn, cout_max)
 
         self.init_arch_parameters(independent_ch_arch_param, independent_op_arch_param)
@@ -247,11 +257,11 @@ class AFF(SearchModule):
         self.cin = in_channel
         self.cout = out_channel
         self.strides = strides
+        self.candidate_op = check_nesting(candidate_op, 2)
+        self.candidate_ch = check_nesting(candidate_ch, 1)
         self.gumbel_op = gumbel_op
-        self.gumbel_channel = gumbel_channel and len(candidate_ch)>1
+        self.gumbel_channel = gumbel_channel and len(self.candidate_ch)>1
         self.gumbel_edge = gumbel_edge
-        self.candidate_op = candidate_op
-        self.candidate_ch = candidate_ch
 
         op_builder = OpBuilder(
               auto_refine=auto_refine,
@@ -260,16 +270,16 @@ class AFF(SearchModule):
         )
         self.m = nn.ModuleList([])
         for cin, s in zip(in_channel, strides):
-            self.m.append(op_builder.build_parallel_op(candidate_op, cin, out_channel, s))
+            self.m.append(op_builder.build_parallel_op(self.candidate_op, cin, out_channel, s))
         self.num_alphas_each_op = []
-        for op in candidate_op:
+        for op in self.candidate_op:
             self.num_alphas_each_op.append(
                  len(op.args['candidate_op']) if hasattr(op, 'args') and hasattr(op.args, 'candidate_op') else -1)
         self.num_op_alphas = sum(abs(x) for x in self.num_alphas_each_op)
         self.init_arch_parameters(independent_op_arch_param, independent_ch_arch_param, independent_edge_arch_param)
 
         self.act = get_act(act)
-        if self.gumbel_channel: self.bn = nn.ModuleList([get_norm(bn, int(self.cout*e)) for e in candidate_ch]) 
+        if self.gumbel_channel: self.bn = nn.ModuleList([get_norm(bn, int(self.cout*e)) for e in self.candidate_ch]) 
         else: self.bn = get_norm(bn, self.cout)
 
     def init_arch_parameters(self, ind_op_alpha, ind_ch_alpha, ind_edge_alpha):

@@ -20,7 +20,7 @@ class SearchEngine(BaseEngine):
             })
 
     def build_from_cfg(self, search_space_cfg, searcher_cfg, evaluater_cfg, hooks_cfg):
-        # build sampler
+        # build search_space
         print("Building search space")
         search_space = create_search_space(search_space_cfg)
 

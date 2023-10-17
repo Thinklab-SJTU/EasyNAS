@@ -40,7 +40,7 @@ class Evaluater(object):
                 break
             rewards = Reward()
             for fn in self.eval_fns:
-                rewards.append(fn(task))
+                rewards.append(fn(deepcopy(task)))
             reward_queue.put((task, rewards))
 
 #    def run(self, sample_queue: JoinableQueue, reward_queue: JoinableQueue):

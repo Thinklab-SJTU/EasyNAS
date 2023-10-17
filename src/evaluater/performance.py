@@ -1,7 +1,9 @@
-from builder import get_submodule_by_name
+import torch
 import numpy as np
 
-def get_test(task):
+from builder import get_submodule_by_name
+
+def get_random(task):
     return np.random.randn(1)[0]
 
 def get_performance(task):
@@ -17,5 +19,8 @@ def get_performance(task):
         engine.run(task_cfg['epoch'])
     else:
         engine.validate()
+    reward = engine.info.results.val.best
+    del engine
+    torch.cuda.empty_cache()
     print('='*20+"Task End"+'='*20)
-    return engine.info.results.val.best
+    return reward

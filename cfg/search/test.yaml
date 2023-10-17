@@ -6,24 +6,51 @@ space: &search_space
   c: !search_space [1,2,3,4]
   d:
     d1: d1
-    d2: !search_space [d21, d22, d23]
-    d3: !search_space [d31, d32, d33]
+    d2: !search_space 
+      candidates: [d21, d22, d23]
+      label: d2
+    d3: !search_space 
+      candidates: [d31, d32, d33]
+      label: d2
 
   e: !search_space
-    - e1
-    - !search_space
-      cfg:
-          e21: e21
-          e22: !search_space [e221, e222, e223]
-    - !search_space
-      cfg:
-          e31: !search_space 0.3:0.6
-          e32: !search_space 0.8:1.8:0.1
+    label: e
+    candidates:
+      - e1
+      - !search_space
+        cfg:
+            e21: e21
+            e22: !search_space 
+              candidates: [e221, e222, e223]
+              label: d2
+      - !search_space
+        cfg:
+            e31: !search_space 0.3:0.6
+            e32: !search_space 0.8:1.8:0.1
   f: !search_space
     cfg:
       f1: f1
-      f2: !search_space [f21, f22, f23]
-      f3: !search_space [f31, f32, f33]
+      f2: !search_space 
+        candidates: [f21, f22, f23]
+        label: f2
+      f3: !search_space 
+        candidates: [f31, f32, f33]
+        label: f2
+  eg: !search_space
+    label: e
+    candidates:
+      - eg1
+      - !search_space
+        cfg:
+            e21: eg21
+            e22: !search_space 
+              candidates: [eg221, eg222, eg223]
+              label: eg2
+      - !search_space
+        cfg:
+            e31: !search_space 0.3:0.6
+            e32: !search_space 0.8:1.8:0.1
+
 
 searcher: &searcher
   submodule_name: src.searcher.Hyperband
@@ -33,7 +60,7 @@ searcher: &searcher
 evaluater: &evaluater
   submodule_name: src.evaluater.Evaluater
   args:
-    eval_fns: !get_module src.evaluater.performance.get_test
+    eval_fns: !get_module src.evaluater.performance.get_random
 
 hooks: &hooks
   ckpt_hook:

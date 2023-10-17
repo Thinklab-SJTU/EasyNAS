@@ -7,7 +7,7 @@ import warnings
 class SampleNode(object):
     def __init__(self, space, sample):
         """
-        If space is IIDSpace, sample should be {prefix: samples}. If space is DiscreteSpace, sample should be {idxes: samples}. If space is ContinuousSpace, sample should be {i: samples}
+        If space is IIDSpace, sample should be {prefix: samples}. If space is DiscreteSpace, sample should be {idxes: samples}. If space is ContinuousSpace, sample should be {sample/range: samples}
         """
         self.space = space
         self.sample = sample
@@ -26,12 +26,12 @@ class SampleNode(object):
         return string
 
 def sample_monitor(func):
-    def inner(self, num_to_sample=1, replace=True):
+    def inner(self, num_to_sample, replace, *args, **kwargs):
         if not replace and num_to_sample >= self.size:
             msg = "Required sample number is larger than the space. You should decrease 'num_to_sample' or set replace as True, otherwise, there contains at leaset one ContinuousSpace."
             warnings.warn(msg, RuntimeWarning)
 
-        samples = func(self, num_to_sample, replace)
+        samples = func(self, num_to_sample, replace, *args, **kwargs)
 
         _num = num_to_sample - len(samples)
         if getattr(self, '_tmp_iter_in_sample', 0) >= self.MAX_ITER_NUM and _num > 0:
@@ -51,6 +51,7 @@ class SearchSpace(object):
             assert 'start' in kwargs and 'end' in kwargs
             return ContinuousSpace(**kwargs)
 
+
     @property
     def size(self):
         return getattr(self, '_size', 0)
@@ -63,11 +64,21 @@ class SearchSpace(object):
     def build_cfg(self, *args, **kwargs):
         raise(NotImplementedError("No implementation"))
 
+    def sample_from_nodes(self, src_sample_nodes):
+        sample_nodes = [] 
+        for node in src_sample_nodes:
+            assert self.__class__.__name__ == node.space.__class__.__name__
+            sample = {}
+            sample_nodes.append(self.sample_from_node(node))
+        return sample_nodes
+
+
 class IIDSpace(SearchSpace):
     def __new__(cls, *args, **kwargs):
         return object.__new__(cls)
-    def __init__(self, cfg, embed_fn=None):
+    def __init__(self, cfg, embed_fn=None, label=None):
         self.cfg = cfg
+        self.label = label
         self.spaces = self.extract_search_space(self.cfg)
         self._size = reduce(lambda x,y: x*y, [x.size for x in self.spaces.values()])
         self.embed_fn = embed_fn
@@ -76,7 +87,8 @@ class IIDSpace(SearchSpace):
     def extract_search_space(self, cfg, prefix="", spaces=None):
         if spaces is None: spaces = {}
         if isinstance(cfg, (DiscreteSpace, ContinuousSpace, IIDSpace)):
-            spaces[prefix.rstrip('.')] = cfg
+            prefix = prefix.rstrip('.')
+            spaces[prefix] = cfg
         elif isinstance(cfg, dict):
             for k, v in cfg.items():
                 self.extract_search_space(v, prefix+f"{cfg.__class__.__name__}::{k}.", spaces)
@@ -112,13 +124,18 @@ class IIDSpace(SearchSpace):
             return len(subsamples)
                 
     @sample_monitor
-    def sample(self, num_to_sample=1, replace=True):
+    def sample(self, num_to_sample=1, replace=True, label_samples=None):
+        if label_samples is None: label_samples = {}
+        if self.label in label_samples:
+            return self.sample_from_nodes(label_samples[self.label])
+
         sample_nodes = []
         self._tmp_iter_in_sample, _num = 0, num_to_sample
         while _num and self._tmp_iter_in_sample < self.MAX_ITER_NUM:
             sub_samples = [{} for _ in range(_num)]
+            label_samples = {}
             for prefix, space in self.spaces.items():
-                _sub_samples = space.sample(_num, replace=True)
+                _sub_samples = space.sample(_num, replace=True, label_samples=label_samples)
                 for i in range(_num):
                     sub_samples[i][prefix] = _sub_samples[i]
             sample_nodes.extend([SampleNode(self, sub_sample) for sub_sample in sub_samples])
@@ -127,13 +144,23 @@ class IIDSpace(SearchSpace):
             _num = num_to_sample - len(sample_nodes)
             self._tmp_iter_in_sample += 1
 
+        if self.label is not None: label_samples[self.label] = sample_nodes
         return sample_nodes
+
+    def sample_from_node(self, src_sample_node):
+       sample = {}
+       for prefix, s in src_sample_node.sample.items():
+           assert prefix in self.spaces, f"No found {prefix} in spaces."
+           assert isinstance(s, SampleNode)
+           sample[prefix] = self.spaces[prefix].sample_from_node(s)
+       return SampleNode(self, sample)
+    
 
 
 class DiscreteSpace(SearchSpace):
     def __new__(cls, *args, **kwargs):
         return object.__new__(cls)
-    def __init__(self, candidates, num_reserve=1, reserve_replace=False, distribution=None, random_seed=None, embed_fn=None):
+    def __init__(self, candidates, num_reserve=1, reserve_replace=False, distribution=None, random_seed=None, embed_fn=None, label=None):
         self.candidates = self.to_tuple(candidates)
         self.num_reserve = num_reserve
         self.reserve_replace = reserve_replace
@@ -143,6 +170,7 @@ class DiscreteSpace(SearchSpace):
 
         self.distribution = [s/self._size for s in self.cand_sizes] if distribution is None else distribution
         self.embed_fn = embed_fn
+        self.label = label
 
     def to_tuple(self, candidates):
         for i in range(len(candidates)):
@@ -152,7 +180,11 @@ class DiscreteSpace(SearchSpace):
 
 
     @sample_monitor
-    def sample(self, num_to_sample=1, replace=True):
+    def sample(self, num_to_sample=1, replace=True, label_samples=None):
+        if label_samples is None: label_samples = {}
+        if self.label in label_samples:
+            return self.sample_from_nodes(label_samples[self.label])
+
         sample_nodes = []
         self._tmp_iter_in_sample, _num = 0, num_to_sample
         while _num and self._tmp_iter_in_sample < self.MAX_ITER_NUM:
@@ -161,7 +193,7 @@ class DiscreteSpace(SearchSpace):
                 for idx in self.rdm.choice(range(len(self.candidates)), size=self.num_reserve, p=self.distribution, replace=self.reserve_replace):
                     cand = self.candidates[idx] 
                     if isinstance(cand, SearchSpace):
-                        cand = cand.sample(num_to_sample=1, replace=True)[0]
+                        cand = cand.sample(num_to_sample=1, replace=True, label_samples=label_samples)[0]
                     sample[idx] = cand
                 sample_nodes.append(SampleNode(self, sample))
             if not replace:
@@ -169,7 +201,19 @@ class DiscreteSpace(SearchSpace):
             _num = num_to_sample - len(sample_nodes)
             self._tmp_iter_in_sample += 1
 
+        if self.label is not None: label_samples[self.label] = sample_nodes
         return sample_nodes
+
+    def sample_from_node(self, src_sample_node):
+        sample = {}
+        for idx, s in src_sample_node.sample.items():
+            cand = self.candidates[idx]
+            if isinstance(cand, SearchSpace):
+                assert isinstance(s, SampleNode)
+                cand = cand.sample_from_node(s)
+            sample[idx] = cand
+        return SampleNode(self, sample)
+    
 
     def build_cfg(self, sample):
         cfg = []
@@ -202,7 +246,7 @@ class ContinuousSpace(SearchSpace):
     def __new__(cls, *args, **kwargs):
         return object.__new__(cls)
 
-    def __init__(self, start, end, num_reserve=1, reserve_replace=True, distribution='uniform', random_seed=None, embed_fn=None):
+    def __init__(self, start, end, num_reserve=1, reserve_replace=True, distribution='uniform', random_seed=None, embed_fn=None, label=None):
         self.start = start
         self.end = end
         self._size = end - start
@@ -211,9 +255,14 @@ class ContinuousSpace(SearchSpace):
         self.distribution = distribution
         self.rdm = np.random.RandomState(random_seed)
         self.embed_fn = embed_fn 
+        self.label = label
 
     @sample_monitor
-    def sample(self, num_to_sample=None, replace=True):
+    def sample(self, num_to_sample=None, replace=True, label_samples=None):
+        if label_samples is None: label_samples = {}
+        if self.label in label_samples:
+            return self.sample_from_nodes(label_samples[self.label])
+
         def _sample_once(num, replace):
             if replace:
                 samples = tuple(getattr(self.rdm, self.distribution)(self.start, self.end, num))
@@ -236,7 +285,16 @@ class ContinuousSpace(SearchSpace):
             samples = set()
             while len(samples) < num_to_sample:
                 samples.add(_sample_once(self.num_reserve, self.reserve_replace))
-        return [SampleNode(self, {0: sample}) for sample in samples]
+
+        sample_nodes = [SampleNode(self, {sample/self.size: sample}) for sample in samples]
+        if self.label is not None: label_samples[self.label] = sample_nodes
+        return sample_nodes
+
+    def sample_from_node(self, src_sample_node):
+        sample = {}
+        for ratio in src_sample_node.sample.keys():
+            sample[ratio] = ratio * self.size + self.start
+        return SampleNode(self, sample)
 
     def __len__(self):
         return self.end - self.start

@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .search_common import ConvBNAct_search, SepConvBNAct_search
+from .search_common import ConvBNAct_search, SepConvBNAct_search, check_nesting
 from .yolov5 import YOLODetect
 from .base import SearchModule
 from .utils import gumbel_softmax
@@ -13,6 +13,8 @@ class YOLOBottleneck_search(SearchModule):
     # Standard bottleneck
     def __init__(self, in_channel, out_channel, candidate_op=[(3,1),(5,1),(3,2)], candidate_ch=[1.], shortcut=True, group=1, expansion=0.5, gumbel_channel=False, separable=False, merge_kernel=True):  # ch_in, ch_out, shortcut, groups, expansion
         super(YOLOBottleneck_search, self).__init__()
+        candidate_ch = check_nesting(candidate_ch, 1)
+        candidate_op = check_nesting(candidate_op, 2)
         self.gumbel_channel = gumbel_channel
         self.expansion = expansion
 
@@ -36,12 +38,16 @@ class YOLOC3_search(SearchModule):
     # CSP Bottleneck with 3 convolutions
     def __init__(self, in_channel, out_channel, num_repeat=1, candidate_op=[(3,1),(5,1),(3,2)], candidate_ch=[1.], shortcut=True, group=1, expansion=0.5, e_bottleneck=1., search_out_channel=None, gumbel_channel=False, separable=False, merge_kernel=True):  # ch_in, ch_out, number, shortcut, groups, expansion
         super(YOLOC3_search, self).__init__()
+        candidate_ch = check_nesting(candidate_ch, 1)
+        candidate_op = check_nesting(candidate_op, 2)
         if search_out_channel==True:
             self.search_out_channel = candidate_ch
         elif search_out_channel in [False, None]:
             self.search_out_channel = [1.]
         elif isinstance(search_out_channel, abc.Iterable):
             self.search_out_channel = search_out_channel
+        elif isinstance(search_out_channel, float):
+            self.search_out_channel = [search_out_channel]
         else:
             raise(ValueError("search_out_channel has to be bool or None or an iterable instance of float"))
         self.out_channel = out_channel

@@ -5,7 +5,7 @@ eval_cfg: &search_space
   root_path: &root_path !join [*search_root_path, eval/]
   accumulate_gradient: &acc_grad 1
   
-  data: &data cfg/dataset/coco_yolo.yaml
+  data: &data cfg/dataset/coco_yolo_search.yaml
   criterion: &criterion cfg/criterion/yolov5.yaml
   model: &model cfg/model/EAutoDet-s.yaml
   
