@@ -31,7 +31,7 @@ case $Answer in
 #        echo "Start the process. Log file is saved to logs/${NAME}.log"
         CUDA_VISIBLE_DEVICES=$gpustr ${START_CMD} app/train.py \
 		--cfg ${cfg} \
-#		> logs/EAutoDet-m.log 2>&1 &
+		> logs/EAutoDet-s_bk.log 2>&1 &
 #		> logs/retrain_mergenas_bs64.log 2>& 1 &
 #                > logs/yolov5s.log 2>&1 &
 #        	> logs/retrain_mergenas_noPermutation_noEdgeAlpha_noCutout_noActEachOp_SepConvInterReLU_alphaInit1e-3_actBeforeOp_gradClip5_noInitW_updateFreq1_withZeroOp.log 2>&1 &

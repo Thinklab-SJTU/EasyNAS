@@ -10,13 +10,14 @@ import torch.nn.functional as F
 
 from .utils import autopad, gumbel_softmax, get_layer, get_act, get_norm
 from .base import  OpBuilder, SearchModule
+from src.search_space.base import DiscreteSpace, IIDSpace
 
 __all__ = ["ConvBNAct_search", "SepConvBNAct_search", "AFF", "SPP_search"]
 
 def check_nesting(src, least_depth):
     tmp_src = src
     while least_depth > 0:
-        if not isinstance(tmp_src, (list, tuple)): break
+        if not isinstance(tmp_src, (list, tuple, DiscreteSpace)): break
         least_depth -= 1
         tmp_src = tmp_src[0]
     while least_depth > 0:
@@ -77,9 +78,11 @@ class ConvBNAct_search(SearchModule):
     def init_arch_parameters(self, ind_ch_alpha, ind_op_alpha):
         if len(self.kd) > 1 and ind_op_alpha:
             super().init_arch_parameters('op_alphas', len(self.kd))
+        else: self.op_alphas = torch.tensor([1.]*len(self.kd))
 
         if len(self.candidate_ch) > 1 and ind_ch_alpha:
             super().init_arch_parameters('ch_alphas', len(self.candidate_ch))
+        else: self.ch_alphas = torch.tensor([1.]*len(self.candidate_ch))
 
     def get_merge_kernel(self, w_base, alphas, merge=True):
         merge_kernel = 0.
@@ -126,8 +129,8 @@ class ConvBNAct_search(SearchModule):
 
         Cin = x.size(1)
         bias = self.bias
-        op_alphas = op_alphas if op_alphas is not None else (self.norm_arch_parameters(self.op_alphas, self.gumbel_op) if hasattr(self, 'op_alphas') else [1.])
-        ch_alphas = ch_alphas if ch_alphas is not None else (self.norm_arch_parameters(self.ch_alphas, self.gumbel_channel) if hasattr(self, 'ch_alphas') else [1.])
+        op_alphas = op_alphas if op_alphas is not None else (self.norm_arch_parameters(self.op_alphas, self.gumbel_op) if len(self.op_alphas)>1 else self.op_alphas)
+        ch_alphas = ch_alphas if ch_alphas is not None else (self.norm_arch_parameters(self.ch_alphas, self.gumbel_channel) if len(self.ch_alphas)>1 else self.ch_alphas)
         bn = self.get_norm_layer(ch_alphas, self.bn, self.gumbel_channel)
                                    
         merge_kernel = self.get_merge_kernel(self.weight, op_alphas, merge=self.merge_kernel) if len(self.kd)>1 else (self.weight if self.merge_kernel else self.weight[0])
@@ -150,13 +153,53 @@ class ConvBNAct_search(SearchModule):
         if ch_alphas is None: ch_alphas = getattr(self, 'ch_alphas', None)
         if ch_alphas is not None:
             ch_alphas_idx = self.get_reserved_idx(1, ch_alphas)[0]
-            new_cfg['args']['out_channel'] = cfg['args']['out_channel'] * cfg['args']['candidate_ch'][ch_alphas_idx]
+            cout = cfg['args'].get('out_channel', self.cout)
+            new_cfg['args']['out_channel'] = cout * cfg['args']['candidate_ch'][ch_alphas_idx]
 
         if op_alphas is None: op_alphas = self.op_alphas
         if op_alphas is not None:
             op_alphas_idx = self.get_reserved_idx(num_reserved_op, op_alphas)[0]
             new_cfg['args']['kernel'], new_cfg['args']['dilation'] = cfg['args']['candidate_op'][op_alphas_idx]
         return new_cfg
+
+    def _load_from_state_dict(self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs):
+        weight_name = prefix + 'weight'
+        bias_name = prefix + 'bias'
+        search_space = state_dict.pop(prefix+'search_space', None)
+        if search_space is None or 'kd' not in search_space:
+            cout, cin, _, _ = self.weight.shape
+            state_dict[weight_name] = state_dict[weight_name][:cout, :cin, :, :]
+            if bias_name in state_dict:
+                state_dict[bias_name] = state_dict[bias_name][:cout]
+            return super()._load_from_state_dict(state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs)
+
+        ss_kd = [list(kd) for kd in search_space['kd']]
+        op_idx = [ss_kd.index(list(kd)) for kd in self.kd]
+        state_dict_op_alphas = state_dict.pop(prefix+'op_alphas', torch.tensor([1.]*len(ss_kd)))
+#        for idx in set(range(len(ss_kd)))-set(op_idx): state_dict_op_alphas[idx].copy_(0.)
+        state_dict_op_alphas = torch.gather(state_dict_op_alphas, dim=-1, index=torch.tensor(op_idx))
+        state_dict_op_alphas = state_dict_op_alphas / state_dict_op_alphas.sum()
+        state_dict.pop(prefix+'ch_alphas', None)
+        if self.merge_kernel:
+            assert weight_name in state_dict
+            weight = state_dict[weight_name]
+            start = int((weight.shape[-1] - self.k_max) / 2)
+            end = int(weight.shape[-1] - start)
+            cout, cin, _, _ = self.weight.shape
+            weight = self.get_merge_kernel(weight[:cout,:cin,start:end, start:end], state_dict_op_alphas, self.merge_kernel)
+            state_dict[weight_name] = weight[:cout,:cin,:, :]
+            if self.bias is not None:
+                state_dict[bias_name] = state_dict[bias_name][:cout]
+        else:
+            weights = [state_dict.pop(weight_name + '.%s'%str(i)) for i in range(len(ss_kd))]
+            biases = [state_dict.pop(bias_name + '.%s'%str(i)) for i in range(len(ss_kd))] if self.bias is not None else None
+            for i, op_i in enumerate(op_idx):
+                cout, cin, _, _ = self.weight[i].shape
+                state_dict[weight_name+'.%s'%i] = weights[op_i][:cout, :cin, :, :]
+                if biases is not None:
+                    state_dict[bias_name+'.%s'%i] = biases[op_i][:cout]
+        return super()._load_from_state_dict(state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs)
+        
 
 
 class SepConvBNAct_search(ConvBNAct_search):
@@ -178,7 +221,7 @@ class SepConvBNAct_search(ConvBNAct_search):
         nn.init.uniform_(b, -bound, bound)
         return nn.Parameter(b)
 
-    def get_merge_kernel(self, w_base, alphas, merge=True):
+    def get_merge_kernel(self, depth_weight, alphas, merge=True):
         merge_kernel = 0.
         if merge:
             for i, alpha in enumerate(alphas):
@@ -187,11 +230,11 @@ class SepConvBNAct_search(ConvBNAct_search):
                 start = int((self.k_max - tmp_ks) / 2)
                 end = int(self.k_max - start)
                 if d == 1:
-                    w_pad = torch.nn.functional.pad(w_base['depth_weight'][:,:,start:end, start:end], (start,)*4, "constant", value=0)
+                    w_pad = torch.nn.functional.pad(depth_weight[:,:,start:end, start:end], (start,)*4, "constant", value=0)
                     merge_kernel += w_pad * alpha
                 else:
-                    w = torch.zeros_like(w_base['depth_weight'])
-                    w[:,:,start:end:d, start:end:d] = w_base['depth_weight'][:,:,start:end:d, start:end:d]
+                    w = torch.zeros_like(depth_weight)
+                    w[:,:,start:end:d, start:end:d] = depth_weight[:,:,start:end:d, start:end:d]
                     merge_kernel += w * alpha
         else:
             raise(ValueError("weight cannot be merged in SepConv if merge_kernel is False"))
@@ -202,12 +245,12 @@ class SepConvBNAct_search(ConvBNAct_search):
 
         Cin = x.size(1)
         bias = self.bias
-        op_alphas = op_alphas if op_alphas is not None else (self.norm_arch_parameters(self.op_alphas, self.gumbel_op) if hasattr(self, 'op_alphas') else [1.])
-        ch_alphas = ch_alphas if ch_alphas is not None else (self.norm_arch_parameters(self.ch_alphas, self.gumbel_channel) if hasattr(self, 'ch_alphas') else [1.])
+        op_alphas = op_alphas if op_alphas is not None else (self.norm_arch_parameters(self.op_alphas, self.gumbel_op) if len(self.op_alphas)>1 else self.op_alphas)
+        ch_alphas = ch_alphas if ch_alphas is not None else (self.norm_arch_parameters(self.ch_alphas, self.gumbel_channel) if len(self.ch_alphas)>1 else self.ch_alphas)
         bn = self.get_norm_layer(ch_alphas, self.bn, self.gumbel_channel)
 
         if self.merge_kernel:
-            merge_kernel = self.get_merge_kernel(self.weight, op_alphas, merge=True) if len(self.kd)>1 else self.weight['depth_weight']
+            merge_kernel = self.get_merge_kernel(self.weight['depth_weight'], op_alphas, merge=True) if len(self.kd)>1 else self.weight['depth_weight']
             if Cin != merge_kernel.size(1): merge_kernel = merge_kernel[:Cin,:,:,:]
             out = torch.nn.functional.conv2d(x, merge_kernel, stride=self.stride, padding=self.padding, dilation=1, groups=Cin)
             # out channel for point-wise conv
@@ -219,29 +262,67 @@ class SepConvBNAct_search(ConvBNAct_search):
             out = out + bias.view(1,-1,1,1) if bias is not None else out
         else:
             out = 0.
-            op_alphas_norm = nn.functional.softmax(op_alphas, dim=-1)
-            ch_alphas_norm = gumbel_softmax(F.log_softmax(ch_alphas, dim=-1), hard=True) if self.gumbel_channel else nn.functional.softmax(ch_alphas, dim=-1)
             for i, weight in enumerate(self.weight):
                 depth_weight = weight['depth_weight']
                 point_weight = weight['point_weight']
                 if Cin != depth_weight.size(1): depth_weight = depth_weight[:Cin,:,:,:]
                 tmp_out = torch.nn.functional.conv2d(x, depth_weight, stride=self.stride, padding=self.padding, dilation=1, groups=Cin)
                 if len(self.candidate_ch) > 1:
-                    point_weight, bias = self.deal_merge_kernel_cout(point_weight, ch_alphas_norm, self.bias)
+                    point_weight, bias = self.deal_merge_kernel_cout(point_weight, ch_alphas, self.bias)
                 if Cin != point_weight.size(1): point_weight = point_weight[:,:Cin,:,:]
                 tmp_out = torch.nn.functional.conv2d(tmp_out, point_weight, stride=1, padding=0, dilation=1, groups=self.group)
-                out += op_alphas_norm[i] * (tmp_out + bias.view(1,-1,1,1) if bias is not None else tmp_out)
+                out += op_alphas[i] * (tmp_out + bias.view(1,-1,1,1) if bias is not None else tmp_out)
 
         out = bn(out) if bn is not None else out
         out = self.act(out) if not self.act_first and self.act is not None else out
         return out
 
+    def _load_from_state_dict(self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs):
+        weight_name = prefix + 'weight'
+        bias_name = prefix + 'bias'
+        search_space = state_dict.pop(prefix+'search_space', None)
+        if search_space is None or 'kd' not in search_space:
+            cout, cin, _, _ = self.weight['point_weight'].shape
+            state_dict[weight_name+'.depth_weight'] = state_dict[weight_name+'.depth_weight'][:cin,:,start:end, start:end]
+            state_dict[weight_name+'.point_weight'] = state_dict[weight_name+'.point_weight'][:cout,:cin,:,:]
+            if bias_name in state_dict:
+                state_dict[bias_name] = state_dict[bias_name][:cout]
+            return super(ConvBNAct_search, self)._load_from_state_dict(state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs)
+
+        ss_kd = [list(kd) for kd in search_space['kd']]
+        op_idx = [ss_kd.index(list(kd)) for kd in self.kd]
+        state_dict_op_alphas = state_dict.pop(prefix+'op_alphas', torch.tensor([1.]*len(ss_kd)))
+#        for idx in set(range(len(ss_kd)))-set(op_idx): state_dict_op_alphas[idx].copy_(0.)
+        state_dict_op_alphas = torch.gather(state_dict_op_alphas, dim=-1, index=torch.tensor(op_idx))
+        state_dict_op_alphas = state_dict_op_alphas / state_dict_op_alphas.sum()
+        state_dict.pop(prefix+'ch_alphas', None)
+        if self.merge_kernel:
+            depth_weight = state_dict[weight_name+'.depth_weight']
+            start = int((depth_weight.shape[-1] - self.k_max) / 2)
+            end = int(depth_weight.shape[-1] - start)
+            cout, cin, _, _ = self.weight['point_weight'].shape
+            depth_weight = self.get_merge_kernel(depth_weight[:cin,:,start:end,start:end], state_dict_op_alphas, self.merge_kernel)
+            state_dict[weight_name+'.depth_weight'] = depth_weight[:cin,:,:,:]
+            state_dict[weight_name+'.point_weight'] = state_dict[weight_name+'.point_weight'][:cout,:cin,:,:]
+            if self.bias is not None:
+                state_dict[bias_name] = state_dict[bias_name][:cout]
+        else:
+            depth_weights = [state_dict.pop(weight_name + '.%d.depth_weight'%i) for i in range(len(ss_kd))]
+            point_weights = [state_dict.pop(weight_name + '.%d.point_weight'%i) for i in range(len(ss_kd))]
+            biases = [state_dict.pop(bias_name + '.%d'%i) for i in range(len(ss_kd))] if self.bias is not None else None
+            for i, op_i in enumerate(op_idx):
+                cout, cin, _, _ = self.weight[i]['point_weight'].shape
+                state_dict[weight_name+'.%d.depth_weight'%i] = depth_weights[op_i][:cin, :, :, :]
+                state_dict[weight_name+'.%d.point_weight'%i] = point_weights[op_i][:cout, :cin, :, :]
+                if biases is not None:
+                    state_dict[bias_name+'.%s'%i] = biases[op_i][:cout]
+        return super(ConvBNAct_search, self)._load_from_state_dict(state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs)
 
 
 class AFF(SearchModule):
     # Auto-Feature Fusion
     #self.adjust_ch_op = edict(submodule_name='ConvBNAct_search', args=dict(candidate_op=[(1,1)], candidate_ch=candidate_ch, gumbel_channel=gumbel_channel, stride=1, bn=False, act=None, independent_ch_arch_param=False))
-    def __init__(self, in_channel, out_channel, strides, 
+    def __init__(self, in_channel, out_channel, strides, input_idx,
     candidate_op, gumbel_op=False, 
     auto_refine=False, adjust_ch_op=None, upsample_op=None, 
     candidate_ch=[1.], gumbel_channel=True, 
@@ -252,12 +333,18 @@ class AFF(SearchModule):
         strides: a list indicating the scale for each edge. Whether to up-sampling or down-sampling, and how much the degree is
         """
         super(AFF, self).__init__()
+        in_channel = check_nesting(in_channel, 1)
+        strides = check_nesting(strides, 1)
 
         self.check_valid(in_channel, strides)
         self.cin = in_channel
         self.cout = out_channel
         self.strides = strides
+        self.input_idx = input_idx
         self.candidate_op = check_nesting(candidate_op, 2)
+        if len(self.candidate_op) == 1:
+            self.candidate_op = [self.candidate_op[0]] * len(in_channel)
+        assert len(self.candidate_op) == len(in_channel)
         self.candidate_ch = check_nesting(candidate_ch, 1)
         self.gumbel_op = gumbel_op
         self.gumbel_channel = gumbel_channel and len(self.candidate_ch)>1
@@ -269,10 +356,10 @@ class AFF(SearchModule):
               upsample_op=upsample_op
         )
         self.m = nn.ModuleList([])
-        for cin, s in zip(in_channel, strides):
-            self.m.append(op_builder.build_parallel_op(self.candidate_op, cin, out_channel, s))
+        for ei, (cin, s) in enumerate(zip(in_channel, strides)):
+            self.m.append(op_builder.build_parallel_op(self.candidate_op[ei], cin, out_channel, s))
         self.num_alphas_each_op = []
-        for op in self.candidate_op:
+        for op in self.candidate_op[0]:
             self.num_alphas_each_op.append(
                  len(op.args['candidate_op']) if hasattr(op, 'args') and hasattr(op.args, 'candidate_op') else -1)
         self.num_op_alphas = sum(abs(x) for x in self.num_alphas_each_op)
@@ -285,10 +372,13 @@ class AFF(SearchModule):
     def init_arch_parameters(self, ind_op_alpha, ind_ch_alpha, ind_edge_alpha):
         if self.num_op_alphas > 1 and ind_op_alpha:
             super().init_arch_parameters('op_alphas', len(self.cin), self.num_op_alphas)
+        else: self.op_alphas = torch.tensor([[1.]*len(cand_edge_op) for cand_edge_op in self.candidate_op])
         if len(self.candidate_ch) > 1 and ind_ch_alpha:
             super().init_arch_parameters('ch_alphas', len(self.candidate_ch))
+        else: self.ch_alphas = torch.tensor([1.]*len(self.candidate_ch))
         if len(self.cin) > 1 and ind_edge_alpha:
             super().init_arch_parameters('edge_alphas', len(self.cin))
+        else: self.edge_alphas = torch.tensor([1.]*len(self.cin))
 
     def check_valid(self, in_channel, strides):
         assert(len(in_channel)==len(strides))
@@ -316,9 +406,9 @@ class AFF(SearchModule):
         return out
 
     def forward(self, xs, op_alphas=None, ch_alphas=None, edge_alphas=None):
-        op_alphas = op_alphas if op_alphas is not None else (self.norm_arch_parameters(self.op_alphas, self.gumbel_op) if hasattr(self, 'op_alphas') else [[1.]] * len(self.cin))
-        ch_alphas = ch_alphas if ch_alphas is not None else (self.norm_arch_parameters(self.ch_alphas, self.gumbel_channel) if hasattr(self, 'ch_alphas') else [1.])
-        edge_alphas = edge_alphas if edge_alphas is not None else (self.norm_arch_parameters(self.edge_alphas, self.gumbel_edge) if hasattr(self, 'edge_alphas') else [1.]*len(self.cin))
+        op_alphas = op_alphas if op_alphas is not None else (self.norm_arch_parameters(self.op_alphas, self.gumbel_op) if self.op_alphas.shape[-1]>1 else self.op_alphas)
+        ch_alphas = ch_alphas if ch_alphas is not None else (self.norm_arch_parameters(self.ch_alphas, self.gumbel_channel) if len(self.ch_alphas)>1 else self.ch_alphas)
+        edge_alphas = edge_alphas if edge_alphas is not None else (self.norm_arch_parameters(self.edge_alphas, self.gumbel_channel) if len(self.edge_alphas)>1 else self.edge_alphas)
         bn = self.get_norm_layer(ch_alphas, self.bn, self.gumbel_channel)
 
 #        out = 0.
@@ -332,7 +422,7 @@ class AFF(SearchModule):
 
         return out
     
-    def discretize_edge(self, edge_module, op_alphas, num_reserved_op=1, exclude_alpha_idx=[]):
+    def discretize_edge(self, edge_module, op_alphas, candidate_op, num_reserved_op=1, exclude_alpha_idx=[]):
         assert num_reserved_op == 1
         op_alphas_idx = self.get_reserved_idx(min(num_reserved_op+len(exclude_alpha_idx), len(op_alphas)), op_alphas)
         op_alphas_idx = [idx for idx in op_alphas_idx if idx not in exclude_alpha_idx]
@@ -341,12 +431,12 @@ class AFF(SearchModule):
         op_idx = [bisect.bisect_right(num_alphas_before, x) for x in op_alphas_idx]
         op_idx, op_alphas_idx = op_idx[0], op_alphas_idx[0]
         if self.num_alphas_each_op[op_idx] > 0: # (Sep)ConvBNAct_search
-            select_op = deepcopy(self.candidate_op[op_idx])
+            select_op = deepcopy(candidate_op[op_idx])
             if isinstance(edge_module[op_idx], SearchModule): 
                 return edge_module[op_idx].discretize(select_op, op_alphas=op_alphas[(0 if op_idx==0 else num_alphas_before[op_idx-1]):num_alphas_before[op_idx]], ch_alphas=None, edge_alphas=None, num_reserved_op=num_reserved_op)
             else:
                 layer_cfg = []
-                select_op_iter = iter([select_op] if isinstance(select_op, dict) else select_op)
+                select_op_iter = iter([select_op] if isinstance(select_op, (dict, IIDSpace)) else select_op)
                 tmp_cfg = next(select_op_iter)
                 tmp_module = get_layer(tmp_cfg['submodule_name']) 
                 for sub_m_idx, sub_m in enumerate(edge_module[op_idx]):
@@ -360,14 +450,14 @@ class AFF(SearchModule):
                         tmp_module = get_layer(tmp_cfg['submodule_name']) 
                 return layer_cfg
         else:
-            return deepcopy(self.candidate_op[op_idx])
+            return deepcopy(candidate_op[op_idx])
 
     def get_exclude_op_idx(self, parallel_op, exclude_ops):
         num_alphas_before = list(accumulate(abs(x) for x in self.num_alphas_each_op))
         exclude_op_idx, exclude_alpha_idx = [], []
         for i in range(len(parallel_op)-1, -1, -1):
             sequence_op = parallel_op[i] 
-            if isinstance(sequence_op, edict): sequence_op = [sequence_op]
+            if isinstance(sequence_op, (dict, IIDSpace)): sequence_op = [sequence_op]
             for op in sequence_op:
                 if op['submodule_name'] in exclude_ops: 
                     exclude_op_idx.append(i)
@@ -389,26 +479,57 @@ class AFF(SearchModule):
 
         if op_alphas is None: op_alphas = self.op_alphas
         op_alphas = F.softmax(op_alphas, dim=-1).detach()
-        exclude_op_idx, exclude_alpha_idx = self.get_exclude_op_idx(self.candidate_op, ['Zero']) 
+#        exclude_op_idx, exclude_alpha_idx = self.get_exclude_op_idx(self.candidate_op, ['Zero']) 
+        exclude_alpha_idx = []
+        for c_op in self.candidate_op:
+            exclude_alpha_idx.append(self.get_exclude_op_idx(c_op, ['Zero'])[1])
 
         edge_alphas = getattr(self, 'edge_alphas', None) if edge_alphas is None else edge_alphas
         if edge_alphas is None: 
-            edge_alphas_idx = sorted(range(op_alphas.shape[0]), key=lambda x: -max(op_alphas[x][k] for k in range(len(op_alphas[x])) if k not in exclude_alpha_idx))[:num_reserved_edge]
+            edge_alphas_idx = sorted(range(op_alphas.shape[0]), key=lambda x: -max(op_alphas[x][k] for k in range(len(op_alphas[x])) if k not in exclude_alpha_idx[x]))[:num_reserved_edge]
         else:
             edge_alphas_idx = self.get_reserved_idx(num_reserved_edge, edge_alphas)
 
         args['ops'], args['strides'] = [], []
         for idx in edge_alphas_idx:
-            edge_op = self.discretize_edge(self.m[idx], op_alphas[idx], num_reserved_op, exclude_alpha_idx)
+            edge_op = self.discretize_edge(self.m[idx], op_alphas[idx], self.candidate_op[idx], num_reserved_op, exclude_alpha_idx[idx])
             args['ops'].append(edge_op)
             args['strides'].append(self.strides[idx])
 
-        input_idx = getattr(self, 'arch_yaml', {}).get('input_idx', None)
+        input_idx = getattr(self, 'input_idx', None)
         if cfg is not None:
             input_idx = cfg.get('input_idx', input_idx)
         input_idx = edge_alphas_idx if input_idx is None else [input_idx[ei] for ei in edge_alphas_idx]
         new_cfg = self.init_output_yaml(cfg, outOp_name='FuseLayer', input_idx=input_idx, **args)
         return new_cfg
+
+    def _load_from_state_dict(self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs):
+        search_space = state_dict.pop(prefix+'search_space')
+        ss_op = [list(edge_op) for edge_op in search_space['candidate_op']]
+        if len(ss_op) == 1: ss_op = ss_op * len(search_space['strides'])
+        assert len(ss_op) == len(search_space['strides'])
+        # keep op weights in the selected edges
+        edge_idx = [search_space['input_idx'].index(idx) for idx in self.input_idx]
+        #TODO: How to get the selected op, since the item of candidate_op can also be ConvBNAct_search?
+#        op_idx = [[ss_op[ori_ei].index(self.candidate_op[ei])] for ei, ori_ei in enumerate(edge_idx)]
+        edge_prefix = prefix + 'm'
+        tmp_state_dict = {}
+        keys = list(state_dict.keys())
+        for key in keys:
+            weight = state_dict.pop(key)
+            for ei, ori_ei in enumerate(edge_idx):
+                if key.startswith(edge_prefix+'.%d'%ori_ei): 
+                    tmp_state_dict[key.replace(edge_prefix+'.%d'%ori_ei, edge_prefix+'.%d'%ei, 1)] = weight
+            #TODO: How to deal with op_alphas?
+#            if key.startswith(prefix+'op_alphas'):
+#                op_alphas = torch.gather(weight, dim=0, index=torch.tensor(edge_idx))
+#                tmp_state_dict[key] = op_alphas / op_alphas.sum(dim=-1, keepdim=True)
+            if key.startswith(prefix+'edge_alphas'):
+                edge_alphas = torch.gather(weight, dim=-1, index=torch.tensor(edge_idx))
+                tmp_state_dict[key] = edge_alphas / edge_alphas.sum(dim=-1, keepdim=True)
+
+        state_dict.update(tmp_state_dict)
+        return super()._load_from_state_dict(state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs)
 
  
 class SPP_search(SearchModule):

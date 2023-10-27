@@ -44,9 +44,9 @@ class CkptHOOK(HOOK):
         checkpoint = self.get_pretrain_model()
         if checkpoint is not None:
             if runner.is_ddp():
-                runner.model.module.load_state_dict(checkpoint['state_dict'])
+                runner.model.module.load_state_dict(checkpoint['state_dict'], strict=True)
             else:
-                runner.model.load_state_dict(checkpoint['state_dict'])
+                runner.model.load_state_dict(checkpoint['state_dict'], strict=True)
             runner.start_epoch = int(checkpoint['epoch']) + 1
             if runner.optimizer is not None:
                 runner.optimizer.load_state_dict(checkpoint['optimizer'])

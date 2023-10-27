@@ -8,6 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .utils import get_layer, gumbel_softmax
+from src.search_space.base import SearchSpace, IIDSpace
 
 #OP_CFG = namedtuple('OP_CFG', ['submodule_name', 'args'])
 
@@ -117,7 +118,9 @@ class SearchModule(nn.Module):
 
     def norm_arch_parameters(self, alphas, gumbel=False, temperature=None):
         if temperature is None:
-            temperature = self.get_temperature(self.get_arch_parameters_name(alphas))
+            try:
+                temperature = self.get_temperature(self.get_arch_parameters_name(alphas))
+            except: temperature = 1.
         return gumbel_softmax(F.log_softmax(alphas, dim=-1), temperature=temperature, hard=True) if gumbel else nn.functional.softmax(alphas/temperature, dim=-1)
 
     def get_norm_layer(self, ch_alphas, bn, gumbel_channel=True):
@@ -151,6 +154,8 @@ class SearchModule(nn.Module):
         if arch_yaml is None:
             new_arch = dict(submodule_name=outOp_name, input_idx=input_idx, args={})
         else:
+            if isinstance(arch_yaml, SearchSpace):
+                arch_yaml = arch_yaml.cfg
             new_arch = deepcopy(arch_yaml)
             new_arch['submodule_name'] = outOp_name
             new_arch['input_idx'] = input_idx
@@ -166,6 +171,12 @@ class SearchModule(nn.Module):
             new_arch['args'][k] = v
 
         return new_arch
+
+    def state_dict(self, *args, destination=None, prefix='', keep_vars=False):
+        destination = super(SearchModule, self).state_dict(*args, destination, prefix, keep_vars)
+        destination[prefix+'search_space'] = {k:v for k, v in vars(self).items() if isinstance(v, SearchSpace)}
+        destination.update({prefix+k: v if keep_vars else v.detach() for k, v in self._arch_parameters.items()})
+        return destination
 
 
     def forward(self, x):
@@ -188,7 +199,9 @@ class OpBuilder(object):
                 if isinstance(tmp, list): refined_op.extend(tmp)
                 else: refined_op.append(tmp)
             op = refined_op
-        elif isinstance(op, (dict, edict)):
+        elif isinstance(op, (dict, edict, IIDSpace)):
+            if isinstance(op, IIDSpace):
+                op = op.cfg
             op = edict(op)
             up_s, s = int(1./stride), max(1, stride)
             adjust_ch = False

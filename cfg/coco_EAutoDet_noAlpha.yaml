@@ -1,10 +1,10 @@
-root_path: &root_path runs/coco_EAutoDet-s_bk/
+root_path: &root_path runs/coco_EAutoDet-s_noAlpha_nogumbel/
 epoch: &epoch 50
 accumulate_gradient: &acc_grad 1
 
-data: &data cfg/dataset/coco_yolo_search.yaml
-model: &model cfg/model/EAutoDet-s_bk.yaml
-pretrain: &pretrain null #runs/coco_EAutoDet-s/ckpt/best.pt
+data: &data cfg/dataset/coco_yolo.yaml
+model: &model cfg/model/EAutoDet-s.yaml
+pretrain: &pretrain null #runs/coco_EAutoDet-s_noAlpha/ckpt/best.pt
 
 criterion: &criterion 
   submodule_name: src.criterions.YOLOv5Loss
@@ -62,24 +62,6 @@ hooks: &hooks
       priority: 5
       mode: epoch
 
-  darts_hook:
-    submodule_name: DARTSHOOK
-    args:
-      optimizer_cfg:
-        submodule_name: torch.optim.Adam
-        args:
-          lr: 3.e-4
-          betas: [0.5, 0.999]
-          weight_decay: 1.e-3
-      dataloader_name: search_val
-      criterion_cfg: *criterion
-      update_freq: 1
-      accumulate_gradient: *acc_grad
-      priority: 30
-      save_root: !join [*root_path, arch/]
-      discretize_width: 1.
-      discretize_depth: 1.
-  
   eval_hook:
     submodule_name: EvalCOCOmAPHOOK
     args: 
@@ -141,5 +123,6 @@ engine:
     hooks: *hooks
     amp: True
     amp_val: True
+
 
 

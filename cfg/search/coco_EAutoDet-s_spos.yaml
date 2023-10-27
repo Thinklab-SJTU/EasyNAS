@@ -1,0 +1,90 @@
+search_root_path: &search_root_path runs/coco_EAutoDet-s_SPOS/
+
+eval_cfg: &search_space 
+  epoch: &epoch 0
+  root_path: &root_path !join [*search_root_path, eval/]
+  accumulate_gradient: &acc_grad 1
+  
+  data: &data cfg/dataset/coco_yolo.yaml
+  model: &model cfg/model/EAutoDet-s_noAlpha.yaml
+  
+  hooks: &hooks
+    eval_hook:
+      submodule_name: EvalCOCOmAPHOOK
+      args: 
+        anno_file: 'data/coco2017/annotations/instances_val2017.json'
+        iou_thres: 0.6
+        conf_thres: 0.001
+        eval_by_cocotools: True
+        priority: 10
+    
+    ddp_hook:
+      submodule_name: DDPHOOK
+      args:
+        priority: 10
+    
+    log_hook:
+      submodule_name: LogHOOK
+      args:
+        logger_name: TrainPip
+        log_path: !join [*root_path, test.log]
+        print_freq: 100
+        only_master: True
+        priority: 20
+    
+    ckpt_hook:
+      submodule_name: CkptHOOK
+      args:
+        save_root: !join [*root_path, ckpt/]
+        pretrain: runs/coco_EAutoDet-s_noAlpha/ckpt/last.pt 
+        only_master: True
+        priority: 20
+    
+    ema_hook:
+      submodule_name: EMAHOOK
+      args:
+        decay: 0.9999
+        priority: 5
+        accumulate_gradient: *acc_grad
+  
+  
+  engine:
+    submodule_name: engines.NNEngine
+    args:
+      data: !cross_ref [*data]
+      model: !cross_ref [*model]
+      hooks: *hooks
+      amp: True
+      amp_val: True
+
+
+
+searcher: &searcher
+  submodule_name: src.searcher.RandomSearch
+  args:
+    num_initial: 9
+
+evaluater: &evaluater
+  submodule_name: src.evaluater.Evaluater
+  args:
+    eval_fns: !get_module src.evaluater.performance.get_performance
+
+search_hooks: &search_hooks
+  ckpt_hook:
+    submodule_name: SearchCkptHOOK
+    args:
+      priority: 30
+      save_root: null
+
+
+engine:
+  submodule_name: engines.SearchEngine
+  args:
+    search_space: *search_space
+    searcher: *searcher
+    evaluater: *evaluater
+    hooks: *search_hooks
+    num_eval_workers: 1
+
+
+

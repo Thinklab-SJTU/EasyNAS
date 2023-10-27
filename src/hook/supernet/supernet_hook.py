@@ -121,12 +121,12 @@ class DARTSHOOK(HOOK):
                 raise(e)
         runner.model_without_ddp.info_arch()
 
-    def state_dict(self, runner):
-        return {k: v.detach() for k, v in self.model.named_arch_parameters()}
-
-    def load_state_dict(self, ckpt):
-        with torch.no_grad():
-            for name, p in self.model.named_arch_parameters():
-                p.copy_(ckpt[name])
+#    def state_dict(self, runner):
+#        return {k: v.detach() for k, v in self.model.named_arch_parameters()}
+#
+#    def load_state_dict(self, ckpt):
+#        with torch.no_grad():
+#            for name, p in self.model.named_arch_parameters():
+#                p.copy_(ckpt[name])
 
 

@@ -104,6 +104,8 @@ class BaseModel(nn.Module):
 
             cin = [ch[idx] for idx in in_idx] if isinstance(in_idx, Iterable) else ch[in_idx]
             arg_names = inspect.getfullargspec(layer.__init__).args
+            if 'input_idx' in arg_names:
+                args['input_idx'] = in_idx
             if 'in_channel' in arg_names:
                 args['in_channel'] = cin
             cout = args.get('out_channel', None)
