@@ -95,6 +95,7 @@ class SearchEngine(BaseEngine):
             print("Iter", i)
             for q, r in rewards.items():
                 print(hash(q), r)
+                print(q.cfg)
 
         print(self.info.results.best, hash(self.info.results.best[0]))
 

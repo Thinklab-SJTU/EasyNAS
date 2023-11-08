@@ -22,7 +22,7 @@ class ModelEMA():
 
         msd = model.module.state_dict() if is_parallel(model) else model.state_dict()  # model state_dict
         for k, v in self.ema.state_dict().items():
-            if v.dtype.is_floating_point:
+            if isinstance(v, torch.Tensor) and v.dtype.is_floating_point:
                 v *= d
                 v += (1. - d) * msd[k].detach()
 

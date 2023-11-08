@@ -32,5 +32,5 @@ def yolov5_init_weights(m):
     if isinstance(m, nn.BatchNorm2d):
         m.eps = 1e-3
         m.momentum = 0.03
-    elif isinstance(m, (nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6)):
-        m.inplace = True
+#    elif isinstance(m, (nn.Hardswish, nn.LeakyReLU, nn.ReLU, nn.ReLU6)):
+#        m.inplace = True

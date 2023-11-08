@@ -81,6 +81,10 @@ class DARTSHOOK(HOOK):
         if getattr(self, 'scaler', None):
             loss = self.scaler.scale(loss)
         loss.backward(inputs=arch_param)
+        for n, v in runner.model_without_ddp.named_arch_parameters():
+            if torch.isnan(v.grad).any() or torch.isinf(v.grad).any():
+                print(n, v, v.grad)
+
         for v in arch_param:
           if torch.isnan(v.grad).any() or torch.isinf(v.grad).any():
             raise(ValueError("gradient of architecture has NaN..."))

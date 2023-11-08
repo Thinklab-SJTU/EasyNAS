@@ -146,7 +146,7 @@ class EvalCOCOmAPHOOK(HOOK):
             best = runner.info.results.val.get('best', 0)
             runner.info.results.is_best = best < map 
             if runner.info.results.is_best:
-                runner.info.results.val.best = map
+                runner.info.results.val['best'] = map
             # Results per class
             if self.verbose_per_class and self.nc > 1:
                 runner.info.results.val['per_class'] = {

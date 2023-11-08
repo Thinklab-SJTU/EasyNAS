@@ -8,7 +8,7 @@ searchSpace_AFF: &ss_AFF !search_space
         args: !edict
           candidate_op: !search_space [[3,1], [5,1], [3,2]]
           candidate_ch: !search_space [0.5,0.75,1.0]
-          gumbel_op: True
+          gumbel_op: False
           gumbel_channel: True
           act: torch.nn.SiLU
           bn: torch.nn.BatchNorm2d
@@ -44,7 +44,7 @@ args:
         out_channel: 128
         candidate_op: !search_space [[1,1],[3,1],[5,1],[3,2]]
         candidate_ch: !search_space [0.5,0.75,1.0]
-        gumbel_op: True
+        gumbel_op: False
         gumbel_channel: True
         stride: 2
         bias: False
@@ -58,7 +58,7 @@ args:
         candidate_op: !search_space [[3,1],[5,1],[3,2]]
         candidate_ch: !search_space [0.5,0.75,1.0]
         search_out_channel: !search_space [0.75,1.0]
-        gumbel_op: True
+        gumbel_op: False
         gumbel_channel: True
         merge_kernel: True
         separable: False
@@ -69,7 +69,7 @@ args:
         out_channel: 256
         candidate_op: !search_space [[1,1],[3,1],[5,1],[3,2]]
         candidate_ch: !search_space [0.5,0.75,1.0]
-        gumbel_op: True
+        gumbel_op: False
         gumbel_channel: True
         stride: 2
         bias: False
@@ -83,7 +83,7 @@ args:
         candidate_op: !search_space [[3,1],[5,1],[3,2]]
         candidate_ch: !search_space [0.5,0.75,1.0]
         search_out_channel: !search_space [0.75,1.0]
-        gumbel_op: True
+        gumbel_op: False
         gumbel_channel: True
         merge_kernel: True
         separable: False
@@ -94,7 +94,7 @@ args:
         out_channel: 512
         candidate_op: !search_space [[1,1],[3,1],[5,1],[3,2]]
         candidate_ch: !search_space [0.5,0.75,1.0]
-        gumbel_op: True
+        gumbel_op: False
         gumbel_channel: True
         stride: 2
         bias: False
@@ -108,7 +108,7 @@ args:
         candidate_op: !search_space [[3,1],[5,1],[3,2]]
         candidate_ch: !search_space [0.5,0.75,1.0]
         search_out_channel: !search_space [0.75,1.0]
-        gumbel_op: True
+        gumbel_op: False
         gumbel_channel: True
         merge_kernel: True
         separable: False
@@ -119,7 +119,7 @@ args:
         out_channel: 1024
         candidate_op: !search_space [[1,1],[3,1],[5,1],[3,2]]
         candidate_ch: !search_space [0.5,0.75,1.0]
-        gumbel_op: True
+        gumbel_op: False
         gumbel_channel: True
         stride: 2
         bias: False
@@ -155,9 +155,9 @@ args:
             mode: nearest
         auto_refine: False
         candidate_ch: !search_space [0.5,0.75,1.0]
-        gumbel_op: True
+        gumbel_op: False
         gumbel_channel: True
-        gumbel_edge: True
+        gumbel_edge: False
         act: False
         bn: False
     - input_idx: -1 # 10 (/32)
@@ -169,7 +169,7 @@ args:
         candidate_op: !search_space [[3,1],[5,1],[3,2]]
         candidate_ch: !search_space [0.5,0.75,1.0]
         search_out_channel: !search_space [0.75,1.0]
-        gumbel_op: True
+        gumbel_op: False
         gumbel_channel: True
         merge_kernel: True
         separable: False
@@ -199,9 +199,9 @@ args:
             mode: nearest
         auto_refine: False
         candidate_ch: !search_space [0.5,0.75,1.0]
-        gumbel_op: True
+        gumbel_op: False
         gumbel_channel: True
-        gumbel_edge: True
+        gumbel_edge: False
         act: False
         bn: False
     - input_idx: -1 # 12 (/16)
@@ -213,7 +213,7 @@ args:
         candidate_op: !search_space [[3,1],[5,1],[3,2]]
         candidate_ch: !search_space [0.5,0.75,1.0]
         search_out_channel: !search_space [0.75,1.0]
-        gumbel_op: True
+        gumbel_op: False
         gumbel_channel: True
         merge_kernel: True
         separable: False
@@ -244,9 +244,9 @@ args:
             mode: nearest
         auto_refine: False
         candidate_ch: !search_space [0.5,0.75,1.0]
-        gumbel_op: True
+        gumbel_op: False
         gumbel_channel: True
-        gumbel_edge: True
+        gumbel_edge: False
         act: False
         bn: False
     - input_idx: -1 # 14 (/8)
@@ -258,7 +258,7 @@ args:
         candidate_op: !search_space [[3,1],[5,1],[3,2]]
         candidate_ch: !search_space [0.5,0.75,1.0]
         search_out_channel: !search_space [0.75,1.0]
-        gumbel_op: True
+        gumbel_op: False
         gumbel_channel: True
         merge_kernel: True
         separable: False
@@ -287,9 +287,9 @@ args:
             mode: nearest
         auto_refine: False
         candidate_ch: !search_space [0.5,0.75,1.0]
-        gumbel_op: True
+        gumbel_op: False
         gumbel_channel: True
-        gumbel_edge: True
+        gumbel_edge: False
         act: False
         bn: False
     - input_idx: -1 # 16 (/8)
@@ -301,7 +301,7 @@ args:
         candidate_op: !search_space [[3,1],[5,1],[3,2]]
         candidate_ch: !search_space [0.5,0.75,1.0]
         search_out_channel: !search_space [0.75,1.0]
-        gumbel_op: True
+        gumbel_op: False
         gumbel_channel: True
         merge_kernel: True
         separable: False
@@ -331,9 +331,9 @@ args:
             mode: nearest
         auto_refine: False
         candidate_ch: !search_space [0.5,0.75,1.0]
-        gumbel_op: True
+        gumbel_op: False
         gumbel_channel: True
-        gumbel_edge: True
+        gumbel_edge: False
         act: False
         bn: False
     - input_idx: -1 # 18 (/16)
@@ -345,7 +345,7 @@ args:
         candidate_op: !search_space [[3,1],[5,1],[3,2]]
         candidate_ch: !search_space [0.5,0.75,1.0]
         search_out_channel: !search_space [0.75,1.0]
-        gumbel_op: True
+        gumbel_op: False
         gumbel_channel: True
         merge_kernel: True
         separable: False
@@ -376,9 +376,9 @@ args:
             mode: nearest
         auto_refine: False
         candidate_ch: !search_space [0.5,0.75,1.0]
-        gumbel_op: True
+        gumbel_op: False
         gumbel_channel: True
-        gumbel_edge: True
+        gumbel_edge: False
         act: False
         bn: False
     - input_idx: -1 # 20 (/32)
@@ -390,7 +390,7 @@ args:
         candidate_op: !search_space [[3,1],[5,1],[3,2]]
         candidate_ch: !search_space [0.5,0.75,1.0]
         search_out_channel: !search_space [0.75,1.0]
-        gumbel_op: True
+        gumbel_op: False
         gumbel_channel: True
         merge_kernel: True
         separable: False

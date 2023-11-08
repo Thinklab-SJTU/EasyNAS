@@ -269,7 +269,8 @@ class YOLODetect(nn.Module):
         self.training |= self.export
         for i in range(self.nl):
             tmp = self.m[i](x[i])  # conv
-            if hasattr(self, 'bias'): tmp += self.bias[i].view(1,-1,1,1)
+            if hasattr(self, 'bias'): 
+                tmp += self.bias[i].view(1,-1,1,1)
             bs, _, ny, nx = tmp.shape  # x(bs,255,20,20) to x(bs,3,20,20,85)
             tmp = tmp.view(bs, self.na, self.no, ny, nx).permute(0, 1, 3, 4, 2).contiguous()
             logits.append(tmp)

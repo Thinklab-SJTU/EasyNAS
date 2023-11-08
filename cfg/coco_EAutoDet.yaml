@@ -1,9 +1,9 @@
-root_path: &root_path runs/coco_EAutoDet-s_bk/
+root_path: &root_path runs/coco_EAutoDet-s_noAlpha_nogumbel/
 epoch: &epoch 50
 accumulate_gradient: &acc_grad 1
 
 data: &data cfg/dataset/coco_yolo_search.yaml
-model: &model cfg/model/EAutoDet-s_bk.yaml
+model: &model cfg/model/EAutoDet-s.yaml
 pretrain: &pretrain null #runs/coco_EAutoDet-s/ckpt/best.pt
 
 criterion: &criterion 

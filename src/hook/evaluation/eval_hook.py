@@ -50,7 +50,7 @@ class EvalAccHOOK(HOOK):
         best = runner.info.results.val.get('best', 0)
         runner.info.results.is_best = best < runner.info.results.val.top1
         if runner.info.results.is_best:
-            runner.info.results.val.best = runner.info.results.val.top1
+            runner.info.results.val['best'] = runner.info.results.val.top1
         
 
 

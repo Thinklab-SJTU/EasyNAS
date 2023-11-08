@@ -221,24 +221,24 @@ class SepConvBNAct_search(ConvBNAct_search):
         nn.init.uniform_(b, -bound, bound)
         return nn.Parameter(b)
 
-    def get_merge_kernel(self, depth_weight, alphas, merge=True):
-        merge_kernel = 0.
-        if merge:
-            for i, alpha in enumerate(alphas):
-                k,d = self.kd[i]
-                tmp_ks = (k-1)*d + 1
-                start = int((self.k_max - tmp_ks) / 2)
-                end = int(self.k_max - start)
-                if d == 1:
-                    w_pad = torch.nn.functional.pad(depth_weight[:,:,start:end, start:end], (start,)*4, "constant", value=0)
-                    merge_kernel += w_pad * alpha
-                else:
-                    w = torch.zeros_like(depth_weight)
-                    w[:,:,start:end:d, start:end:d] = depth_weight[:,:,start:end:d, start:end:d]
-                    merge_kernel += w * alpha
-        else:
-            raise(ValueError("weight cannot be merged in SepConv if merge_kernel is False"))
-        return merge_kernel
+#    def get_merge_kernel(self, depth_weight, alphas, merge=True):
+#        merge_kernel = 0.
+#        if merge:
+#            for i, alpha in enumerate(alphas):
+#                k,d = self.kd[i]
+#                tmp_ks = (k-1)*d + 1
+#                start = int((self.k_max - tmp_ks) / 2)
+#                end = int(self.k_max - start)
+#                if d == 1:
+#                    w_pad = torch.nn.functional.pad(depth_weight[:,:,start:end, start:end], (start,)*4, "constant", value=0)
+#                    merge_kernel += w_pad * alpha
+#                else:
+#                    w = torch.zeros_like(depth_weight)
+#                    w[:,:,start:end:d, start:end:d] = depth_weight[:,:,start:end:d, start:end:d]
+#                    merge_kernel += w * alpha
+#        else:
+#            raise(ValueError("weight cannot be merged in SepConv if merge_kernel is False"))
+#        return merge_kernel
 
     def forward(self, x, op_alphas=None, ch_alphas=None):
         x = self.act(x) if self.act_first and self.act is not None else x
@@ -358,6 +358,7 @@ class AFF(SearchModule):
         self.m = nn.ModuleList([])
         for ei, (cin, s) in enumerate(zip(in_channel, strides)):
             self.m.append(op_builder.build_parallel_op(self.candidate_op[ei], cin, out_channel, s))
+        #TODO: compute num_alphas_each_op for each edge
         self.num_alphas_each_op = []
         for op in self.candidate_op[0]:
             self.num_alphas_each_op.append(
@@ -408,12 +409,9 @@ class AFF(SearchModule):
     def forward(self, xs, op_alphas=None, ch_alphas=None, edge_alphas=None):
         op_alphas = op_alphas if op_alphas is not None else (self.norm_arch_parameters(self.op_alphas, self.gumbel_op) if self.op_alphas.shape[-1]>1 else self.op_alphas)
         ch_alphas = ch_alphas if ch_alphas is not None else (self.norm_arch_parameters(self.ch_alphas, self.gumbel_channel) if len(self.ch_alphas)>1 else self.ch_alphas)
-        edge_alphas = edge_alphas if edge_alphas is not None else (self.norm_arch_parameters(self.edge_alphas, self.gumbel_channel) if len(self.edge_alphas)>1 else self.edge_alphas)
+        edge_alphas = edge_alphas if edge_alphas is not None else (self.norm_arch_parameters(self.edge_alphas, self.gumbel_edge) if len(self.edge_alphas)>1 else self.edge_alphas)
         bn = self.get_norm_layer(ch_alphas, self.bn, self.gumbel_channel)
 
-#        out = 0.
-#        for x, m, edge_alpha, edge_op_alphas in zip(xs, self.m, edge_alphas, op_alphas):
-#            out = out + self.forward_edge(x, m, edge_op_alphas, ch_alphas) * edge_alpha
         out = sum(self.forward_edge(x, m, edge_op_alphas, ch_alphas) * edge_alpha 
                 for x, m, edge_alpha, edge_op_alphas in zip(xs, self.m, edge_alphas, op_alphas))
 
