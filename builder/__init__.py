@@ -3,7 +3,8 @@ import yaml
 from copy import deepcopy
 import inspect
 
-from .utils import CfgLoader, CfgDumper, parse_cfg, get_submodule_by_name
+from .utils import get_submodule_by_name
+from .yaml_parser import parse_cfg, CfgLoader, CfgDumper
 from .dataloader import create_dataloader 
 from .optimizer import create_optimizer
 from src.search_space.base import SearchSpace

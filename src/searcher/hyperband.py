@@ -39,7 +39,7 @@ class Hyperband(Searcher):
         r = {k: int(v*math.pow(self.eta, self.current_inner_loop-s)) for k, v in self.R.items()}
         for q in next_queries:
             for k, v in r.items():
-                q.cfg[k] = v
+                q.config[k] = v
 
         self.current_inner_loop = (self.current_inner_loop + 1) % (self.num_inner_loop[self.current_outer_loop]+1)
         if self.current_inner_loop == 0:

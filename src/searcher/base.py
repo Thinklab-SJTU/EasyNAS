@@ -28,8 +28,8 @@ class Searcher(object):
         raise(NotImplementedError("No Implementation."))
 
     def preprocess_cfg(self, q):
-        if q.cfg.get('root_path', None):
-            q.cfg['root_path'] = os.path.join(q.cfg['root_path'], 'hash%d'%(hash(q)))
+        if q.config.get('root_path', None):
+            q.config['root_path'] = os.path.join(q.config['root_path'], 'hash%d'%(hash(q)))
         return q
 
 

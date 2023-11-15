@@ -7,6 +7,7 @@ from multiprocessing import Process, JoinableQueue, Manager
 from .base import BaseEngine
 from builder import create_hook, create_search_space, create_searcher, create_evaluater
 from src.hook import hooks_run, hooks_epoch
+from src.search_space.base import _SearchSpace
 
 class SearchEngine(BaseEngine):
     def __init__(self, search_space, searcher, evaluater, hooks, num_eval_workers=1):
@@ -22,7 +23,10 @@ class SearchEngine(BaseEngine):
     def build_from_cfg(self, search_space_cfg, searcher_cfg, evaluater_cfg, hooks_cfg):
         # build search_space
         print("Building search space")
-        search_space = create_search_space(search_space_cfg)
+        if isinstance(search_space_cfg, _SearchSpace):
+            search_space = search_space_cfg
+        else:
+            search_space = create_search_space(search_space_cfg)
 
         # build searcher
         print("Building searcher")
@@ -95,7 +99,7 @@ class SearchEngine(BaseEngine):
             print("Iter", i)
             for q, r in rewards.items():
                 print(hash(q), r)
-                print(q.cfg)
+                print(q.config)
 
         print(self.info.results.best, hash(self.info.results.best[0]))
 
