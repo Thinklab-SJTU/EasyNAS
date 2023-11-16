@@ -3,7 +3,7 @@ searchSpace_AFF: &ss_AFF !search_space
   num_reserve: 1
   candidates:
     - !search_space 
-      cfg:
+      space:
         submodule_name: SepConvBNAct_search
         args: !edict
           candidate_op: !search_space [[3,1], [5,1], [3,2]]

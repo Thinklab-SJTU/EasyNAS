@@ -21,7 +21,7 @@ class _Sampler(ABC):
     def sample(self, num, replace):
         pass
 
-    def discretize(self):
+    def topk(self, space, k=None):
         raise(NotImplementedError(f"No implementation for discretize method for class {self.__class__.__name__}"))
 
 class _NumpySampler(_Sampler):
@@ -44,15 +44,18 @@ class PoissonSampler(_NumpySampler):
 class WeightedSampler(_NumpySampler):
     def __init__(self, space_size, norm_fn='softmax', seed=None):
         super(WeightedSampler, self).__init__(seed)
-        self.register_weight('weight', np.ones(space_size) / space_size)
-#        self.register_weight('weight', self.rdm.randn(space_size) * 1e-3)
+#        self.register_weight('weight', torch.tensor(torch.ones(space_size) / space_size, requires_grad=True))
+        self.register_weight('weight', torch.tensor(1e-3*torch.randn(space_size, requires_grad=True), requires_grad=True))
         self.norm_fn = NORM_FN[norm_fn]
     def sample(self, space, num, replace):
         normed_weight = self.norm_fn(self.weight)
-        return self.rdm.choice(space, size=num, p=normed_weight, replace=replace)
-    def discretize(self, space, num):
-        topk_idx = np.argpartition(-self.weight, num, axis=-1)
-        return [space[tmp] for tmp in topk_idx]
+        return self.rdm.choice(space, size=num, p=normed_weight.numpy(), replace=replace)
+    def topk(self, space, k=None):
+        return_list = False if k is None else True
+        k = 1 if k is None else k
+#        topk_idx = np.argpartition(-self.weight, k, axis=-1)
+        _, topk_idx = self.weight.topk(k, dim=-1, largest=True, sorted=True)
+        return [space[tmp] for tmp in topk_idx] if return_list else space[topk_idx[0]]
 
 # Parameterless, Continuous
 class UniformContinousSampler(_NumpySampler):
@@ -62,22 +65,48 @@ class NormalSampler(_NumpySampler):
     def sample(self, mean, std, num):
         return self.rdm.normal(loc=mean, scale=std, size=num)
 
-#NORM_FN = {
+NORM_FN = {
+        'normalize': lambda x, dim=-1: x / x.sum(dim=-1, keepdim=True),
+        'standarize': lambda x, dim=-1: (x-x.mean(dim=dim, keepdim=True))/x.std(dim=dim, deepdim=True),
 #        'normalize': lambda x, dim=-1: x / x.sum(axis=-1, keepdims=True),
 #        'standarize': lambda x, dim=-1: (x-x.mean(axis=dim, keepdims=True))/x.std(axis=dim, deepdims=True),
-#        }
-#def register_norm_fn():
-#    def wrapper(func):
-#        NORM_FN[func.__name__] = func
-#        return func
-#    return wrapper
-#
-#@register_norm_fn
-def softmax(x, dim=-1):
-    exp_x = np.exp(x)
-    return exp_x/exp_x.sum(axis=dim, keepdims=True)
-
-NORM_FN = {
-        'softmax': softmax,
         }
 
+def register_norm_fn(norm_fn):
+    NORM_FN[norm_fn.__name__] = norm_fn
+    return norm_fn
+
+@register_norm_fn
+def softmax(x, dim=-1):
+    return torch.softmax(x, dim=dim)
+#    exp_x = np.exp(x)
+#    return exp_x/exp_x.sum(axis=dim, keepdims=True)
+
+
+@register_norm_fn
+def gumbel_softmax(logits, temperature=1, hard=False):
+    """
+    ST-gumple-softmax
+    input: [*, n_class]
+    return: flatten --> [*, n_class] an one-hot vector
+    """
+    while True:
+      gumbel = -torch.log(-torch.log(torch.empty(shape, device=device).uniform_()))
+#      gumbel = -torch.empty(shape, device=device).exponential_().log()
+#      U = torch.rand(shape, device=device)
+#      gumbel = -torch.log(-torch.log(U + eps) + eps)
+      y = logits + gumbel 
+      y = nn.functional.softmax(y / temperature, dim=-1)
+      if torch.isinf(y).any() or torch.isnan(y).any(): continue
+      else: break
+
+    if not hard:
+        return y
+
+    shape = y.size()
+    _, ind = y.max(dim=-1, keepdim=True)
+    y_hard = torch.zeros_like(y)
+    y_hard.scatter_(-1, ind, 1.)
+    # Set gradients w.r.t. y_hard gradients w.r.t. y
+    y_hard = y_hard - y.detach() + y
+    return y_hard
