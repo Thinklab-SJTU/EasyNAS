@@ -12,6 +12,14 @@ from src.search_space.base import _SearchSpace
 class SearchEngine(BaseEngine):
     def __init__(self, search_space, searcher, evaluater, hooks, num_eval_workers=1):
         self.search_space, self.searcher, self.evaluater = self.build_from_cfg(search_space, searcher, evaluater, hooks)
+
+        print(self.search_space.size)
+        tmp = []
+        for sample_node in self.search_space.enum_space(recurse=True):
+            print(sample_node.config)
+            tmp.append(sample_node)
+        print(len(tmp), len(set(tmp)), self.search_space.size)
+        assert 0
         
         self.num_eval_workers = num_eval_workers
 

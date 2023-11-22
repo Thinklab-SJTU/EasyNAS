@@ -13,7 +13,10 @@ class _Sampler(ABC):
         self._weights[name] = weight
         setattr(self, name, weight)
 
-    @property
+    def named_weights(self):
+        for n, w in self._weights:
+            yield n, w
+
     def weights(self):
         return self._weights
 
@@ -23,6 +26,10 @@ class _Sampler(ABC):
 
     def topk(self, space, k=None):
         raise(NotImplementedError(f"No implementation for discretize method for class {self.__class__.__name__}"))
+
+    def __repr__(self):
+        string = f"{self.__class__.__name__}(seed={self.seed})"
+        return string
 
 class _NumpySampler(_Sampler):
     def __init__(self, seed=None):
@@ -56,6 +63,11 @@ class WeightedSampler(_NumpySampler):
 #        topk_idx = np.argpartition(-self.weight, k, axis=-1)
         _, topk_idx = self.weight.topk(k, dim=-1, largest=True, sorted=True)
         return [space[tmp] for tmp in topk_idx] if return_list else space[topk_idx[0]]
+    def __repr__(self):
+        with torch.no_grad():
+            normed_weight = self.norm_fn(self.weight)
+        string = f"{self.__class__.__name__}(seed={self.seed}, \nweights={self.weight.data}, \nnormed_weights={normed_weight})"
+        return string
 
 # Parameterless, Continuous
 class UniformContinousSampler(_NumpySampler):
@@ -77,11 +89,10 @@ def register_norm_fn(norm_fn):
     return norm_fn
 
 @register_norm_fn
-def softmax(x, dim=-1):
-    return torch.softmax(x, dim=dim)
+def softmax(x, dim=-1, temperature=1):
+    return torch.softmax(x / temperature, dim=dim)
 #    exp_x = np.exp(x)
 #    return exp_x/exp_x.sum(axis=dim, keepdims=True)
-
 
 @register_norm_fn
 def gumbel_softmax(logits, temperature=1, hard=False):

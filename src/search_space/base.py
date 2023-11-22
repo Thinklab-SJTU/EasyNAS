@@ -1,11 +1,23 @@
 from abc import ABC,abstractmethod
-from functools import reduce
-from collections.abc import Iterable
+from functools import reduce, partial
+from itertools import product
+import inspect
+from collections.abc import Iterable, Iterator
 from copy import deepcopy
 import numpy as np
 import warnings
 
 from builder.utils import get_submodule_by_name
+
+def my_product(iter_fns, out=None):
+    depth = len(iter_fns)
+    if out is None: out = [None for _ in range(depth)]
+    for tmp in iter_fns[0]():
+        out[-depth] = tmp
+        if depth == 1:
+            yield tuple(out)
+        else:
+            yield from my_product(iter_fns[1:], out)
 
 class SampleNode(object):
     def __init__(self, space, sample):
@@ -35,6 +47,7 @@ class SampleNode(object):
 
     def __hash__(self):
         return hash(tuple(self.sample.values()))
+#        return hash(tuple(hash(v) if isinstance(v, SampleNode) else v for v in self.sample.values()))
 #        return hash((self.embedding, *self.sample.values()))
 
     def __repr__(self):
@@ -59,11 +72,15 @@ def sample_monitor(func):
 class SearchSpace(object):
     def __new__(cls, **kwargs):
         space = kwargs['space']
+        flatten = kwargs.pop('flatten', False)
         if isinstance(space, dict):
             return IIDSpace(**kwargs)
 #            return IIDSpace.__new__(IIDSpace, **kwargs)
         elif isinstance(space, (list, tuple)):
-            return DiscreteSpace(**kwargs)
+            if flatten:
+                return FlattenSampledDiscreteSpace(**kwargs)
+            else:
+                return DiscreteSpace(**kwargs)
 #            return DiscreteSpace.__new__(DiscreteSpace, **kwargs)
         elif isinstance(space, str):
             return ContinuousSpace(**kwargs)
@@ -84,7 +101,10 @@ class _SearchSpace(ABC):
         if sampler is not None and self.label not in _SearchSpace._samplers:
             if isinstance(sampler, str):
                 sampler = {'submodule_name': sampler}
-            _SearchSpace._samplers[self.label] = get_submodule_by_name(sampler.get('submodule_name'), search_path='src.search_space.sampler')(**sampler.get('args', {}))
+            sampler_cls = get_submodule_by_name(sampler.get('submodule_name'), search_path='src.search_space.sampler')
+            if 'space_size' in inspect.getfullargspec(sampler_cls.__init__).args:
+                sampler.setdefault('args', {}).update({'space_size': space.size})
+            _SearchSpace._samplers[self.label] = sampler_cls(**sampler.get('args', {}))
 
     def extract_child_space(self, space, prefix="", child_spaces=None):
         if child_spaces is None: child_spaces = {}
@@ -114,7 +134,7 @@ class _SearchSpace(ABC):
         return list(set(samples))
 
     @abstractmethod
-    def get_size(self):
+    def get_size(self, label_computed=None):
         pass
     @abstractmethod
     def build_embedding(self, *args, **kwargs):
@@ -128,6 +148,9 @@ class _SearchSpace(ABC):
     @abstractmethod
     def sample_from_node(self, node, label_samples, num_sampled=0):
         pass
+    @abstractmethod
+    def enum_space(self):
+        pass
 
     def sample_from_nodes(self, src_sample_nodes, label_samples, num_sampled=0):
         sample_nodes = [] 
@@ -138,18 +161,24 @@ class _SearchSpace(ABC):
 
     def named_sampler_weights(self, prefix='', recurse=True, memo=None):
         if memo is None: memo = set()
-        for name, weight in self.sampler.weights.items():
+        for name, weight in self.sampler.named_weights():
             if weight not in memo:
                 memo.add(weight)
                 if prefix: name = '.'.join([prefix, name])
                 yield name, weight
         if recurse:
-            for name, child_space in self.child_spaces:
+            for name, child_space in self._child_spaces.items():
                 yield from child_space.named_sampler_weights(prefix=name, recurse=recurse, memo=memo)
 
     def sampler_weights(self, recurse=True):
         for name, weight in self.named_sampler_weights(recurse=recurse):
             yield weight
+
+    def apply(self, fn):
+        for _, space in self._child_spaces.items():
+            space.apply(fn)
+        fn(self)
+        return self
 
     def apply_sampler_weights(self, fn, recurse=True, memo=None):
         if memo is None:
@@ -166,7 +195,7 @@ class _SearchSpace(ABC):
                 setattr(self.sampler, key, out_param)
 
         if recurse:
-            for space in self._child_space:
+            for _, space in self._child_spaces.items():
                 if space not in memo:
                     space.apply_sampler_weights(fn, recurse, memo)
 
@@ -176,7 +205,19 @@ class _SearchSpace(ABC):
     def __getitem__(self, key):
         return self.space[key]
 
+    @abstractmethod
+    def discretize(self, **replace_settings):
+        pass
 
+    #TODO
+    def show_info(self):
+        for prefix, child_space in self._child_spaces.items():
+            name = '.'.join([tmp.split('::')[-1] for tmp in prefix.split('.')])
+            print(name, child_space.label, child_space)
+
+
+
+###########################################
 class IIDSpace(_SearchSpace):
     def __new__(cls, *args, **kwargs):
         return super().__new__(cls)
@@ -188,11 +229,14 @@ class IIDSpace(_SearchSpace):
             assert not hasattr(self, k), f"The name ({k}) in the search space cannot be used."
             setattr(self, k, v)
 
-#    def __getitem__(self, key):
-#        return self.space.get(key)
-
-    def get_size(self):
-        return reduce(lambda x,y: x*y, [x.size for x in self._child_spaces.values()])
+    #TODO: We should build the tree of search space according to the label rather than the name.
+    def get_size(self, label_computed=None):
+        return len(list(self.enum_space()))
+#        if label_computed is None: label_computed = set()
+#        if self.label in label_computed: 
+#            return 1
+#        label_computed.add(self.label)
+#        return reduce(lambda x,y: x*y, [1 if x.label in label_computed else x.get_size(label_computed) for x in self._child_spaces.values()])
 
     def build_config(self, sample):
         def get_item(src, idx):
@@ -203,7 +247,9 @@ class IIDSpace(_SearchSpace):
             else:
                 raise(TypeError(f"Index {idx} from {src} is not supported"))
         def set_item(src, idx, dst):
-            if isinstance(src, dict): 
+            if isinstance(dst, SampleNode):
+                set_item(src, idx, dst.config)
+            elif isinstance(src, dict): 
                 src[idx] = dst
             elif isinstance(src, (list, tuple)):
                 src[int(idx)] = dst
@@ -216,7 +262,7 @@ class IIDSpace(_SearchSpace):
             tmp = config
             for k in keys[:-1]:
                 tmp = get_item(tmp, k)
-            set_item(tmp, keys[-1], sub_sample.config)
+            set_item(tmp, keys[-1], sub_sample)
         return config
 
     def build_embedding(self, sample):
@@ -249,25 +295,51 @@ class IIDSpace(_SearchSpace):
         return sample_nodes
 
     def sample_from_node(self, src_sample_node, label_samples, num_sampled=0):
-       sample = {}
-       for prefix, s in src_sample_node.sample.items():
-           assert prefix in self._child_spaces, f"No found {prefix} in space."
-           assert isinstance(s, SampleNode)
-           sample[prefix] = self._child_spaces[prefix].sample_from_node(s, label_samples, num_sampled)
-       return SampleNode(self, sample)
+        sample = {}
+        for prefix, s in src_sample_node.sample.items():
+            assert prefix in self._child_spaces, f"No found {prefix} in space."
+            assert isinstance(s, SampleNode)
+            sample[prefix] = self._child_spaces[prefix].sample_from_node(s, label_samples, num_sampled)
+        return SampleNode(self, sample)
+
+    def enum_from_node(self, src_sample_node, label_sample):
+        for child_sample in my_product([partial(space.enum_from_node, src_sample_node.sample[prefix], label_sample) for prefix, space in self._child_spaces.items()]):
+            sample = {prefix: sub_sample for prefix, sub_sample in zip(self._child_spaces.keys(), child_sample)}
+            yield SampleNode(self, sample)
+
+    def enum_space(self, recurse=True, label_sample=None):
+        if not recurse:
+            yield self
+        else:
+            if label_sample is None: label_sample = {}
+            if self.label in label_sample:
+                yield from self.enum_from_node(label_sample[self.label], label_sample)
+            else:
+                for child_sample in my_product([partial(space.enum_space, recurse, label_sample) for space in self._child_spaces.values()]):
+                    sample = {prefix: sub_sample for prefix, sub_sample in zip(self._child_spaces.keys(), child_sample)}
+                    sample = SampleNode(self, sample)
+                    label_sample[self.label] = sample
+                    yield sample
+                    del label_sample[self.label]
     
+    def discretize(self, **replace_settings):
+        for prefix, child_space in self._child_spaces.items():
+            name = '.'.join([tmp.split('::')[-1] for tmp in prefix.split('.')])
+            replace_settings[prefix] = child_space.discretize(**child_replace_settings)
+        return self.build_config(replace_settings)
 
 
+###########################################
 class DiscreteSpace(_SearchSpace):
     def __new__(cls, *args, **kwargs):
         return super().__new__(cls)
     def __init__(self, space, sampler='UniformDiscreteSampler', num_reserve=None, reserve_replace=False, embed_fn=None, label=None):
-        super(DiscreteSpace, self).__init__(space, sampler, embed_fn, label)
         """
         if num_reserve is None, we set it as 1 and return the value.
         if num_reserve is 1, we return a list with len equals to 1
         """
         space = self.to_tuple(space)
+        super(DiscreteSpace, self).__init__(space, sampler, embed_fn, label)
         self.return_list = num_reserve is not None
         self.num_reserve = 1 if num_reserve is None else num_reserve
         self.reserve_replace = reserve_replace
@@ -278,9 +350,14 @@ class DiscreteSpace(_SearchSpace):
                 space[i] = tuple(space[i])
         return space 
 
-    def get_size(self):
-        cand_sizes = [cand.size if isinstance(cand, _SearchSpace) else 1 for cand in self.space]
-        return reduce(lambda x,y: x+y, cand_sizes)
+    def get_size(self, label_computed=None):
+        return len(list(self.enum_space()))
+#        if label_computed is None: label_computed = set()
+#        if self.label in label_computed: 
+#            return 1
+#        label_computed.add(self.label)
+#        cand_sizes = [cand.get_size(label_computed) if isinstance(cand, _SearchSpace) else 1 for cand in self.space]
+#        return reduce(lambda x,y: x+y, cand_sizes)
 
     @sample_monitor
     def sample(self, num_to_sample=1, replace=True, label_samples=None, num_sampled=0):
@@ -295,7 +372,6 @@ class DiscreteSpace(_SearchSpace):
                 sample = {}
                 for idx in self.sampler.sample(range(len(self.space)), num=self.num_reserve, replace=self.reserve_replace):
                     cand = self.space[idx] 
-                    #TODO: it can be mistake since label_samples has multiple samples while cand is only one sample. We should specify the item number of this cand in the label_samples
                     if isinstance(cand, _SearchSpace):
                         cand = cand.sample(num_to_sample=1, replace=True, label_samples=label_samples, num_sampled=num_sampled+len(sample_nodes))[0]
                     sample[idx] = cand 
@@ -339,18 +415,75 @@ class DiscreteSpace(_SearchSpace):
                 embed[int(cand_idx)] = 1./self.num_reserve
             return embed
 
+    def enum_from_node(self, src_sample_node, label_sample):
+        assert len(src_sample_node.sample) == 1
+        idx, s = list(src_sample_node.sample.items())[0]
+        cand = self.space[idx]
+        if isinstance(cand, _SearchSpace):
+            if isinstance(s, SampleNode):
+                for sub_cand in cand.enum_from_node(s, label_sample):
+                    yield SampleNode(self, {idx: sub_cand})
+            else:
+                for sub_cand in cand.enum_space(recurse=True, label_sample=label_sample):
+                    yield SampleNode(self, {idx: sub_cand})
+        else:
+            yield SampleNode(self, {idx: cand})
+        
+    def enum_space(self, recurse=True, label_sample=None):
+#        print("***", self.label, label_sample)
+        if not recurse:
+            for config in self.space:
+                yield config
+        else:
+            if label_sample is None: label_sample = {}
+            if self.label in label_sample:
+                yield from self.enum_from_node(label_sample[self.label], label_sample)
+            else:
+                for idx, config in enumerate(self.space):
+                    if isinstance(config, _SearchSpace):
+                        for sub_cand in config.enum_space(recurse, label_sample):
+                            sample = SampleNode(self, {idx: sub_cand})
+                            label_sample[self.label] = sample
+                            yield sample
+                            del label_sample[self.label]
+                    else:
+                        sample = SampleNode(self, {idx: config})
+                        label_sample[self.label] = sample
+#                        print("***", self.label, label_sample)
+                        yield sample
+                        del label_sample[self.label]
+
     def __iter__(self):
-        return iter(self.space)
-#    def __getitem__(self, idx):
-#        return self.space[idx]
+        return self.enum_space(recuse=False) #iter(self.space)
     def __len__(self):
         return len(self.space)
-#    def __repr__(self):
-#        string = f"DiscreteSpace(space={self.space})"
-#        return string
     def index(self, v):
         return self.space.index(v)
+
+    def discretize(self, **replace_settings):
+        out = [o.discretize(**replace_settings) if isinstance(o, _SearchSpace) else o for o in self.sampler.topk(self.space, k=self.num_reserve)]
+        return out if self.return_list else out[0]
+
+###########################################
+class FlattenSampledDiscreteSpace(DiscreteSpace):
+    def __new__(cls, *args, **kwargs):
+        return super().__new__(cls)
+    def __init__(self, space, sampler='UniformDiscreteSampler', num_reserve=None, reserve_replace=False, embed_fn=None, label=None):
+        self.space = space
+        flattened_space = list(self.enum_space())
+        del self.space
+        self.ori_space = space
+        super(FlattenSampledDiscreteSpace, self).__init__(flattened_space, sampler, num_reserve, reserve_replace, embed_fn, label)
+
+    def __iter__(self):
+        return iter(self.ori_space)
+    def __len__(self):
+        return len(self.ori_space)
+    def index(self, v):
+        return self.ori_space.index(v)
     
+
+###########################################
 class ContinuousSpace(_SearchSpace):
     def __new__(cls, *args, **kwargs):
         return super().__new__(cls)
@@ -367,7 +500,11 @@ class ContinuousSpace(_SearchSpace):
         self.num_reserve = 1 if num_reserve is None else num_reserve
         self.reserve_replace = reserve_replace
 
-    def get_size(self):
+    def get_size(self, label_computed=None):
+        if label_computed is None: label_computed = set()
+        if self.label in label_computed: 
+            return 1
+        label_computed.add(self.label)
         return self.end - self.start
 
     @sample_monitor
@@ -429,3 +566,11 @@ class ContinuousSpace(_SearchSpace):
         else:
             vals = np.array([(v-self.start)/self.size for v in sample.values()])
             return vals
+
+    def enum_space(self, recurse=True, label_sample=None):
+        raise(TypeError("ContinuousSpace does not support to enumrate the space."))
+
+    def discretize(self, **replace_settings):
+        out = self.sampler.topk(self.space, k=self.num_reserve)
+        return out if self.return_list else out[0]
+

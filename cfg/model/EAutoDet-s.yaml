@@ -1,19 +1,17 @@
 num_classes: &num_classes 80  # number of classes
 searchSpace_AFF: &ss_AFF !search_space
   num_reserve: 1
-  candidates:
+  flatten: True
+  sampler: WeightedSampler
+  space:
     - !search_space 
-      cfg:
+      space:
         submodule_name: SepConvBNAct_search
         args: !edict
           candidate_op: !search_space [[3,1], [5,1], [3,2]]
           candidate_ch: !search_space [0.5,0.75,1.0]
-          gumbel_op: False
-          gumbel_channel: True
           act: torch.nn.SiLU
           bn: torch.nn.BatchNorm2d
-          independent_ch_arch_param: False
-          independent_op_arch_param: False
 
 # anchors
 anchors: &anchors
@@ -44,8 +42,6 @@ args:
         out_channel: 128
         candidate_op: !search_space [[1,1],[3,1],[5,1],[3,2]]
         candidate_ch: !search_space [0.5,0.75,1.0]
-        gumbel_op: False
-        gumbel_channel: True
         stride: 2
         bias: False
         act: torch.nn.SiLU
@@ -58,19 +54,14 @@ args:
         candidate_op: !search_space [[3,1],[5,1],[3,2]]
         candidate_ch: !search_space [0.5,0.75,1.0]
         search_out_channel: !search_space [0.75,1.0]
-        gumbel_op: False
-        gumbel_channel: True
         merge_kernel: True
         separable: False
-        with_arch_param: True
     - input_idx: -1 # 3-P3/8
       submodule_name: ConvBNAct_search
       args: 
         out_channel: 256
         candidate_op: !search_space [[1,1],[3,1],[5,1],[3,2]]
         candidate_ch: !search_space [0.5,0.75,1.0]
-        gumbel_op: False
-        gumbel_channel: True
         stride: 2
         bias: False
         act: torch.nn.SiLU
@@ -83,19 +74,14 @@ args:
         candidate_op: !search_space [[3,1],[5,1],[3,2]]
         candidate_ch: !search_space [0.5,0.75,1.0]
         search_out_channel: !search_space [0.75,1.0]
-        gumbel_op: False
-        gumbel_channel: True
         merge_kernel: True
         separable: False
-        with_arch_param: True
     - input_idx: -1 # 5-P4/16
       submodule_name: ConvBNAct_search 
       args: 
         out_channel: 512
         candidate_op: !search_space [[1,1],[3,1],[5,1],[3,2]]
         candidate_ch: !search_space [0.5,0.75,1.0]
-        gumbel_op: False
-        gumbel_channel: True
         stride: 2
         bias: False
         act: torch.nn.SiLU
@@ -108,19 +94,14 @@ args:
         candidate_op: !search_space [[3,1],[5,1],[3,2]]
         candidate_ch: !search_space [0.5,0.75,1.0]
         search_out_channel: !search_space [0.75,1.0]
-        gumbel_op: False
-        gumbel_channel: True
         merge_kernel: True
         separable: False
-        with_arch_param: True
     - input_idx: -1 # 7-P5/32
       submodule_name: ConvBNAct_search 
       args: 
         out_channel: 1024
         candidate_op: !search_space [[1,1],[3,1],[5,1],[3,2]]
         candidate_ch: !search_space [0.5,0.75,1.0]
-        gumbel_op: False
-        gumbel_channel: True
         stride: 2
         bias: False
         act: torch.nn.SiLU
@@ -133,7 +114,7 @@ args:
         
 # head
     - input_idx: !search_space
-        candidates: [-1, 6, 4]
+        space: [-1, 6, 4]
         num_reserve: 2
         reserve_replace: False
         label: aff0_edge
@@ -141,10 +122,10 @@ args:
       args: 
         out_channel: 1024
         strides: !search_space
-          candidates: [1, 2, 4]
+          space: [1, 2, 4]
           label: aff0_edge
         candidate_op: !search_space
-          candidates: 
+          space: 
             - *ss_AFF
             - *ss_AFF
             - *ss_AFF
@@ -155,9 +136,6 @@ args:
             mode: nearest
         auto_refine: False
         candidate_ch: !search_space [0.5,0.75,1.0]
-        gumbel_op: False
-        gumbel_channel: True
-        gumbel_edge: False
         act: False
         bn: False
     - input_idx: -1 # 10 (/32)
@@ -169,14 +147,11 @@ args:
         candidate_op: !search_space [[3,1],[5,1],[3,2]]
         candidate_ch: !search_space [0.5,0.75,1.0]
         search_out_channel: !search_space [0.75,1.0]
-        gumbel_op: False
-        gumbel_channel: True
         merge_kernel: True
         separable: False
-        with_arch_param: True
   
     - input_idx: !search_space
-        candidates: [-1, 8, 6, 4]
+        space: [-1, 8, 6, 4]
         label: aff1_edge
         num_reserve: 2
         reserve_replace: False
@@ -184,10 +159,10 @@ args:
       args: 
         out_channel: 512
         strides: !search_space
-          candidates: [0.5, 0.5, 1, 2]
+          space: [0.5, 0.5, 1, 2]
           label: aff1_edge
         candidate_op: !search_space
-          candidates: 
+          space: 
             - *ss_AFF
             - *ss_AFF
             - *ss_AFF
@@ -199,9 +174,6 @@ args:
             mode: nearest
         auto_refine: False
         candidate_ch: !search_space [0.5,0.75,1.0]
-        gumbel_op: False
-        gumbel_channel: True
-        gumbel_edge: False
         act: False
         bn: False
     - input_idx: -1 # 12 (/16)
@@ -213,14 +185,11 @@ args:
         candidate_op: !search_space [[3,1],[5,1],[3,2]]
         candidate_ch: !search_space [0.5,0.75,1.0]
         search_out_channel: !search_space [0.75,1.0]
-        gumbel_op: False
-        gumbel_channel: True
         merge_kernel: True
         separable: False
-        with_arch_param: True
   
     - input_idx: !search_space
-        candidates: [-1, 10, 8, 6, 4]
+        space: [-1, 10, 8, 6, 4]
         label: aff2_edge
         num_reserve: 2
         reserve_replace: False
@@ -228,10 +197,10 @@ args:
       args: 
         out_channel: 256
         strides: !search_space
-          candidates: [0.5, 0.25, 0.25, 0.5, 1]
+          space: [0.5, 0.25, 0.25, 0.5, 1]
           label: aff2_edge
         candidate_op: !search_space
-          candidates: 
+          space: 
             - *ss_AFF
             - *ss_AFF
             - *ss_AFF
@@ -244,9 +213,6 @@ args:
             mode: nearest
         auto_refine: False
         candidate_ch: !search_space [0.5,0.75,1.0]
-        gumbel_op: False
-        gumbel_channel: True
-        gumbel_edge: False
         act: False
         bn: False
     - input_idx: -1 # 14 (/8)
@@ -258,14 +224,11 @@ args:
         candidate_op: !search_space [[3,1],[5,1],[3,2]]
         candidate_ch: !search_space [0.5,0.75,1.0]
         search_out_channel: !search_space [0.75,1.0]
-        gumbel_op: False
-        gumbel_channel: True
         merge_kernel: True
         separable: False
-        with_arch_param: True
   
     - input_idx: !search_space
-        candidates: [-1, 12, 10]
+        space: [-1, 12, 10]
         label: aff3_edge
         num_reserve: 2
         reserve_replace: False
@@ -273,10 +236,10 @@ args:
       args: 
         out_channel: 256
         strides: !search_space
-          candidates: [1, 0.5, 0.25]
+          space: [1, 0.5, 0.25]
           label: aff3_edge
         candidate_op: !search_space
-          candidates: 
+          space: 
             - *ss_AFF
             - *ss_AFF
             - *ss_AFF
@@ -287,9 +250,6 @@ args:
             mode: nearest
         auto_refine: False
         candidate_ch: !search_space [0.5,0.75,1.0]
-        gumbel_op: False
-        gumbel_channel: True
-        gumbel_edge: False
         act: False
         bn: False
     - input_idx: -1 # 16 (/8)
@@ -301,14 +261,11 @@ args:
         candidate_op: !search_space [[3,1],[5,1],[3,2]]
         candidate_ch: !search_space [0.5,0.75,1.0]
         search_out_channel: !search_space [0.75,1.0]
-        gumbel_op: False
-        gumbel_channel: True
         merge_kernel: True
         separable: False
-        with_arch_param: True
 
     - input_idx: !search_space 
-        candidates: [-1, 14, 12, 10]
+        space: [-1, 14, 12, 10]
         label: aff4_edge
         num_reserve: 2
         reserve_replace: False
@@ -316,10 +273,10 @@ args:
       args: 
         out_channel: 512
         strides: !search_space 
-          candidates: [2, 2, 1, 0.5]
+          space: [2, 2, 1, 0.5]
           label: aff4_edge
         candidate_op: !search_space
-          candidates: 
+          space: 
             - *ss_AFF
             - *ss_AFF
             - *ss_AFF
@@ -331,9 +288,6 @@ args:
             mode: nearest
         auto_refine: False
         candidate_ch: !search_space [0.5,0.75,1.0]
-        gumbel_op: False
-        gumbel_channel: True
-        gumbel_edge: False
         act: False
         bn: False
     - input_idx: -1 # 18 (/16)
@@ -345,14 +299,11 @@ args:
         candidate_op: !search_space [[3,1],[5,1],[3,2]]
         candidate_ch: !search_space [0.5,0.75,1.0]
         search_out_channel: !search_space [0.75,1.0]
-        gumbel_op: False
-        gumbel_channel: True
         merge_kernel: True
         separable: False
-        with_arch_param: True
   
     - input_idx: !search_space
-        candidates: [-1, 16, 14, 12, 10]
+        space: [-1, 16, 14, 12, 10]
         label: aff5_edge
         num_reserve: 2
         reserve_replace: False
@@ -360,10 +311,10 @@ args:
       args: 
         out_channel: 1024
         strides: !search_space
-          candidates: [2, 4, 4, 2, 1]
+          space: [2, 4, 4, 2, 1]
           label: aff5_edge
         candidate_op: !search_space
-          candidates: 
+          space: 
             - *ss_AFF
             - *ss_AFF
             - *ss_AFF
@@ -376,9 +327,6 @@ args:
             mode: nearest
         auto_refine: False
         candidate_ch: !search_space [0.5,0.75,1.0]
-        gumbel_op: False
-        gumbel_channel: True
-        gumbel_edge: False
         act: False
         bn: False
     - input_idx: -1 # 20 (/32)
@@ -390,11 +338,8 @@ args:
         candidate_op: !search_space [[3,1],[5,1],[3,2]]
         candidate_ch: !search_space [0.5,0.75,1.0]
         search_out_channel: !search_space [0.75,1.0]
-        gumbel_op: False
-        gumbel_channel: True
         merge_kernel: True
         separable: False
-        with_arch_param: True
 
     - input_idx: [16, 18, 20] # Detect(P3, P4, P5)
       is_outlayer: True

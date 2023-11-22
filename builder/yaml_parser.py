@@ -2,7 +2,7 @@ import sys
 import os
 sys.path.append(os.getcwd())
 import inspect
-from functools import partial
+from functools import partial, reduce
 from easydict import EasyDict as edict
 import yaml
 import numpy as np
@@ -28,6 +28,13 @@ def parse_cfg(yaml_file):
     return cfg
 
 
+DIGITS={'0':0,'1':1,'2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9}
+def str2float(s):
+    s=s.split('.')
+    if s[0]==0:
+        return 0+reduce(lambda x,y:x/10+y , map(lambda x:DIGITS[x],s[1][::-1]))/10
+    else:
+        return reduce(lambda x,y:x*10+y,map(lambda x:DIGITS[x],s[0]))+reduce(lambda x,y:x/10+y , map(lambda x:DIGITS[x],s[1][::-1]))/10
 
 class CfgLoader(yaml.SafeLoader):
     def construct_python_tuple(self, node):
@@ -105,7 +112,8 @@ class CfgLoader(yaml.SafeLoader):
                 ss_args = {'space': ss_args}
             else:
                 assert len(ss_args_tmp) == 3
-                ss_args = {'space': np.arange(*[float(tmp) for tmp in ss_args_tmp]).tolist()}
+                ss_args = {'space': np.arange(*[str2float(tmp) for tmp in ss_args_tmp]).tolist()}
+                print(ss_args)
         elif isinstance(node, yaml.SequenceNode):
             ss_args = {'space': self.construct_sequence(node, deep=True)}
         elif isinstance(node, yaml.MappingNode):

@@ -1,7 +1,7 @@
 root_path: &root_path runs/search_test/
 
 space: &search_space !search_space
-  a: !search_space 0.1:0.3
+#  a: !search_space 0.1:0.3
   b: !search_space 0.2:0.8:0.1
   c: !search_space [1,2,3,4]
   d:
@@ -28,7 +28,7 @@ space: &search_space !search_space
               label: d2
       - !search_space
         space:
-            e31: !search_space 0.3:0.6
+#            e31: !search_space 0.3:0.6
             e32: !search_space 0.8:1.8:0.1
   f: !search_space
     space:
@@ -54,8 +54,25 @@ space: &search_space !search_space
               label: eg3
       - !search_space
         space:
-            e31: !search_space 0.3:0.6
+#            e31: !search_space 0.3:0.6
             e32: !search_space 0.8:1.8:0.1
+
+  h: !search_space
+    label: d2
+    space:
+      - h1
+      - !search_space
+        space:
+            h21: h21
+            h22: !search_space 
+              space: [h221, h222, h223]
+              label: h2
+            h23: !search_space 
+              space: [h231, h232, h233]
+              label: h2
+      - !search_space
+        space:
+            h3: !search_space 0.8:1.8:0.1
 
 
 searcher: &searcher

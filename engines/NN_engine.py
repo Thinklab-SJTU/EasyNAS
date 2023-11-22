@@ -13,7 +13,7 @@ class NNEngine(BaseEngine):
 
         self.local_rank = local_rank
         self.device = torch.device('cuda', max(local_rank, 0))
-        self.arch_config = model # an instance of _Searchspace or dict representing model architecture
+        self.search_space = model # an instance of _Searchspace or dict representing model architecture
         self.dataloaders, model, self.criterion, self.optimizer, self.lr_scheduler, hooks = self.build_from_cfg(data, model, criterion, optimizer, lr_scheduler, hooks)
 
         self.train_loader, self.val_loader, self.test_loader = self.dataloaders.get('train', None), self.dataloaders.get('val', None), self.dataloaders.get('test', None)

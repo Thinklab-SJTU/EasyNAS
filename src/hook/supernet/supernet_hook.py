@@ -1,4 +1,5 @@
 import os
+import inspect
 from functools import partial
 import torch
 import json
@@ -8,9 +9,13 @@ from builder import get_submodule_by_name, create_criterion, CfgDumper
 from ..hook import HOOK, execute_period, only_master, hooks_train_iter
 from .. import OptHOOK
 
-def set_temperature(m, temp):
-    if hasattr(m, 'set_temperature'):
-        m.set_temperature('all', temp)
+def set_temperature(space, temp):
+    if hasattr(space, 'sampler') and hasattr(space.sampler, 'norm_fn'):
+        norm_fn = space.sampler.norm_fn
+        if isinstance(norm_fn, partial):
+            norm_fn = norm_fn.func
+        if 'temperature' in inspect.getfullargspec(space.sampler.norm_fn).args:
+            space.sampler.norm_fn = partial(norm_fn, temperature=temp)
 
 class DARTSHOOK(HOOK):
     def __init__(self, optimizer_cfg, dataloader_name, criterion_cfg=None, grad_clip=None,  update_freq=1, accumulate_gradient=1, priority=0, save_root=None, discretize_depth=1., discretize_width=1.,
@@ -33,8 +38,10 @@ class DARTSHOOK(HOOK):
         self.temperature_end = temperature_end
 
     def before_run(self, runner):
+        runner.search_space.apply_sampler_weights(lambda x: x.to(runner.device), recurse=True)
+
         self.model = runner.model_without_ddp
-        self.optimizer_cfg['args']['params'] = runner.model_without_ddp.arch_parameters()
+        self.optimizer_cfg['args']['params'] = runner.search_space.sampler_weights()
         self.optimizer = get_submodule_by_name(self.optimizer_cfg.get('submodule_name'), search_path=('torch.optim',))(**self.optimizer_cfg['args'])
         self.optimizer.zero_grad()
         self.optimizer_hook = OptHOOK(self.optimizer, self.accumulate_gradient, grad_clip=self.grad_clip)
@@ -47,7 +54,7 @@ class DARTSHOOK(HOOK):
 
         self.scaler = None
 #        self.scaler = torch.cuda.amp.GradScaler(enabled=True) if runner.amp else None
-        runner.model.apply(partial(set_temperature, temp=self.temperature_start))
+        runner.search_space.apply(partial(set_temperature, temp=self.temperature_start))
         self.after_train_epoch(runner)
 
     def after_run(self, runner):
@@ -58,7 +65,7 @@ class DARTSHOOK(HOOK):
             yield from dataloader
 
     def backward_arch_param(self, runner):
-        arch_param = list(runner.model_without_ddp.arch_parameters())
+        arch_param = list(runner.search_space.sampler_weights())
 #        try:
 #            input_valid, target_valid = self.dataiter.next()
 #        except StopIteration:
@@ -116,14 +123,14 @@ class DARTSHOOK(HOOK):
 #        alpha_file = os.path.join(self.save_root, "alpha_%d.json"%runner.info.current_epoch)
 #        with open(alpha_file, 'w') as f:
 #          json.dump(arch_param, f)
-        out_model_yaml = runner.model_without_ddp.discretize(depth_multiple=self.discretize_depth, width_multiple=self.discretize_width)
+        out_model_yaml = runner.search_space.discretize(depth_multiple=self.discretize_depth, width_multiple=self.discretize_width)
         yaml_file = os.path.join(self.save_root, "architecture_%d.yaml"%runner.info.current_epoch)
         with open(yaml_file, encoding='utf-8', mode='w') as f:
             try:
                 yaml.dump(data=out_model_yaml, stream=f, allow_unicode=True, Dumper=CfgDumper, default_flow_style=False)
             except Exception as e:
                 raise(e)
-        runner.model_without_ddp.info_arch()
+        runner.search_space.show_info()
 
 #    def state_dict(self, runner):
 #        return {k: v.detach() for k, v in self.model.named_arch_parameters()}
