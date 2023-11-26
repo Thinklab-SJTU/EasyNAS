@@ -2,8 +2,8 @@ import torch
 from torch import nn as nn
 
 from .common import ConvBNAct, SepConvBNAct, GlobalPoolBNAct, PoolBNAct, FuseLayer, Concat, Focus, SPP, FactorizedReduce, LinearBNAct, Zero
-from .search_common import ConvBNAct_search, SepConvBNAct_search, AFF, SPP_search
-from .darts_cell import Cell, Cell_search
+from .search_common import ConvBNAct_search, SepConvBNAct_search, AtomSearchModule, SPP_search
+#from .darts_cell import Cell, Cell_search
 from .resnet import BasicBlock, Bottleneck
 from .mobilenet import InvertedResidual
 

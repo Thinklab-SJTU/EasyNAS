@@ -25,7 +25,8 @@ def get_module(module, *args, search_path=('torch.nn',), **kwargs):
     try:
         return module(*args, **kwargs)
     except TypeError as e:
-        raise(TypeError(f"No Implementation for module as {module}"))
+        raise(e)
+#        raise(TypeError(f"No Implementation for module as {module}"))
 
 
 

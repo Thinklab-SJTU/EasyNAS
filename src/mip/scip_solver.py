@@ -2,28 +2,35 @@ import pyscipopt
 from pyscipopt import Model as SCIPModel
 
 class SCIPSolver(object):
-    def __init__(self, solver_params):
-        self.solver_params = solver_params
-        if "limits/memory" not in self.solver_params: self.solver_params["limits/memory"] = 12*1024
-        if "limits/time" not in self.solver_params: self.solver_params["limits/time"] = 15*60
+    def __init__(self, solver_params=None):
+        self.solver_params = {} if solver_params is None else solver_params
+        self.solver_params.setdefault('limits/memory', 12*1024)
+        self.solver_params.setdefault('limits/time', 15*60)
+        self.solver_params.setdefault('estimation/restarts/restartpolicy', 'n')
 
-        self.model = SCIPModel()
-        self.model.setPresolve(pyscipopt.SCIP_PARAMSETTING.OFF)
-        self.model.setHeuristics(pyscipopt.SCIP_PARAMSETTING.OFF)
-        self.model.disablePropagation()
-        self.model.setParams(self.solver_params)
+    def preprocess(self, model):
+        model.setPresolve(pyscipopt.SCIP_PARAMSETTING.OFF)
+        model.setHeuristics(pyscipopt.SCIP_PARAMSETTING.OFF)
+        model.disablePropagation()
+        model.setParams(self.solver_params)
 
-        self.model.hideOutput()
+        model.hideOutput()
 
 
     def solve(self, instance):
-        self.model.readProblem(instance)
-        self.model.optimize()
+        if isinstance(instance, str):
+            model = SCIPModel()
+            model.readProblem(instance)
+        self.preprocess(model)
+        model.optimize()
 
         # solution
-        sol = model.getBestSol()
-        primal = model.getPrimalbound()
-        dual = model.getDualbound()
-        time = model.getSolvingTime()
+        result = {
+#                'sol': model.getBestSol(),
+                'optimal_val': model.getObjVal(),
+                'time': model.getSolvingTime(),
+                'primal': model.getPrimalbound(),
+                'dual': model.getDualbound(),
+                }
 
-        return sol, primal, time
+        return result

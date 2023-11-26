@@ -109,6 +109,7 @@ class BaseModel(nn.Module):
             if 'in_channel' in arg_names:
                 args['in_channel'] = cin
             cout = args.get('out_channel', None)
+
             if cout:
                 if not freeze_ch: 
                     cout = [int(make_divisible(c * gw, width_divisible)) for c in cout] if isinstance(cout, list) else make_divisible(cout*gw, width_divisible)
@@ -119,6 +120,8 @@ class BaseModel(nn.Module):
                 cout = get_outchannel(cin, v['submodule_name'], args)
 
             m_ = layer(**args)
+            cout = getattr(m_, 'real_out_channel', cout)
+
             if num_repeat > 1:
                 if 'in_channel' in args and 'out_channel' in args: 
                     if isinstance(in_idx, Iterable):

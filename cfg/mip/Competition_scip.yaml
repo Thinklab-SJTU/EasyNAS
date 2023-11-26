@@ -1,0 +1,36 @@
+root_path: &root_path runs/mip/Competition_SCIP/
+
+instance: &instance
+  submodule_name: src.mip.loader.InstanceLoader
+  args:
+      dataset_name: INDSET_train #ITEM_PLACEMENT+LOAD_BALANCING+ANONYMOUS
+
+solver: &solver
+  submodule_name: src.mip.scip_solver.SCIPSolver
+  args:
+    solver_params:
+        limits/time: 900
+
+hooks: &hooks
+  eval_hook:
+    submodule_name: src.mip.eval_hook.TotalTimeHOOK
+    args: 
+      priority: 10
+  
+  log_hook:
+    submodule_name: src.mip.log_hook.LogHOOK
+    args:
+      logger_name: MIPEngine
+      log_path: !join [*root_path, train.log]
+      print_freq: 1
+      priority: 30
+
+engine:
+  submodule_name: engines.MIPEngine
+  args:
+    instance: *instance
+    solver: *solver
+    hooks: *hooks
+
+
+

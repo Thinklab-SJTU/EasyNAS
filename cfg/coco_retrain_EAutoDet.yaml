@@ -21,7 +21,8 @@ train_hyp: &hyp
 optimizer: &optimizer
   submodule_name: torch.optim.SGD
   args:
-    params: [{'params': conv_parameters, 'weight_decay': *wd}, {'params': bias_parameters}, {'params': all_parameters}]
+    params: [{'params': bn_parameters}, {'params': bias_parameters}, {'params': all_parameters, 'weight_decay': *wd}]
+    #    params: [{'params': conv_parameters, 'weight_decay': *wd}, {'params': bias_parameters}, {'params': all_parameters}]
     lr: *lr0
     momentum: *momentum
     nesterov: True

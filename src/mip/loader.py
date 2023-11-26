@@ -25,8 +25,8 @@ import pyscipopt
 class InstanceLoader:
 
     LOCAL_INSTANCE = {
-        "INDSET_test": "instances/INDSET_ER_6000/instance_ER4_*.cip", 
-        "INDSET_train": "instances/INDSET_ER_6000/train/train_instance_ER4_*.cip", 
+        "INDSET_test": "data/mip_instances/INDSET_ER_6000/instance_ER4_*.cip", 
+        "INDSET_train": "data/mip_instances/INDSET_ER_6000/train/train_instance_ER4_*.cip", 
     }
 
     ECOLE = {
@@ -102,38 +102,38 @@ class InstanceLoader:
     #DFLT_TMP_FILE_LOC = "/tmp/" + str(2575) + "/"
     DFLT_TMP_FILE_LOC = ""
 
-    def __init__(self, dataset_loc = "", tmp_file_loc = DFLT_TMP_FILE_LOC, mode="*", repeat=False, presolve=True, competition_settings=True, load_metadata=False, shard=0, shard_count=0, pprocess = False):
+    def __init__(self, dataset_name, dataset_loc = "", tmp_file_loc = DFLT_TMP_FILE_LOC, mode="*", repeat=False, load_metadata=False, shard=0, shard_count=0, pprocess = False):
         dataset_loc = os.path.expanduser(dataset_loc)
         #try:
         #    os.mkdir(tmp_file_loc)
         #except FileExistsError:
         #    pass
+        self.dataset_name = dataset_name
         self.dataset_loc = dataset_loc
         self.tmp_file_loc = tmp_file_loc
         self.mode = mode
         self.repeat = repeat
-        self.presolve = presolve
-        self.competition_settings=competition_settings
         self.load_metadata = load_metadata
         self.shard = shard
         self.shard_count = shard_count
-        self.filtered_instances = []
         self.post_process = pprocess
         assert shard >= 0
         assert (shard < shard_count or shard_count == 0)
-        
+
     @staticmethod
     def hash_model(model):
         letters = string.ascii_letters
-        tmp_file = '/tmp/' + ''.join(random.choice(letters) for i in range(10)) + '.lp'
-        model.as_pyscipopt().writeProblem(tmp_file)
+        tmp_file = '.tmp/' + ''.join(random.choice(letters) for i in range(10)) + '.lp'
+        model.writeProblem(tmp_file)
         with open(tmp_file, 'r') as f:
             problem = f.read()
             problem = problem.encode()
         key = hashlib.blake2s(problem, digest_size=4).hexdigest()
         return key
-
-    def load(self, dataset_name):
+        
+    def load(self, dataset_name=None):
+        if dataset_name is None:
+            dataset_name = self.dataset_name
         if not self.repeat:
             for m in self.load_datasets(dataset_name):
                 yield m
@@ -142,14 +142,17 @@ class InstanceLoader:
                 for m in self.load_datasets(dataset_name):
                     yield m
 
-    def load_datasets(self, dataset_name):
+    def load_datasets(self, dataset_name=None):
+        if dataset_name is None:
+            dataset_name = self.dataset_name
         datasets = dataset_name.split('+')
         for d in datasets:
             for m in self.load_once(d):
                 yield m
-        print(self.filtered_instances)
 
-    def load_once(self, dataset_name):
+    def load_once(self, dataset_name=None):
+        if dataset_name is None:
+            dataset_name = self.dataset_name
         if dataset_name in self.ECOLE:
             return self.load_ecole(dataset_name)
         elif dataset_name in self.GECO:
@@ -171,26 +174,7 @@ class InstanceLoader:
         else:
             assert False
 
-    def setup(self, ecole_model):
-        if self.competition_settings:
-            #print("disabling")
-            # disable SCIP heuristics and restarts
-            scip_model = ecole_model.as_pyscipopt()
-            scip_model.setHeuristics(pyscipopt.scip.PY_SCIP_PARAMSETTING.OFF)
-            ecole_model.set_params({
-                'estimation/restarts/restartpolicy': 'n',
-            })
-
-    def preprocess(self, ecole_model):
-        self.setup(ecole_model)
-        #print(self.presolve)
-        if self.presolve:
-            return ## NEVER presolve 
-            print("presolving mip")
-            ecole_model.presolve()
-
     def load_zip(self, local_version):
-        
         with zipfile.ZipFile(local_version) as z:
             if self.shard_count:
                 files = z.namelist()
@@ -201,20 +185,7 @@ class InstanceLoader:
             for member in shard:
                 f = z.extract(member, path=self.tmp_file_loc)
                 instance = os.path.join(self.tmp_file_loc, member)
-                #yield instance #bad coding :( this is just for loading MIPLIB instance
-                continue
-                #ecole_model = ecole.scip.Model.from_file(instance)
-                temp_model = pyscipopt.Model()
-                print(instance)
-                temp_model.readProblem(instance)
-                if temp_model.getNVars() != temp_model.getNBinVars():
-                    continue
-                #self.filtered_instances.append(member)
-                #print(self.filtered_instances)
-                ecole_model = ecole.scip.Model.from_pyscipopt(temp_model)
-                self.preprocess(ecole_model)
-                if not ecole_model.is_solved:
-                    yield ecole_model
+                yield instance #bad coding :( this is just for loading MIPLIB instance
 
     def load_tar(self, local_version, filter=None, presolved=False):
         with tarfile.open(local_version) as t:
@@ -229,71 +200,51 @@ class InstanceLoader:
                     continue
                 f = t.extract(member, path=self.tmp_file_loc)
                 instance = os.path.join(self.tmp_file_loc, member.name)
-                
-                #ecole_model = ecole.scip.Model.from_file(instance)
-                temp_model = pyscipopt.Model()
-                temp_model.readProblem(instance)
-                ecole_model = ecole.scip.Model.from_pyscipopt(temp_model)
-                self.setup(ecole_model)
-                if self.presolve and not presolved:
-                    ecole_model.presolve()
-                if ecole_model.is_solved:
-                    continue
 
                 if not self.load_metadata:
-                    yield ecole_model
+                    yield instance
                 else:
                     metadata_loc = member.name.replace('mps', 'json')
                     f = t.extract(metadata_loc, path=self.tmp_file_loc)
                     raw_metadata = os.path.join(self.tmp_file_loc, metadata_loc)
                     with open(raw_metadata) as f:
                         metadata = json.load(f)
-                    yield (ecole_model, metadata)
-
+                    yield (instance, metadata)
+                
     def load_ecole(self, instance_type):
         instances = self.ECOLE[instance_type]
         instances.seed(self.shard)
         for ecole_model in instances:
             self.preprocess(ecole_model)
             if not ecole_model.is_solved:
-                yield ecole_model
+                yield ecole_model.as_pyscipopt()
 
     def load_geco(self, instance_type):
+        seen = set()
         generator = self.GECO[instance_type]
         for m in geco.generator.generate(generator, seed=self.shard):
-            ecole_model = ecole.scip.Model.from_pyscipopt(m)
-            self.preprocess(ecole_model)
-            if not ecole_model.is_solved:
-                yield ecole_model
+            encoding = self.hash_model(m)
+            if encoding not in seen:
+                seen.add(encoding)
+                yield m
 
     def load_geco_miplib(self, instance_type):
         # Sharding not supported yet
         assert self.shard_count == 0
+        seen = set()
         instances = self.GECO_MIPLIB[instance_type]
         for m in instances:
-            ecole_model = ecole.scip.Model.from_pyscipopt(m)
-            self.preprocess(ecole_model)
-            if not ecole_model.is_solved:
-                yield ecole_model
+            encoding = self.hash_model(m)
+            if encoding not in seen:
+                seen.add(encoding)
+                yield m
 
     def load_local_instance(self, instance_type):
         # Sharding not supported yet
         assert self.shard_count == 0
         dir = self.LOCAL_INSTANCE[instance_type]
         for instance in glob.glob(dir):
-            print(instance)
-            
-            temp_model = pyscipopt.Model()
-            if self.post_process:
-                yield temp_model
-                continue
-            temp_model.readProblem(instance)
-            ecole_model = ecole.scip.Model.from_pyscipopt(temp_model)
-            
-            #ecole_model = ecole.scip.Model.from_file(instance)
-            self.preprocess(ecole_model)
-            #self.setup(ecole_model)
-            yield ecole_model
+            yield instance
 
     def load_competition(self, instance_type):
         filename = self.COMPETITION[instance_type]
@@ -304,7 +255,7 @@ class InstanceLoader:
 
 if __name__ == '__main__':
     loader = InstanceLoader()
-    for m in loader.load("KNAPSACK_YANG"):                                                                                                                                                                                                                 
+    for m in loader.load("KNAPSACK_YANG"):
         print(str(m))
         break
 

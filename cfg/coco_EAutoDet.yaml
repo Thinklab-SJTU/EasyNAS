@@ -1,4 +1,4 @@
-root_path: &root_path runs/coco_EAutoDet-s_noAlpha_nogumbel/
+root_path: &root_path runs/coco_EAutoDet-s/
 epoch: &epoch 50
 accumulate_gradient: &acc_grad 1
 
@@ -77,8 +77,9 @@ hooks: &hooks
       accumulate_gradient: *acc_grad
       priority: 30
       save_root: !join [*root_path, arch/]
-      discretize_width: 1.
-      discretize_depth: 1.
+#      replace_settings:
+#          args.depth_multiple: 1.
+#          args.width_multiple: 1.
   
   eval_hook:
     submodule_name: EvalCOCOmAPHOOK

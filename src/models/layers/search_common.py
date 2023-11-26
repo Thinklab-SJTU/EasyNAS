@@ -1,5 +1,6 @@
 from abc import ABC,abstractmethod
 import math
+import inspect
 from copy import deepcopy
 import bisect
 from functools import reduce
@@ -9,7 +10,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .utils import autopad, gumbel_softmax, get_layer, get_act, get_norm
+from .utils import autopad, gumbel_softmax, get_layer, get_act, get_norm, get_layer
 from .base import  OpBuilder
 from src.search_space.base import DiscreteSpace, IIDSpace, _SearchSpace
 
@@ -35,16 +36,16 @@ class SearchModule(nn.Module):
         if isinstance(search_space, DiscreteSpace):
             arch_param = list(search_space.sampler_weights())
             if len(arch_param) == 0:
-                return [1./search_space.size for _ in search_space.size]
+                return [1./search_space.size for _ in range(search_space.size)]
             assert len(arch_param) == 1
             return search_space.sampler.norm_fn(arch_param[0])
-        else: return [1./len(search_space) for _ in len(search_space)]
+        else: return [1./len(search_space) for _ in range(len(search_space))]
 
     def get_norm_layer(self, ch_alphas, bn, bn_per_ch=True):
-        return bn[ch_alphas.argmax()] if gumbel_channel and isinstance(bn, nn.ModuleList) else bn
+        return bn[ch_alphas.argmax()] if bn_per_ch and isinstance(bn, nn.ModuleList) else bn
 
     def state_dict(self, *args, destination=None, prefix='', keep_vars=False):
-        destination = super(AtomSearchModule, self).state_dict(*args, destination, prefix, keep_vars)
+        destination = super(SearchModule, self).state_dict(*args, destination, prefix, keep_vars)
         destination[prefix+'search_space'] = {k:v for k, v in vars(self).items() if isinstance(v, _SearchSpace)}
         return destination
     
@@ -69,12 +70,22 @@ class AtomSearchModule(SearchModule):
         # candidate_op
         self.candidate_op = check_nesting(candidate_op, 2)
         if len(self.candidate_op) == 1:
-            self.candidate_op = [self.candidate_op[0]] * len(in_channel)
-        assert len(self.candidate_op) == len(in_channel)
+            self.candidate_op = [self.candidate_op[0]] * len(self.cin)
+        assert len(self.candidate_op) == len(self.cin)
 
         # candidate_ch
         self.cout = out_channel
         self.candidate_ch = check_nesting(candidate_ch, 1)
+        self.real_out_channel = int(self.cout * max(self.candidate_ch))
+        def assign_ch(op_cfg):
+            if isinstance(op_cfg, (list, tuple, DiscreteSpace)):
+                for cfg in op_cfg:
+                    assign_ch(cfg)
+            elif isinstance(op_cfg, (dict, IIDSpace)):
+                arg_names = inspect.getfullargspec(get_layer(op_cfg['submodule_name']).__init__).args
+                if 'candidate_ch' in arg_names:
+                    op_cfg['args']['candidate_ch'] = self.candidate_ch
+                    op_cfg['args']['bn_per_ch'] = bn_per_ch
 
         # build operations
         op_builder = OpBuilder(
@@ -83,49 +94,65 @@ class AtomSearchModule(SearchModule):
               upsample_op=upsample_op
         )
         self.m = nn.ModuleList([])
-        for ei, (cin, s, cand_op) in enumerate(zip(self.in_channel, self.strides, self.candidate_op)):
+        for ei, (cin, s, cand_op) in enumerate(zip(self.cin, self.strides, self.candidate_op)):
+            # assign candidate_ch to each candidate_op
+            assign_ch(cand_op)
+            # build operations on each edge
             self.m.append(op_builder.build_parallel_op(cand_op, cin, out_channel, s))
-        #TODO: compute num_alphas_each_op for each edge
-        self.num_alphas_each_op = []
-        for op in self.candidate_op[0]:
-            self.num_alphas_each_op.append(
-                 len(op.args['candidate_op']) if hasattr(op, 'args') and hasattr(op.args, 'candidate_op') else -1)
-        self.num_op_alphas = sum(abs(x) for x in self.num_alphas_each_op)
-        self.init_arch_parameters(independent_op_arch_param, independent_ch_arch_param, independent_edge_arch_param)
 
         self.act = get_act(act)
-        self.bn_per_ch = bn_per_ch and len(candidiate_ch)>1
+        self.bn_per_ch = bn_per_ch and len(self.candidate_ch)>1
         if self.bn_per_ch:
             self.bn = nn.ModuleList([get_norm(bn, int(self.cout*e)) for e in self.candidate_ch]) 
         else: self.bn = get_norm(bn, self.cout)
 
     def forward_edge(self, x, edge_module, op_alphas, op_space, ch_alphas):
+        def _forward_op(x, op, op_in_space, ptr):
+            if isinstance(op, SearchModule) and isinstance(op_in_space, _SearchSpace):
+               end_ptr = ptr + op_in_space.size
+               return op(x, op_alphas=op_alphas[ptr:end_ptr], ch_alphas=ch_alphas), end_ptr
+            else: return op(x), ptr
+
         out, ptr = 0., 0
         for idx, (op, op_in_space) in enumerate(zip(edge_module, op_space)):
-            if isinstance(op_in_space, DiscreteSpace): 
-                end_ptr = ptr + op_in_space.size
-                out = out + op(x, op_alphas=op_alphas[ptr:end_ptr], ch_alphas=ch_alphas)
-#                if isinstance(op, nn.Sequential):
-#                    tmp = x
-#                    for sub_op in op:
-#                        if isinstance(sub_op, SearchModule):
-#                            tmp = sub_op(tmp, op_alphas=op_alphas[ptr:end_ptr], ch_alphas=ch_alphas)
-#                        else: tmp = sub_op(tmp)
-#                    out = out + tmp
-#                else:
-#                    out = out + op(x, op_alphas=op_alphas[ptr:end_ptr], ch_alphas=ch_alphas)
+            if isinstance(op, nn.Sequential):
+                tmp, end_ptr = x, ptr
+                for sub_op in op:
+                    tmp, end_ptr = _forward_op(tmp, sub_op, op_in_space, end_ptr)
+            else:
+                tmp, end_ptr = _forward_op(x, op, op_in_space, ptr)
+            if end_ptr == ptr:
+                out = out + op_alphas[ptr] * tmp 
+                ptr = ptr+1
+            else:
+                out = out + tmp
                 ptr = end_ptr
-            else: 
-                if op_alphas[ptr] > 0:
-                    out = out + op_alphas[ptr] * op(x)
-                ptr += 1
         return out
+
+#        out, ptr = 0., 0
+#        for idx, (op, op_in_space) in enumerate(zip(edge_module, op_space)):
+#            if isinstance(op, nn.Sequential):
+#                tmp = x
+#                end_ptr = ptr + 1
+#                for sub_op in op:
+#                    if isinstance(sub_op, SearchModule):
+#                        end_ptr = ptr + op_in_space.size
+#                        tmp = sub_op(tmp, op_alphas=op_alphas[ptr:end_ptr], ch_alphas=ch_alphas)
+#                    else: tmp = sub_op(tmp)
+#                out = out + tmp
+#            elif isinstance(op, SearchModule):
+#                out = out + op(x, op_alphas=op_alphas[ptr:end_ptr], ch_alphas=ch_alphas)
+#            else:
+#                if op_alphas[ptr] > 0:
+#                    out = out + op_alphas[ptr] * op(x)
+#                ptr += 1
+#            ptr = end_ptr
 
 
     def forward(self, xs, op_alphas=None, ch_alphas=None, edge_alphas=None):
         edge_alphas = self.norm_arch_parameters(self.input_idx, edge_alphas)
         ch_alphas = self.norm_arch_parameters(self.candidate_ch, ch_alphas)
-        if op_alphas is None: op_alphas = [None for _ in len(self.input_idx)]
+        if op_alphas is None: op_alphas = [None for _ in range(len(self.input_idx))]
         op_alphas = [self.norm_arch_parameters(cand_op, op_alpha) for cand_op, op_alpha in zip(self.candidate_op, op_alphas)]
 
         out = sum(self.forward_edge(x, m, edge_op_alphas, edge_op_space, ch_alphas) * edge_alpha 
@@ -178,8 +205,8 @@ class AtomSearchModule(SearchModule):
         #TODO: How to deal with sampler_weights?
         for k, v in search_space.items():
             this_v = getattr(self, k)
-            if isinstance(this_v, _SearchSpace) and this_v.size = v.size:
-                setattr(self, k) = v
+            if isinstance(this_v, _SearchSpace) and this_v.size == v.size:
+                setattr(self, k, v)
 
         state_dict.update(tmp_state_dict)
         return super()._load_from_state_dict(state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs)
@@ -197,6 +224,7 @@ class ConvBNAct_search(SearchModule):
         self.group = group
         self.cout = out_channel
         cout_max = int(out_channel * max(self.candidate_ch))
+        self.real_out_channel = cout_max
 
         self.k_max = int(max([(k-1)*d+1 for k, d in self.kd]))
         if merge_kernel:
@@ -212,7 +240,7 @@ class ConvBNAct_search(SearchModule):
         self.act = get_act(act)
         self.act_first = act_first
 
-        self.bn_per_ch = bn_per_ch and len(candidiate_ch)>1
+        self.bn_per_ch = bn_per_ch and len(self.candidate_ch)>1
         if self.bn_per_ch: self.bn = nn.ModuleList([get_norm(bn, int(self.cout*e)) for e in self.candidate_ch]) 
         else: self.bn = get_norm(bn, cout_max)
 
@@ -256,16 +284,13 @@ class ConvBNAct_search(SearchModule):
     def deal_merge_kernel_cout(self, merge_kernel, alphas, bias):
         Cout = merge_kernel.size(0)
         channel_mask = torch.zeros([Cout], dtype=merge_kernel.dtype, device=merge_kernel.device)
-        if self.gumbel_channel:
-            a_e, idx = alphas.max(dim=-1)
-            merge_kernel = merge_kernel[:int(self.cout*self.candidate_ch[idx]),:,:,:] * a_e
-            if bias is not None: bias = bias[:int(self.cout*e)] 
-        else:
-            channel_idx = torch.arange(0, Cout, dtype=merge_kernel.dtype, device=merge_kernel.device).long()
-#            channel_idx = torch.sort(merge_kernel.view(Cout,-1).sum(dim=-1), descending=True)[1]
-            for e, a_e in zip(self.candidate_ch, alphas):
-                channel_mask[channel_idx[:int(e*self.cout)]] += a_e
-            merge_kernel = merge_kernel * channel_mask.view(-1,1,1,1)
+        valid_cout = 0
+        for e, a_e in zip(self.candidate_ch, alphas):
+            if a_e > 0:
+                channel_mask[:int(e*self.cout)] += a_e
+                valid_cout = max(valid_cout, int(e*self.cout))
+        merge_kernel = merge_kernel[:valid_cout,:,:,:] * channel_mask[:valid_cout].view(-1,1,1,1)
+        if bias is not None: bias = bias[:valid_cout] 
         return merge_kernel, bias
 
         
@@ -325,8 +350,8 @@ class ConvBNAct_search(SearchModule):
 
         for k, v in search_space.items():
             this_v = getattr(self, k)
-            if isinstance(this_v, _SearchSpace) and this_v.size = v.size:
-                setattr(self, k) = v
+            if isinstance(this_v, _SearchSpace) and this_v.size == v.size:
+                setattr(self, k, v)
 
         #TODO: how to deal with bn?
 
@@ -367,7 +392,7 @@ class SepConvBNAct_search(ConvBNAct_search):
         bias = self.bias
         ch_alphas = self.norm_arch_parameters(self.candidate_ch, ch_alphas)
         op_alphas = self.norm_arch_parameters(self.kd, op_alphas)
-        bn = self.get_norm_layer(ch_alphas, self.bn, self.gumbel_channel)
+        bn = self.get_norm_layer(ch_alphas, self.bn, self.bn_per_ch)
 
         if self.merge_kernel:
             merge_kernel = self.get_merge_kernel(self.weight['depth_weight'], op_alphas, merge=True) if len(self.kd)>1 else self.weight['depth_weight']
@@ -436,8 +461,8 @@ class SepConvBNAct_search(ConvBNAct_search):
 
         for k, v in search_space.items():
             this_v = getattr(self, k)
-            if isinstance(this_v, _SearchSpace) and this_v.size = v.size:
-                setattr(self, k) = v
+            if isinstance(this_v, _SearchSpace) and this_v.size == v.size:
+                setattr(self, k, v)
         #TODO: How to deal with arch parameters?
 #        state_dict_op_alphas = state_dict.pop(prefix+'op_alphas', torch.tensor([1.]*len(ss_kd)))
 ##        for idx in set(range(len(ss_kd)))-set(op_idx): state_dict_op_alphas[idx].copy_(0.)

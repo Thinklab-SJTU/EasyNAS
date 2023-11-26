@@ -1,16 +1,22 @@
+gumbel_sampler: &ss_gumbel_sampler
+  submodule_name: WeightedSampler
+  args:
+    norm_fn: gumbel_softmax
+
 num_classes: &num_classes 80  # number of classes
-searchSpace_AFF: &ss_AFF
-  - !edict 
-    submodule_name: SepConvBNAct_search
-    args: !edict
-      candidate_op: [[3,1], [5,1], [3,2]]
-      candidate_ch: [0.5,0.75,1.0]
-      gumbel_op: False
-      gumbel_channel: True
-      act: torch.nn.SiLU
-      bn: torch.nn.BatchNorm2d
-      independent_ch_arch_param: False
-      independent_op_arch_param: False
+searchSpace_AFF: &ss_AFF !search_space
+  num_reserve: 1
+  flatten: True
+  sampler: WeightedSampler
+  space:
+    - !search_space 
+      space:
+        submodule_name: SepConvBNAct_search
+        args: !edict
+          candidate_op: !search_space [[3,1], [5,1], [3,2]]
+          candidate_ch:  #[0.5,0.75,1.0]
+          act: torch.nn.SiLU
+          bn: torch.nn.BatchNorm2d
 
 # anchors
 anchors: &anchors
@@ -20,7 +26,7 @@ anchors: &anchors
 
 strides: &strides [8, 16, 32]
 
-submodule_name: src.models.SearchModel
+submodule_name: src.models.BaseModel
 args:
   log_path: model.log
   depth_multiple: 0.33  # model depth multiple
@@ -39,9 +45,8 @@ args:
       submodule_name: ConvBNAct_search
       args: 
         out_channel: 128
-        candidate_op: [[1,1],[3,1],[5,1],[3,2]]
-        candidate_ch: [0.5,0.75,1.0]
-        gumbel_channel: True
+        candidate_op: !search_space {space: [[1,1],[3,1],[5,1],[3,2]], sampler: WeightedSampler}
+        candidate_ch: !search_space {space: [0.5,0.75,1.0], sampler: *ss_gumbel_sampler}
         stride: 2
         bias: False
         act: torch.nn.SiLU
@@ -51,19 +56,17 @@ args:
       args: 
         out_channel: 128
         num_repeat: 3
-        candidate_op: [[3,1],[5,1],[3,2]]
-        candidate_ch: [0.5,0.75,1.0]
-        search_out_channel: [0.75, 1.0]
-        gumbel_channel: True
+        candidate_op: !search_space {space: [[3,1],[5,1],[3,2]], sampler: WeightedSampler}
+        candidate_ch: !search_space {space: [0.5,0.75,1.0], sampler: *ss_gumbel_sampler}
+        search_out_channel: !search_space {space: [0.75,1.0], sampler: *ss_gumbel_sampler}
         merge_kernel: True
         separable: False
     - input_idx: -1 # 3-P3/8
       submodule_name: ConvBNAct_search
       args: 
         out_channel: 256
-        candidate_op: [[1,1],[3,1],[5,1],[3,2]]
-        candidate_ch: [0.5,0.75,1.0]
-        gumbel_channel: True
+        candidate_op: !search_space {space: [[1,1],[3,1],[5,1],[3,2]], sampler: WeightedSampler}
+        candidate_ch: !search_space {space: [0.5,0.75,1.0], sampler: *ss_gumbel_sampler}
         stride: 2
         bias: False
         act: torch.nn.SiLU
@@ -73,19 +76,17 @@ args:
       args: 
         out_channel: 256
         num_repeat: 9
-        candidate_op: [[3,1],[5,1],[3,2]]
-        candidate_ch: [0.5,0.75,1.0]
-        search_out_channel: [0.75, 1.0]
-        gumbel_channel: True
+        candidate_op: !search_space {space: [[3,1],[5,1],[3,2]], sampler: WeightedSampler}
+        candidate_ch: !search_space {space: [0.5,0.75,1.0], sampler: *ss_gumbel_sampler}
+        search_out_channel: !search_space {space: [0.75,1.0], sampler: *ss_gumbel_sampler}
         merge_kernel: True
         separable: False
     - input_idx: -1 # 5-P4/16
       submodule_name: ConvBNAct_search 
       args: 
         out_channel: 512
-        candidate_op: [[1,1],[3,1],[5,1],[3,2]]
-        candidate_ch: [0.5,0.75,1.0]
-        gumbel_channel: True
+        candidate_op: !search_space {space: [[1,1],[3,1],[5,1],[3,2]], sampler: WeightedSampler}
+        candidate_ch: !search_space {space: [0.5,0.75,1.0], sampler: *ss_gumbel_sampler}
         stride: 2
         bias: False
         act: torch.nn.SiLU
@@ -95,19 +96,17 @@ args:
       args: 
         out_channel: 512
         num_repeat: 9
-        candidate_op: [[3,1],[5,1],[3,2]]
-        candidate_ch: [0.5,0.75,1.0]
-        search_out_channel: [0.75, 1.0]
-        gumbel_channel: True
+        candidate_op: !search_space {space: [[3,1],[5,1],[3,2]], sampler: WeightedSampler}
+        candidate_ch: !search_space {space: [0.5,0.75,1.0], sampler: *ss_gumbel_sampler}
+        search_out_channel: !search_space {space: [0.75,1.0], sampler: *ss_gumbel_sampler}
         merge_kernel: True
         separable: False
     - input_idx: -1 # 7-P5/32
       submodule_name: ConvBNAct_search 
       args: 
         out_channel: 1024
-        candidate_op: [[1,1],[3,1],[5,1],[3,2]]
-        candidate_ch: [0.5,0.75,1.0]
-        gumbel_channel: True
+        candidate_op: !search_space {space: [[1,1],[3,1],[5,1],[3,2]], sampler: WeightedSampler}
+        candidate_ch: !search_space {space: [0.5,0.75,1.0], sampler: *ss_gumbel_sampler}
         stride: 2
         bias: False
         act: torch.nn.SiLU
@@ -117,21 +116,36 @@ args:
       args: 
         out_channel: 1024
         kernels: [5, 9, 13]
-
+        
 # head
-    - input_idx: [-1, 6, 4]
-      submodule_name: AFF
+    - input_idx: !search_space
+        space: [-1, 6, 4]
+        sampler: WeightedSampler 
+        num_reserve: 2
+        reserve_replace: False
+        label: aff0_edge
+      submodule_name: AtomSearchModule
       args: 
         out_channel: 1024
-        strides: [1, 2, 4]
-        candidate_op: *ss_AFF
+        strides: !search_space
+          space: [1, 2, 4]
+          num_reserve: 2
+          reserve_replace: False
+          label: aff0_edge
+        candidate_op: !search_space
+          space: 
+            - *ss_AFF
+            - *ss_AFF
+            - *ss_AFF
+          num_reserve: 2
+          reserve_replace: False
+          label: aff0_edge
         upsample_op: 
           submodule_name: torch.nn.Upsample
           args:
             mode: nearest
         auto_refine: False
-        candidate_ch: [0.5,0.75,1.0]
-        gumbel_channel: True
+        candidate_ch: !search_space {space: [0.5,0.75,1.0], sampler: *ss_gumbel_sampler}
         act: False
         bn: False
     - input_idx: -1 # 10 (/32)
@@ -140,26 +154,41 @@ args:
         out_channel: 1024
         num_repeat: 3
         shortcut: False
-        candidate_op: [[3,1],[5,1],[3,2]]
-        candidate_ch: [0.5,0.75,1.0]
-        search_out_channel: [0.75, 1.0]
-        gumbel_channel: True
+        candidate_op: !search_space {space: [[3,1],[5,1],[3,2]], sampler: WeightedSampler}
+        candidate_ch: !search_space {space: [0.5,0.75,1.0], sampler: *ss_gumbel_sampler}
+        search_out_channel: !search_space {space: [0.75,1.0], sampler: *ss_gumbel_sampler}
         merge_kernel: True
         separable: False
   
-    - input_idx: [-1, 8, 6, 4]
-      submodule_name: AFF
+    - input_idx: !search_space
+        sampler: WeightedSampler
+        space: [-1, 8, 6, 4]
+        label: aff1_edge
+        num_reserve: 2
+        reserve_replace: False
+      submodule_name: AtomSearchModule
       args: 
         out_channel: 512
-        strides: [0.5, 0.5, 1, 2]
-        candidate_op: *ss_AFF
+        strides: !search_space
+          space: [0.5, 0.5, 1, 2]
+          num_reserve: 2
+          reserve_replace: False
+          label: aff1_edge
+        candidate_op: !search_space
+          space: 
+            - *ss_AFF
+            - *ss_AFF
+            - *ss_AFF
+            - *ss_AFF
+          num_reserve: 2
+          reserve_replace: False
+          label: aff1_edge
         upsample_op: 
           submodule_name: torch.nn.Upsample
           args:
             mode: nearest
         auto_refine: False
-        candidate_ch: [0.5,0.75,1.0]
-        gumbel_channel: True
+        candidate_ch: !search_space {space: [0.5,0.75,1.0], sampler: *ss_gumbel_sampler}
         act: False
         bn: False
     - input_idx: -1 # 12 (/16)
@@ -168,26 +197,42 @@ args:
         out_channel: 512
         num_repeat: 3
         shortcut: False 
-        candidate_op: [[3,1],[5,1],[3,2]]
-        candidate_ch: [0.5,0.75,1.0]
-        search_out_channel: [0.75, 1.0]
-        gumbel_channel: True
+        candidate_op: !search_space {space: [[3,1],[5,1],[3,2]], sampler: WeightedSampler}
+        candidate_ch: !search_space {space: [0.5,0.75,1.0], sampler: *ss_gumbel_sampler}
+        search_out_channel: !search_space {space: [0.75,1.0], sampler: *ss_gumbel_sampler}
         merge_kernel: True
         separable: False
   
-    - input_idx: [-1, 10, 8, 6, 4]
-      submodule_name: AFF
+    - input_idx: !search_space
+        sampler: WeightedSampler
+        space: [-1, 10, 8, 6, 4]
+        label: aff2_edge
+        num_reserve: 2
+        reserve_replace: False
+      submodule_name: AtomSearchModule
       args: 
         out_channel: 256
-        strides: [0.5, 0.25, 0.25, 0.5, 1]
-        candidate_op: *ss_AFF
+        strides: !search_space
+          space: [0.5, 0.25, 0.25, 0.5, 1]
+          num_reserve: 2
+          reserve_replace: False
+          label: aff2_edge
+        candidate_op: !search_space
+          space: 
+            - *ss_AFF
+            - *ss_AFF
+            - *ss_AFF
+            - *ss_AFF
+            - *ss_AFF
+          num_reserve: 2
+          reserve_replace: False
+          label: aff2_edge
         upsample_op: 
           submodule_name: torch.nn.Upsample
           args:
             mode: nearest
         auto_refine: False
-        candidate_ch: [0.5,0.75,1.0]
-        gumbel_channel: True
+        candidate_ch: !search_space {space: [0.5,0.75,1.0], sampler: *ss_gumbel_sampler}
         act: False
         bn: False
     - input_idx: -1 # 14 (/8)
@@ -196,26 +241,40 @@ args:
         out_channel: 256
         num_repeat: 3
         shortcut: False 
-        candidate_op: [[3,1],[5,1],[3,2]]
-        candidate_ch: [0.5,0.75,1.0]
-        search_out_channel: [0.75, 1.0]
-        gumbel_channel: True
+        candidate_op: !search_space {space: [[3,1],[5,1],[3,2]], sampler: WeightedSampler}
+        candidate_ch: !search_space {space: [0.5,0.75,1.0], sampler: *ss_gumbel_sampler}
+        search_out_channel: !search_space {space: [0.75,1.0], sampler: *ss_gumbel_sampler}
         merge_kernel: True
         separable: False
   
-    - input_idx: [-1, 12, 10]
-      submodule_name: AFF
+    - input_idx: !search_space
+        sampler: WeightedSampler
+        space: [-1, 12, 10]
+        label: aff3_edge
+        num_reserve: 2
+        reserve_replace: False
+      submodule_name: AtomSearchModule
       args: 
         out_channel: 256
-        strides: [1, 0.5, 0.25]
-        candidate_op: *ss_AFF
+        strides: !search_space
+          space: [1, 0.5, 0.25]
+          num_reserve: 2
+          reserve_replace: False
+          label: aff3_edge
+        candidate_op: !search_space
+          space: 
+            - *ss_AFF
+            - *ss_AFF
+            - *ss_AFF
+          num_reserve: 2
+          reserve_replace: False
+          label: aff3_edge
         upsample_op: 
           submodule_name: torch.nn.Upsample
           args:
             mode: nearest
         auto_refine: False
-        candidate_ch: [0.5,0.75,1.0]
-        gumbel_channel: True
+        candidate_ch: !search_space {space: [0.5,0.75,1.0], sampler: *ss_gumbel_sampler}
         act: False
         bn: False
     - input_idx: -1 # 16 (/8)
@@ -224,26 +283,41 @@ args:
         out_channel: 256
         num_repeat: 3
         shortcut: False 
-        candidate_op: [[3,1],[5,1],[3,2]]
-        candidate_ch: [0.5,0.75,1.0]
-        search_out_channel: [0.75, 1.0]
-        gumbel_channel: True
+        candidate_op: !search_space {space: [[3,1],[5,1],[3,2]], sampler: WeightedSampler}
+        candidate_ch: !search_space {space: [0.5,0.75,1.0], sampler: *ss_gumbel_sampler}
+        search_out_channel: !search_space {space: [0.75,1.0], sampler: *ss_gumbel_sampler}
         merge_kernel: True
         separable: False
 
-    - input_idx: [-1, 14, 12, 10]
-      submodule_name: AFF
+    - input_idx: !search_space 
+        sampler: WeightedSampler
+        space: [-1, 14, 12, 10]
+        label: aff4_edge
+        num_reserve: 2
+        reserve_replace: False
+      submodule_name: AtomSearchModule
       args: 
         out_channel: 512
-        strides: [2, 2, 1, 0.5]
-        candidate_op: *ss_AFF
+        strides: !search_space 
+          space: [2, 2, 1, 0.5]
+          num_reserve: 2
+          reserve_replace: False
+          label: aff4_edge
+        candidate_op: !search_space
+          space: 
+            - *ss_AFF
+            - *ss_AFF
+            - *ss_AFF
+            - *ss_AFF
+          num_reserve: 2
+          reserve_replace: False
+          label: aff4_edge
         upsample_op: 
           submodule_name: torch.nn.Upsample
           args:
             mode: nearest
         auto_refine: False
-        candidate_ch: [0.5,0.75,1.0]
-        gumbel_channel: True
+        candidate_ch: !search_space {space: [0.5,0.75,1.0], sampler: *ss_gumbel_sampler}
         act: False
         bn: False
     - input_idx: -1 # 18 (/16)
@@ -252,26 +326,42 @@ args:
         out_channel: 512
         num_repeat: 3
         shortcut: False 
-        candidate_op: [[3,1],[5,1],[3,2]]
-        candidate_ch: [0.5,0.75,1.0]
-        search_out_channel: [0.75, 1.0]
-        gumbel_channel: True
+        candidate_op: !search_space {space: [[3,1],[5,1],[3,2]], sampler: WeightedSampler}
+        candidate_ch: !search_space {space: [0.5,0.75,1.0], sampler: *ss_gumbel_sampler}
+        search_out_channel: !search_space {space: [0.75,1.0], sampler: *ss_gumbel_sampler}
         merge_kernel: True
         separable: False
   
-    - input_idx: [-1, 16, 14, 12, 10]
-      submodule_name: AFF
+    - input_idx: !search_space
+        sampler: WeightedSampler
+        space: [-1, 16, 14, 12, 10]
+        label: aff5_edge
+        num_reserve: 2
+        reserve_replace: False
+      submodule_name: AtomSearchModule
       args: 
         out_channel: 1024
-        strides: [2, 4, 4, 2, 1]
-        candidate_op: *ss_AFF
+        strides: !search_space
+          space: [2, 4, 4, 2, 1]
+          num_reserve: 2
+          reserve_replace: False
+          label: aff5_edge
+        candidate_op: !search_space
+          space: 
+            - *ss_AFF
+            - *ss_AFF
+            - *ss_AFF
+            - *ss_AFF
+            - *ss_AFF
+          num_reserve: 2
+          reserve_replace: False
+          label: aff5_edge
         upsample_op: 
           submodule_name: torch.nn.Upsample
           args:
             mode: nearest
         auto_refine: False
-        candidate_ch: [0.5,0.75,1.0]
-        gumbel_channel: True
+        candidate_ch: !search_space {space: [0.5,0.75,1.0], sampler: *ss_gumbel_sampler}
         act: False
         bn: False
     - input_idx: -1 # 20 (/32)
@@ -280,10 +370,9 @@ args:
         out_channel: 1024
         num_repeat: 3
         shortcut: False 
-        candidate_op: [[3,1],[5,1],[3,2]]
-        candidate_ch: [0.5,0.75,1.0]
-        search_out_channel: [0.75, 1.0]
-        gumbel_channel: True
+        candidate_op: !search_space {space: [[3,1],[5,1],[3,2]], sampler: WeightedSampler}
+        candidate_ch: !search_space {space: [0.5,0.75,1.0], sampler: *ss_gumbel_sampler}
+        search_out_channel: !search_space {space: [0.75,1.0], sampler: *ss_gumbel_sampler}
         merge_kernel: True
         separable: False
 
@@ -295,134 +384,5 @@ args:
         anchors: *anchors
         strides: *strides
 
-        ## head
-        #    - input_idx: -1
-        #      submodule_name: ConvBNAct 
-        #      args: 
-        #        out_channel: 512
-        #        kernel: 1
-        #        dilation: 1
-        #        stride: 1
-        #        bias: False
-        #        act: torch.nn.SiLU
-        #        bn: torch.nn.BatchNorm2d
-        #    - input_idx: -1
-        #      submodule_name: torch.nn.Upsample
-        #      args:
-        #        size: 
-        #        scale_factor: 2
-        #        mode: nearest
-        #    - input_idx: [-1, 6] # cat backbone P4
-        #      submodule_name: Concat
-        #      args:
-        #        dimension: 1
-        #    - input_idx: -1 # 10 (/32)
-        #      submodule_name: YOLOC3_search 
-        #      args: 
-        #        out_channel: 512
-        #        num_repeat: 3
-        #        shortcut: False
-        #        candidate_op: [[3,1],[5,1],[3,2]]
-        #        candidate_ch: [0.5,0.75,1.0]
-        #        search_out_channel: [1.] # [0.75, 1.0]
-        #        gumbel_channel: True
-        #        merge_kernel: True
-        #        separable: False
-        #  
-        #    - input_idx: -1
-        #      submodule_name: ConvBNAct 
-        #      args: 
-        #        out_channel: 256
-        #        kernel: 1
-        #        dilation: 1
-        #        stride: 1
-        #        bias: False
-        #        act: torch.nn.SiLU
-        #        bn: torch.nn.BatchNorm2d
-        #    - input_idx: -1
-        #      submodule_name: torch.nn.Upsample
-        #      args:
-        #        size: 
-        #        scale_factor: 2
-        #        mode: nearest
-        #    - input_idx: [-1, 4] # cat backbone P3
-        #      submodule_name: Concat
-        #      args:
-        #        dimension: 1
-        #    - input_idx: -1 # 17 (P3/8-small)
-        #      submodule_name: YOLOC3_search 
-        #      args: 
-        #        out_channel: 256
-        #        num_repeat: 3
-        #        shortcut: False
-        #        candidate_op: [[3,1],[5,1],[3,2]]
-        #        candidate_ch: [0.5,0.75,1.0]
-        #        search_out_channel: [1.] # [0.75, 1.0]
-        #        gumbel_channel: True
-        #        merge_kernel: True
-        #        separable: False
-        #  
-        #    - input_idx: -1
-        #      submodule_name: ConvBNAct 
-        #      args: 
-        #        out_channel: 256
-        #        kernel: 3
-        #        dilation: 1
-        #        stride: 2
-        #        bias: False
-        #        act: torch.nn.SiLU
-        #        bn: torch.nn.BatchNorm2d
-        #    - input_idx: [-1, 14] # cat backbone P4
-        #      submodule_name: Concat
-        #      args:
-        #        dimension: 1
-        #    - input_idx: -1 # 20 (P4/16-medium)
-        #      submodule_name: YOLOC3_search 
-        #      args: 
-        #        out_channel: 512
-        #        num_repeat: 3
-        #        shortcut: False
-        #        candidate_op: [[3,1],[5,1],[3,2]]
-        #        candidate_ch: [0.5,0.75,1.0]
-        #        search_out_channel: [1.] # [0.75, 1.0]
-        #        gumbel_channel: True
-        #        merge_kernel: True
-        #        separable: False
-        #  
-        #    - input_idx: -1
-        #      submodule_name: ConvBNAct 
-        #      args: 
-        #        out_channel: 512
-        #        kernel: 3
-        #        dilation: 1
-        #        stride: 2
-        #        bias: False
-        #        act: torch.nn.SiLU
-        #        bn: torch.nn.BatchNorm2d
-        #    - input_idx: [-1, 10] # cat backbone P5
-        #      submodule_name: Concat
-        #      args:
-        #        dimension: 1
-        #    - input_idx: -1 # 23 (P5/32-large)
-        #      submodule_name: YOLOC3_search 
-        #      args: 
-        #        out_channel: 1024
-        #        num_repeat: 3
-        #        shortcut: False
-        #        candidate_op: [[3,1],[5,1],[3,2]]
-        #        candidate_ch: [0.5,0.75,1.0]
-        #        search_out_channel: [1.] # [0.75, 1.0]
-        #        gumbel_channel: True
-        #        merge_kernel: True
-        #        separable: False
-        #  
-        #    - input_idx: [17, 20, 23] # Detect(P3, P4, P5)
-        #      is_outlayer: True
-        #      submodule_name: YOLODetect_search
-        #      args: 
-        #        num_classes: *num_classes
-        #        anchors: *anchors
-        #        strides: *strides
-        
 
 

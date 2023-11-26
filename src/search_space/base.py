@@ -4,6 +4,7 @@ from itertools import product
 import inspect
 from collections.abc import Iterable, Iterator
 from copy import deepcopy
+import torch
 import numpy as np
 import warnings
 
@@ -85,6 +86,8 @@ class SearchSpace(object):
         elif isinstance(space, str):
             return ContinuousSpace(**kwargs)
 #            return ContinuousSpace.__new__(ContinuousSpace, **kwargs)
+        else:
+            raise(NotImplementedError("No Implementation as such a search space"))
 
 class _SearchSpace(ABC):
     MAX_ITER_NUM = 10000
@@ -103,7 +106,7 @@ class _SearchSpace(ABC):
                 sampler = {'submodule_name': sampler}
             sampler_cls = get_submodule_by_name(sampler.get('submodule_name'), search_path='src.search_space.sampler')
             if 'space_size' in inspect.getfullargspec(sampler_cls.__init__).args:
-                sampler.setdefault('args', {}).update({'space_size': space.size})
+                sampler.setdefault('args', {}).update({'space_size': self.size})
             _SearchSpace._samplers[self.label] = sampler_cls(**sampler.get('args', {}))
 
     def extract_child_space(self, space, prefix="", child_spaces=None):
@@ -161,9 +164,9 @@ class _SearchSpace(ABC):
 
     def named_sampler_weights(self, prefix='', recurse=True, memo=None):
         if memo is None: memo = set()
-        for name, weight in self.sampler.named_weights():
-            if weight not in memo:
-                memo.add(weight)
+        if self.sampler is not None and self.sampler not in memo:
+            memo.add(self.sampler)
+            for name, weight in self.sampler.named_weights():
                 if prefix: name = '.'.join([prefix, name])
                 yield name, weight
         if recurse:
@@ -184,20 +187,19 @@ class _SearchSpace(ABC):
         if memo is None:
             memo = set()
 #        new_weights = {}
-        for name, param in self.sampler._weights.items():
-            if param in memo: continue
-            memo.add(param)
-            out_param = fn(param)
-#            new_weights[name] = out_param
-            self.sampler._weights[key] = out_param
-            if hasattr(self.sampler, key): 
-                delattr(self.sampler, key)
-                setattr(self.sampler, key, out_param)
+        if self.sampler is not None and self.sampler not in memo:
+            memo.add(self.sampler)
+            for key, param in self.sampler._weights.items():
+                out_param = fn(param)
+    #            new_weights[name] = out_param
+                self.sampler._weights[key] = out_param
+                if hasattr(self.sampler, key): 
+                    delattr(self.sampler, key)
+                    setattr(self.sampler, key, out_param)
 
         if recurse:
             for _, space in self._child_spaces.items():
-                if space not in memo:
-                    space.apply_sampler_weights(fn, recurse, memo)
+                space.apply_sampler_weights(fn, recurse, memo)
 
     def __repr__(self):
         string = f"{self.__class__.__name__}(space={self.space}, sampler={self.sampler})"
@@ -209,11 +211,13 @@ class _SearchSpace(ABC):
     def discretize(self, **replace_settings):
         pass
 
-    #TODO
     def show_info(self):
         for prefix, child_space in self._child_spaces.items():
             name = '.'.join([tmp.split('::')[-1] for tmp in prefix.split('.')])
-            print(name, child_space.label, child_space)
+            string = f"name={name}, label={child_space.label}, space={child_space.__class__.__name__}, sampler={child_space.sampler.__class__.__name__}"
+            for n, v in child_space.named_sampler_weights():
+                string += f"\n{n}={v.data}; normed={child_space.sampler.norm_fn(v.data)}"
+            print(string)
 
 
 
@@ -325,7 +329,7 @@ class IIDSpace(_SearchSpace):
     def discretize(self, **replace_settings):
         for prefix, child_space in self._child_spaces.items():
             name = '.'.join([tmp.split('::')[-1] for tmp in prefix.split('.')])
-            replace_settings[prefix] = child_space.discretize(**child_replace_settings)
+            replace_settings[prefix] = child_space.discretize()
         return self.build_config(replace_settings)
 
 
@@ -454,7 +458,7 @@ class DiscreteSpace(_SearchSpace):
                         del label_sample[self.label]
 
     def __iter__(self):
-        return self.enum_space(recuse=False) #iter(self.space)
+        return self.enum_space(recurse=False) #iter(self.space)
     def __len__(self):
         return len(self.space)
     def index(self, v):
@@ -465,13 +469,13 @@ class DiscreteSpace(_SearchSpace):
         return out if self.return_list else out[0]
 
 ###########################################
+#TODO: Maybe it is better to utilize FlattenView of a space rather than build a new space
 class FlattenSampledDiscreteSpace(DiscreteSpace):
     def __new__(cls, *args, **kwargs):
         return super().__new__(cls)
     def __init__(self, space, sampler='UniformDiscreteSampler', num_reserve=None, reserve_replace=False, embed_fn=None, label=None):
-        self.space = space
-        flattened_space = list(self.enum_space())
-        del self.space
+        super(FlattenSampledDiscreteSpace, self).__init__(space, sampler, label=label)
+        flattened_space = [sample.config for sample in self.enum_space()]
         self.ori_space = space
         super(FlattenSampledDiscreteSpace, self).__init__(flattened_space, sampler, num_reserve, reserve_replace, embed_fn, label)
 

@@ -29,7 +29,7 @@ def main(args):
     # random.seed(seed)
 
     with ddp_ctx(args):
-        print(args)
+#        print(args)
     
         # read the config file
         cfg = parse_cfg(args.cfg)
@@ -54,3 +54,4 @@ def main(args):
 
 if __name__ == '__main__':
     main(args)
+

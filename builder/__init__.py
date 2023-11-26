@@ -7,7 +7,7 @@ from .utils import get_submodule_by_name
 from .yaml_parser import parse_cfg, CfgLoader, CfgDumper
 from .dataloader import create_dataloader 
 from .optimizer import create_optimizer
-from src.search_space.base import SearchSpace
+from src.search_space.base import SearchSpace, _SearchSpace
 
 def create_criterion(cfg: dict, local_rank=-1):
     cls = get_submodule_by_name(cfg.get('submodule_name'), search_path='torch.nn.criterion')
@@ -28,7 +28,9 @@ def create_hook(cfg: dict, search_path='src.hook'):
     return get_submodule_by_name(cfg.get('submodule_name'), search_path=search_path)(**cfg.get('args', {}))
 
 def create_search_space(cfg: dict):
-    return get_submodule_by_name('SearchSpace', search_path='src.search_space.base')(cfg=cfg)
+    if isinstance(cfg, _SearchSpace):
+        return cfg
+    return get_submodule_by_name('SearchSpace', search_path='src.search_space.base')(space=cfg)
 
 def create_searcher(cfg: dict):
     return get_submodule_by_name(cfg.get('submodule_name'), search_path='src.searcher')(**cfg.get('args', {}))

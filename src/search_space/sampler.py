@@ -1,4 +1,5 @@
 from abc import ABC,abstractmethod
+import torch
 import numpy as np
 
 class _Sampler(ABC):
@@ -14,7 +15,7 @@ class _Sampler(ABC):
         setattr(self, name, weight)
 
     def named_weights(self):
-        for n, w in self._weights:
+        for n, w in self._weights.items():
             yield n, w
 
     def weights(self):
@@ -52,7 +53,7 @@ class WeightedSampler(_NumpySampler):
     def __init__(self, space_size, norm_fn='softmax', seed=None):
         super(WeightedSampler, self).__init__(seed)
 #        self.register_weight('weight', torch.tensor(torch.ones(space_size) / space_size, requires_grad=True))
-        self.register_weight('weight', torch.tensor(1e-3*torch.randn(space_size, requires_grad=True), requires_grad=True))
+        self.register_weight('weight', (1e-3*torch.randn(space_size, requires_grad=True)).clone().detach().requires_grad_())
         self.norm_fn = NORM_FN[norm_fn]
     def sample(self, space, num, replace):
         normed_weight = self.norm_fn(self.weight)
@@ -63,11 +64,11 @@ class WeightedSampler(_NumpySampler):
 #        topk_idx = np.argpartition(-self.weight, k, axis=-1)
         _, topk_idx = self.weight.topk(k, dim=-1, largest=True, sorted=True)
         return [space[tmp] for tmp in topk_idx] if return_list else space[topk_idx[0]]
-    def __repr__(self):
-        with torch.no_grad():
-            normed_weight = self.norm_fn(self.weight)
-        string = f"{self.__class__.__name__}(seed={self.seed}, \nweights={self.weight.data}, \nnormed_weights={normed_weight})"
-        return string
+#    def __repr__(self):
+#        with torch.no_grad():
+#            normed_weight = self.norm_fn(self.weight)
+#        string = f"{self.__class__.__name__}(seed={self.seed}, \nweights={self.weight.data}, \nnormed_weights={normed_weight})"
+#        return string
 
 # Parameterless, Continuous
 class UniformContinousSampler(_NumpySampler):
@@ -95,19 +96,19 @@ def softmax(x, dim=-1, temperature=1):
 #    return exp_x/exp_x.sum(axis=dim, keepdims=True)
 
 @register_norm_fn
-def gumbel_softmax(logits, temperature=1, hard=False):
+def gumbel_softmax(logits, temperature=1, hard=True):
     """
     ST-gumple-softmax
     input: [*, n_class]
     return: flatten --> [*, n_class] an one-hot vector
     """
     while True:
-      gumbel = -torch.log(-torch.log(torch.empty(shape, device=device).uniform_()))
+      gumbel = -torch.log(-torch.log(torch.empty(logits.shape, device=logits.device).uniform_()))
 #      gumbel = -torch.empty(shape, device=device).exponential_().log()
 #      U = torch.rand(shape, device=device)
 #      gumbel = -torch.log(-torch.log(U + eps) + eps)
       y = logits + gumbel 
-      y = nn.functional.softmax(y / temperature, dim=-1)
+      y = torch.nn.functional.softmax(y / temperature, dim=-1)
       if torch.isinf(y).any() or torch.isnan(y).any(): continue
       else: break
 

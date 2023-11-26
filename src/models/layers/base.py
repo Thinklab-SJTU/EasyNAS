@@ -154,8 +154,8 @@ class SearchModule(nn.Module):
         if arch_yaml is None:
             new_arch = dict(submodule_name=outOp_name, input_idx=input_idx, args={})
         else:
-            if isinstance(arch_yaml, SearchSpace):
-                arch_yaml = arch_yaml.cfg
+            if isinstance(arch_yaml, _SearchSpace):
+                arch_yaml = arch_yaml.space
             new_arch = deepcopy(arch_yaml)
             new_arch['submodule_name'] = outOp_name
             new_arch['input_idx'] = input_idx
@@ -201,7 +201,7 @@ class OpBuilder(object):
             op = refined_op
         elif isinstance(op, (dict, edict, IIDSpace)):
             if isinstance(op, IIDSpace):
-                op = op.cfg
+                op = op.space
             op = edict(op)
             up_s, s = int(1./stride), max(1, stride)
             adjust_ch = False

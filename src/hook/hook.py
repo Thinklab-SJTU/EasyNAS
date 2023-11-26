@@ -76,6 +76,13 @@ class HOOK(object):
     def after_val_iter(self, runner):
         pass
 
+    def before_iter(self, runner):
+        pass
+ 
+    def after_iter(self, runner):
+        pass
+ 
+
 @contextmanager
 def hooks_ctx(fn_name, hooks, runner):
     for hook in hooks: getattr(hook, 'before_'+fn_name)(runner)
@@ -114,6 +121,8 @@ def hooks_val_iter(hooks, runner):
     for hook in hooks: hook.before_val_iter(runner)
     yield
     for hook in hooks: hook.after_val_iter(runner)
+def hooks_iter(hooks, runner):
+    return hooks_ctx('iter', hooks, runner)
 
  
 if __name__ == '__main__':

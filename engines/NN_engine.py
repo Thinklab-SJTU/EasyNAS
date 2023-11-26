@@ -4,7 +4,7 @@ import bisect
 from itertools import chain
 import torch
 
-from builder import create_dataloader, create_model, create_optimizer, create_criterion, create_hook, create_scheduler
+from builder import create_dataloader, create_model, create_optimizer, create_criterion, create_hook, create_scheduler, create_search_space
 from src.hook import HOOK, OptHOOK, hooks_run, hooks_epoch, hooks_train_epoch, hooks_val_epoch, hooks_train_iter, hooks_val_iter
 from .base import BaseEngine
 
@@ -13,7 +13,7 @@ class NNEngine(BaseEngine):
 
         self.local_rank = local_rank
         self.device = torch.device('cuda', max(local_rank, 0))
-        self.search_space = model # an instance of _Searchspace or dict representing model architecture
+        self.search_space = create_search_space(model) # an instance of _Searchspace
         self.dataloaders, model, self.criterion, self.optimizer, self.lr_scheduler, hooks = self.build_from_cfg(data, model, criterion, optimizer, lr_scheduler, hooks)
 
         self.train_loader, self.val_loader, self.test_loader = self.dataloaders.get('train', None), self.dataloaders.get('val', None), self.dataloaders.get('test', None)

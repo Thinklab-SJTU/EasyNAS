@@ -17,10 +17,14 @@ def set_temperature(space, temp):
         if 'temperature' in inspect.getfullargspec(space.sampler.norm_fn).args:
             space.sampler.norm_fn = partial(norm_fn, temperature=temp)
 
+def to_device(x, device):
+    with torch.no_grad():
+        return x.to(device).requires_grad_(x.requires_grad)
+
 class DARTSHOOK(HOOK):
-    def __init__(self, optimizer_cfg, dataloader_name, criterion_cfg=None, grad_clip=None,  update_freq=1, accumulate_gradient=1, priority=0, save_root=None, discretize_depth=1., discretize_width=1.,
-            temperature_start=1.,
-            temperature_end=1.,
+    def __init__(self, optimizer_cfg, dataloader_name, criterion_cfg=None, grad_clip=None,  update_freq=1, accumulate_gradient=1, priority=0, save_root=None,             temperature_start=1.,
+           temperature_end=1.,
+           replace_settings={}
             ):
         self.priority = priority
         self.optimizer_cfg = optimizer_cfg
@@ -32,13 +36,12 @@ class DARTSHOOK(HOOK):
         self.save_root = save_root
         if self.save_root: 
             os.makedirs(self.save_root, exist_ok=True)
-        self.discretize_depth = discretize_depth
-        self.discretize_width = discretize_width
         self.temperature_start = temperature_start
         self.temperature_end = temperature_end
+        self.replace_settings = replace_settings
 
     def before_run(self, runner):
-        runner.search_space.apply_sampler_weights(lambda x: x.to(runner.device), recurse=True)
+        runner.search_space.apply_sampler_weights(lambda x: to_device(x, runner.device), recurse=True)
 
         self.model = runner.model_without_ddp
         self.optimizer_cfg['args']['params'] = runner.search_space.sampler_weights()
@@ -88,7 +91,7 @@ class DARTSHOOK(HOOK):
         if getattr(self, 'scaler', None):
             loss = self.scaler.scale(loss)
         loss.backward(inputs=arch_param)
-        for n, v in runner.model_without_ddp.named_arch_parameters():
+        for n, v in runner.search_space.named_sampler_weights():
             if torch.isnan(v.grad).any() or torch.isinf(v.grad).any():
                 print(n, v, v.grad)
 
@@ -115,7 +118,7 @@ class DARTSHOOK(HOOK):
         temp = self.temperature_start - (self.temperature_start-self.temperature_end) * runner.info.current_epoch / (runner.info.epochs-1)
         print(f"Set softmax temperature for arch parameters as {temp}")
 
-        runner.model.apply(partial(set_temperature, temp=temp))
+        runner.search_space.apply(partial(set_temperature, temp=temp))
 
     @only_master
     def after_train_epoch(self, runner):
@@ -123,7 +126,7 @@ class DARTSHOOK(HOOK):
 #        alpha_file = os.path.join(self.save_root, "alpha_%d.json"%runner.info.current_epoch)
 #        with open(alpha_file, 'w') as f:
 #          json.dump(arch_param, f)
-        out_model_yaml = runner.search_space.discretize(depth_multiple=self.discretize_depth, width_multiple=self.discretize_width)
+        out_model_yaml = runner.search_space.discretize(**self.replace_settings)
         yaml_file = os.path.join(self.save_root, "architecture_%d.yaml"%runner.info.current_epoch)
         with open(yaml_file, encoding='utf-8', mode='w') as f:
             try:
