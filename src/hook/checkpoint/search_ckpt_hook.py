@@ -1,10 +1,12 @@
 import os
+import copy
 from typing import Union
 import torch
 import yaml
 
 from builder import CfgDumper
 from ..hook import HOOK, execute_period
+from engines.search_engine import QueryReward
 
 class SearchCkptHOOK(HOOK):
     def __init__(self, priority=0, save_root: Union[None, str]=None, presearch: Union[None, str]=None, only_master=True):
@@ -34,16 +36,18 @@ class SearchCkptHOOK(HOOK):
             runner.info.results.best = self.get_best(history_reward[-1])
 
     def get_best(self, query_reward):
-        best_query = max(query_reward, key=lambda k: query_reward[k])
-        return best_query, query_reward[best_query]
+        best_query_reward = max(query_reward, key=lambda x: x.reward)
+        return best_query_reward
 
     def after_epoch(self, runner):
         # get best
         current_epoch_reward = runner.searcher.history_reward[-1]
         current_epoch_best = self.get_best(current_epoch_reward)
+        #TODO: runner.info is EasyDict, it will decompose namedtuple
         best = runner.info.results.get('best', None)
-        if best is None or current_epoch_best[-1] > runner.info.results.best[-1]:
-            runner.info.results.best = current_epoch_best
+        if best is None or current_epoch_best.reward > best[-1]:
+            runner.info.results.best = copy.copy(current_epoch_best)
+#            QueryReward(*current_epoch_best)
 
         # save reward
         self.save_reward(runner, current_epoch_reward)

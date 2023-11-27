@@ -35,4 +35,4 @@ class MIPEngine(BaseEngine):
             for i, instance in enumerate(self.instance_loader.load_datasets()):
                 self.info.current_iter = i
                 with hooks_iter(self._hooks, self):
-                    self.info.current_result = self.solver.solve(instance)
+                    self.info.current_model = self.solver.solve(instance)

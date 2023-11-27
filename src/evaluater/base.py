@@ -1,7 +1,10 @@
+import os
+import sys
 from copy import deepcopy
 import time
 from collections import UserList
 from multiprocessing import Process, JoinableQueue, Queue
+import logging
 
 from builder import parse_cfg, get_submodule_by_name
 
@@ -10,9 +13,21 @@ class Reward(UserList):
 
 
 class Evaluater(object):
-    def __init__(self, eval_fns, resource=None):
+    def __init__(self, eval_fns, resource=None, log_dir=None):
         self.resource = resource
         self.eval_fns = self.get_eval_fn(eval_fns)
+        self.log_dir = log_dir
+        if self.log_dir is not None:
+            os.makedirs(self.log_dir, exist_ok=True)
+
+    def config_logger(self, logger_name, log_path=None):
+        log_format = '[%(asctime)s] [%(name)s] [%(levelname)s]: %(message)s'
+        logging.basicConfig(stream=sys.stdout, level=logging.INFO, format=log_format, datefmt='%m/%d %I:%M:%S %p')
+        self.logger = logging.getLogger(logger_name)
+        if log_path:
+            fh = logging.FileHandler(log_path)
+            fh.setFormatter(logging.Formatter(log_format))
+            self.logger.addHandler(fh)
 
     def get_eval_fn(self, eval_fn):
         eval_fns = []
@@ -32,16 +47,27 @@ class Evaluater(object):
             eval_fns.append(eval_fn)
         return eval_fns
 
-    def run(self, sample_queue, reward_queue):
+    def run(self, sample_queue, reward_queue, worker_id=None):
+        if worker_id is not None:
+            self.config_logger(f'EVAL_WORKER#{worker_id}', os.path.join(self.log_dir, f'worker-{worker_id}'))
+            import builtins as __builtin__
+            builtin_print = __builtin__.print
+            __builtin__.print = self.logger.info
+        self.task_id = -1
         while True:
             task = sample_queue.get()
             if task is None:
 #                sample_queue.task_done()
                 break
+            self.task_id += 1
+            print('='*20+f"Task-{self.task_id} Begin"+'='*20)
             rewards = Reward()
             for fn in self.eval_fns:
                 rewards.append(fn(deepcopy(task)))
+            print('='*20+f"Task-{self.task_id} End"+'='*20)
             reward_queue.put((task, rewards))
+        if worker_id is not None:
+            __builtin__.print = builtin_print
 
 #    def run(self, sample_queue: JoinableQueue, reward_queue: JoinableQueue):
 #        while True:

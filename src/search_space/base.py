@@ -28,19 +28,23 @@ class SampleNode(object):
         self.space = space
         self.sample = sample
 
-    def _build_sample_attr(self, name, fn):
+    def _build_sample_attr(self, name, fn, sample):
         if hasattr(self, name):
             return getattr(self, name)
-        setattr(self, name, fn(self.sample))
+        setattr(self, name, fn(sample))
         return getattr(self, name)
 
     @property
-    def config(self):
-        return self._build_sample_attr('_config', self.space.build_config)
+    def config(self, replace_setting=None):
+        return self.space.build_config(self.sample)
+#        return self._build_sample_attr('_config', self.space.build_config, self.sample)
+
+    def replace_setting(self, new_setting):
+        self.sample.update(new_setting)
 
     @property
     def embedding(self):
-        return self._build_sample_attr('_embedding', self.space.build_embedding)
+        return self._build_sample_attr('_embedding', self.space.build_embedding, self.sample)
 
     def __eq__(self, other):
         return hash(self) == hash(other)
@@ -235,12 +239,14 @@ class IIDSpace(_SearchSpace):
 
     #TODO: We should build the tree of search space according to the label rather than the name.
     def get_size(self, label_computed=None):
-        return len(list(self.enum_space()))
-#        if label_computed is None: label_computed = set()
-#        if self.label in label_computed: 
-#            return 1
-#        label_computed.add(self.label)
-#        return reduce(lambda x,y: x*y, [1 if x.label in label_computed else x.get_size(label_computed) for x in self._child_spaces.values()])
+        try:
+            return len(list(self.enum_space()))
+        except:
+            if label_computed is None: label_computed = set()
+            if self.label in label_computed: 
+                return 1
+            label_computed.add(self.label)
+            return reduce(lambda x,y: x*y, [1 if x.label in label_computed else x.get_size(label_computed) for x in self._child_spaces.values()])
 
     def build_config(self, sample):
         def get_item(src, idx):
@@ -355,13 +361,15 @@ class DiscreteSpace(_SearchSpace):
         return space 
 
     def get_size(self, label_computed=None):
-        return len(list(self.enum_space()))
-#        if label_computed is None: label_computed = set()
-#        if self.label in label_computed: 
-#            return 1
-#        label_computed.add(self.label)
-#        cand_sizes = [cand.get_size(label_computed) if isinstance(cand, _SearchSpace) else 1 for cand in self.space]
-#        return reduce(lambda x,y: x+y, cand_sizes)
+        try:
+            return len(list(self.enum_space()))
+        except:
+            if label_computed is None: label_computed = set()
+            if self.label in label_computed: 
+                return 1
+            label_computed.add(self.label)
+            cand_sizes = [cand.get_size(label_computed) if isinstance(cand, _SearchSpace) else 1 for cand in self.space]
+            return reduce(lambda x,y: x+y, cand_sizes)
 
     @sample_monitor
     def sample(self, num_to_sample=1, replace=True, label_samples=None, num_sampled=0):

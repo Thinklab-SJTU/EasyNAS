@@ -1,0 +1,87 @@
+root_path: &root_path runs/mip/RS_Competition_SCIP/
+
+search_space: &space
+  instance: &instance
+    submodule_name: src.mip.loader.InstanceLoader
+    args:
+        dataset_name: INDSET_train #ITEM_PLACEMENT+LOAD_BALANCING+ANONYMOUS
+  
+  solver: &solver
+    submodule_name: src.mip.scip_solver.SCIPSolver
+    args:
+      solver_params:
+          limits/time: 300
+          # Branching
+          branching/scorefunc: !search_space ['s', 'q', 'p']
+          branching/scorefac: !search_space 0.0:1.0
+          branching/preferbinary: !search_space [True, False]
+          branching/clamp: !search_space 0.0:0.5
+          branching/midpull: !search_space 0.0:1.0
+          branching/midpullreldomtrig: !search_space 0.0:1.0
+          branching/lpgainnormalize: !search_space ['d', 'l', 's']
+          # LP
+          lp/pricing: !search_space ["l", "a", "f", "p", "s", "q", "d"]
+          lp/colagelimit: 10 # -1...2147483647
+          lp/rowagelimit: 10 # -1...2147483647
+          # Node Selection
+          nodeselection/childsel: !search_space ["d", "u", "p", "i", "l", "r", "h"]
+          # Separating
+  #        separating/minortho: 0.9 # 0.0...1.0
+  #        separating/minorthoroot: 0.9 # 0.0...1.0
+          separating/maxcuts: 100 # 0...2147483647
+          separating/maxcutsroot: 2000 # 0...2147483647
+          separating/cutagelimit: 80 # -1...2147483647
+          separating/poolfreq: 10 # -1...65534
+  
+  hooks: &hooks
+    eval_hook:
+      submodule_name: src.mip.eval_hook.SumEvalHOOK
+      args: 
+        priority: 10
+        eval_names: [primal_bound, time]
+    
+    log_hook:
+      submodule_name: src.mip.log_hook.LogHOOK
+      args:
+        logger_name: MIPEngine
+        log_path: !join [*root_path, train.log]
+        print_freq: 1
+        priority: 30
+  
+  engine:
+    submodule_name: engines.MIPEngine
+    args:
+      instance: *instance
+      solver: *solver
+      hooks: *hooks
+
+searcher: &searcher
+  submodule_name: src.searcher.RandomSearch
+  args:
+    num_initial: 81
+
+evaluater: &evaluater
+  submodule_name: src.evaluater.Evaluater
+  args:
+    eval_fns: !get_module src.evaluater.performance.get_mip_reward
+    log_dir: !join [*root_path, eval_worker/]
+
+search_hooks: &search_hooks
+  ckpt_hook:
+    submodule_name: SearchCkptHOOK
+    args:
+      priority: 30
+      save_root: null
+
+
+engine:
+  submodule_name: engines.SearchEngine
+  args:
+    search_space: *space
+    searcher: *searcher
+    evaluater: *evaluater
+    hooks: *search_hooks
+    num_eval_workers: 9
+
+
+

@@ -23,14 +23,15 @@ class SCIPSolver(object):
             model.readProblem(instance)
         self.preprocess(model)
         model.optimize()
+        return model
 
-        # solution
-        result = {
-#                'sol': model.getBestSol(),
-                'optimal_val': model.getObjVal(),
-                'time': model.getSolvingTime(),
-                'primal': model.getPrimalbound(),
-                'dual': model.getDualbound(),
-                }
-
-        return result
+#        # solution
+#        result = {
+##                'sol': model.getBestSol(),
+#                'optimal_val': model.getObjVal(),
+#                'time': model.getSolvingTime(),
+#                'primal_bound': model.getPrimalbound(),
+#                'dual_bound': model.getDualbound(),
+#                }
+#
+#        return result

@@ -26,9 +26,6 @@ class LogHOOK(HOOK):
     def after_iter(self, runner):
 #        string = 'train %03d lr %e' % (runner.info.current_iter, runner.lr_scheduler.get_lr()[0])
         string = 'Instance %03d:' % (runner.info.current_iter)
-        for k, v in runner.info.current_result.items():
-            string += f' {k}: {v}'
-        string += '\n Total results:'
         for k, v in runner.info.results.items():
             string += f' {k}: {v}'
         self.logger.info(string)

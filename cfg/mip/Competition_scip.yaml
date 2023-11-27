@@ -10,12 +10,34 @@ solver: &solver
   args:
     solver_params:
         limits/time: 900
+        # Branching
+        branching/scorefunc: p #['s', 'q', 'p']
+        branching/scorefac: 0.167 # 0.0...1.0
+        branching/preferbinary: False # [True, False]
+        branching/clamp: 0.2 # 0.0...0.5
+        branching/midpull: 0.75 # 0.0...1.0
+        branching/midpullreldomtrig: 0.5 # 0.0...1.0
+        branching/lpgainnormalize: s # ['d', 'l', 's']
+        # LP
+        lp/pricing: l # ["l", "a", "f", "p", "s", "q", "d"]
+        lp/colagelimit: 10 # -1...2147483647
+        lp/rowagelimit: 10 # -1...2147483647
+        # Node Selection
+        nodeselection/childsel: h # ["d", "u", "p", "i", "l", "r", "h"]
+        # Separating
+#        separating/minortho: 0.9 # 0.0...1.0
+#        separating/minorthoroot: 0.9 # 0.0...1.0
+        separating/maxcuts: 100 # 0...2147483647
+        separating/maxcutsroot: 2000 # 0...2147483647
+        separating/cutagelimit: 80 # -1...2147483647
+        separating/poolfreq: 10 # -1...65534
 
 hooks: &hooks
   eval_hook:
-    submodule_name: src.mip.eval_hook.TotalTimeHOOK
+    submodule_name: src.mip.eval_hook.SumEvalHOOK
     args: 
       priority: 10
+      eval_names: [primal_bound, time]
   
   log_hook:
     submodule_name: src.mip.log_hook.LogHOOK
