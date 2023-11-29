@@ -27,6 +27,9 @@ class LogHOOK(HOOK):
 #        string = 'train %03d lr %e' % (runner.info.current_iter, runner.lr_scheduler.get_lr()[0])
         string = 'Instance %03d:' % (runner.info.current_iter)
         for k, v in runner.info.results.items():
-            string += f' {k}: {v}'
+            if isinstance(v, list):
+                string += f' {k}: {v[-1]}'
+            else:
+                string += f' {k}: {v}'
         self.logger.info(string)
 

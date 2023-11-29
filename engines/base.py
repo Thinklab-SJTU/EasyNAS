@@ -43,3 +43,6 @@ class BaseEngine(object):
     def run(self, epochs=None):
         raise(NotImplementedError("No implementation"))
 
+    def extract_performance(self):
+        raise(NotImplementedError("No implementation"))
+

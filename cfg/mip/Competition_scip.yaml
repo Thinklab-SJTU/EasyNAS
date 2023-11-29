@@ -34,10 +34,10 @@ solver: &solver
 
 hooks: &hooks
   eval_hook:
-    submodule_name: src.mip.eval_hook.SumEvalHOOK
+    submodule_name: src.mip.eval_hook.EvalHOOK
     args: 
       priority: 10
-      eval_names: [primal_bound, time]
+      eval_names: [neg-sum-gap, neg-geoMean-time]
   
   log_hook:
     submodule_name: src.mip.log_hook.LogHOOK

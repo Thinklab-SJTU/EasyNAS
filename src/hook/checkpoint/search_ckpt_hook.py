@@ -47,6 +47,7 @@ class SearchCkptHOOK(HOOK):
         best = runner.info.results.get('best', None)
         if best is None or current_epoch_best.reward > best[-1]:
             runner.info.results.best = copy.copy(current_epoch_best)
+        print(f"Best Query: {runner.info.results.best}")
 #            QueryReward(*current_epoch_best)
 
         # save reward

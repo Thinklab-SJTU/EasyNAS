@@ -137,7 +137,7 @@ class NNEngine(BaseEngine):
 #                self.call_hook('after_val_iter')
             if self.amp_val: model.float()
 
-    def run(self, epochs=None):
+    def train(self, epochs):
         self.info.epochs = epochs
 #        self.call_hook('before_run')
         with hooks_run(self._hooks, self):
@@ -168,4 +168,13 @@ class NNEngine(BaseEngine):
             self.model.eval()
             with hooks_val_epoch(self._hooks, self):
                 self.val(self.val_loader, self.model, self.criterion)
+
+    def run(self, epochs=None):
+        if epochs is None:
+            self.validate()
+        else:
+            self.train(epochs)
+
+    def extract_performance(self):
+        return self.info.results.val.best
         

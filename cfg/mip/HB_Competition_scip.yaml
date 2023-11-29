@@ -35,10 +35,10 @@ search_space: &space
   
   hooks: &hooks
     eval_hook:
-      submodule_name: src.mip.eval_hook.SumEvalHOOK
+      submodule_name: src.mip.eval_hook.EvalHOOK
       args: 
         priority: 10
-        eval_names: [primal_bound, time]
+        eval_names: [neg-sum-gap, neg-geoMean-time]
     
     log_hook:
       submodule_name: src.mip.log_hook.LogHOOK
@@ -60,12 +60,12 @@ searcher: &searcher
   args:
     num_initial: 81
     max_resource_inner_loop: {solver.args.solver_params.limits/time: 3600}
-    min_resource_per_query: {solver.args.solver_params.limits/time: 180}
+    #    min_resource_per_query: {solver.args.solver_params.limits/time: 180}
 
 evaluater: &evaluater
   submodule_name: src.evaluater.Evaluater
   args:
-    eval_fns: !get_module src.evaluater.performance.get_mip_reward
+    eval_fns: !get_module src.evaluater.performance.get_performance
     log_dir: !join [*root_path, eval_worker/]
 
 search_hooks: &search_hooks

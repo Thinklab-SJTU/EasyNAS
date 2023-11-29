@@ -9,7 +9,6 @@ from builder import parse_cfg, get_submodule_by_name
 from distribute_utils import ddp_ctx, get_rank
 
 parser = argparse.ArgumentParser("Run")
-parser.add_argument('--mode', type=str, default='train', help='train or validate')
 parser.add_argument('--cfg', type=str, help='location of the config file')
 parser.add_argument('--seed', default=-1, type=int,
                     help='random seed')
@@ -45,8 +44,7 @@ def main(args):
                           **engine_cfg['args'],
                           )
         print("Engine is running...")
-        if args.mode == 'train':
-            engine.run()
+        engine.run(**engine_cfg.get('run_args', {}))
     
 
 if __name__ == '__main__':

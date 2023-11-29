@@ -36,3 +36,7 @@ class MIPEngine(BaseEngine):
                 self.info.current_iter = i
                 with hooks_iter(self._hooks, self):
                     self.info.current_model = self.solver.solve(instance)
+
+    def extract_performance(self):
+        return self.info.results.get('best')
+        
