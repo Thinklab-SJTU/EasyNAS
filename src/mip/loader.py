@@ -93,24 +93,27 @@ class InstanceLoader:
     }
 
     COMPETITION = {
-        "ANONYMOUS": "anonymous.tar.gz",
-        "ITEM_PLACEMENT": "item_placement.tar.gz",
-        "LOAD_BALANCING": "load_balancing.tar.gz",
+        "ANONYMOUS_train": "data/mip_instances/ML4CO/instances/3_anonymous/train/",
+        "ITEM_PLACEMENT_train": "data/mip_instances/ML4CO/instances/1_item_placement/train/",
+        "LOAD_BALANCING_train": "data/mip_instances/ML4CO/instances/2_load_balancing/train/",
+        "ANONYMOUS_valid": "data/mip_instances/ML4CO/instances/3_anonymous/valid/",
+        "ITEM_PLACEMENT_valid": "data/mip_instances/ML4CO/instances/1_item_placement/valid/",
+        "LOAD_BALANCING_valid": "data/mip_instances/ML4CO/instances/2_load_balancing/valid/",
+#        "ANONYMOUS": "anonymous.tar.gz",
+#        "ITEM_PLACEMENT": "item_placement.tar.gz",
+#        "LOAD_BALANCING": "load_balancing.tar.gz",
     }
 
     #DFLT_TMP_FILE_LOC = "/tmp/" + str(os.geteuid()) + "/"
     #DFLT_TMP_FILE_LOC = "/tmp/" + str(2575) + "/"
-    DFLT_TMP_FILE_LOC = ""
+    DFLT_TMP_FILE_LOC = "tmp"
 
     def __init__(self, dataset_name, dataset_loc = "", tmp_file_loc = DFLT_TMP_FILE_LOC, mode="*", repeat=False, load_metadata=False, shard=0, shard_count=0, pprocess = False):
         dataset_loc = os.path.expanduser(dataset_loc)
-        #try:
-        #    os.mkdir(tmp_file_loc)
-        #except FileExistsError:
-        #    pass
         self.dataset_name = dataset_name
         self.dataset_loc = dataset_loc
-        self.tmp_file_loc = tmp_file_loc
+        self.tmp_file_loc = os.path.join(dataset_loc, tmp_file_loc)
+        os.makedirs(self.tmp_file_loc, exist_ok=True)
         self.mode = mode
         self.repeat = repeat
         self.load_metadata = load_metadata
@@ -187,7 +190,7 @@ class InstanceLoader:
                 instance = os.path.join(self.tmp_file_loc, member)
                 yield instance #bad coding :( this is just for loading MIPLIB instance
 
-    def load_tar(self, local_version, filter=None, presolved=False):
+    def load_tar(self, local_version, filter=None):
         with tarfile.open(local_version) as t:
             members = t.getmembers()
             if self.shard:
@@ -248,9 +251,17 @@ class InstanceLoader:
 
     def load_competition(self, instance_type):
         filename = self.COMPETITION[instance_type]
-        local_version = os.path.join(self.dataset_loc, filename)
-        filter = re.compile(".+mps")
-        return self.load_tar(local_version, filter=filter, presolved=True)
+        if os.path.isdir(filename):
+            for instance_file in glob.iglob(filename+'*.mps.gz'):
+                if self.load_metadata:
+                    with open(instance_file.replace('mps.gz', 'json')) as f:
+                        instance_info = json.load(f)
+                    yield instance_file, instance_info
+                else: yield instance_file
+        else:
+            local_version = os.path.join(self.dataset_loc, filename)
+            filter = re.compile(".+mps")
+            return self.load_tar(local_version, filter=filter)
 
 
 if __name__ == '__main__':

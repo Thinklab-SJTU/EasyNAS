@@ -3,13 +3,14 @@ root_path: &root_path runs/mip/Competition_SCIP/
 instance: &instance
   submodule_name: src.mip.loader.InstanceLoader
   args:
-      dataset_name: INDSET_train #ITEM_PLACEMENT+LOAD_BALANCING+ANONYMOUS
+      dataset_name: ITEM_PLACEMENT_valid
 
 solver: &solver
   submodule_name: src.mip.scip_solver.SCIPSolver
   args:
     solver_params:
-        limits/time: 900
+        limits/time: 1800
+#        limits/memory: 12288 #12*1024
         # Branching
         branching/scorefunc: p #['s', 'q', 'p']
         branching/scorefac: 0.167 # 0.0...1.0
@@ -19,6 +20,7 @@ solver: &solver
         branching/midpullreldomtrig: 0.5 # 0.0...1.0
         branching/lpgainnormalize: s # ['d', 'l', 's']
         # LP
+#        lp/threads: 8
         lp/pricing: l # ["l", "a", "f", "p", "s", "q", "d"]
         lp/colagelimit: 10 # -1...2147483647
         lp/rowagelimit: 10 # -1...2147483647
