@@ -91,9 +91,9 @@ class DARTSHOOK(HOOK):
         if getattr(self, 'scaler', None):
             loss = self.scaler.scale(loss)
         loss.backward(inputs=arch_param)
-        for n, v in runner.search_space.named_sampler_weights():
-            if torch.isnan(v.grad).any() or torch.isinf(v.grad).any():
-                print(n, v, v.grad)
+#        for n, v in runner.search_space.named_sampler_weights():
+#            if v.grad is None or torch.isnan(v.grad).any() or torch.isinf(v.grad).any():
+#                print(n, v, id(v))
 
         for v in arch_param:
           if torch.isnan(v.grad).any() or torch.isinf(v.grad).any():
@@ -133,7 +133,9 @@ class DARTSHOOK(HOOK):
                 yaml.dump(data=out_model_yaml, stream=f, allow_unicode=True, Dumper=CfgDumper, default_flow_style=False)
             except Exception as e:
                 raise(e)
+        print('='*10+' Show Arch Parameters Begin '+'='*10)
         runner.search_space.show_info()
+        print('='*10+' Show Arch Parameters Done '+'='*10)
 
 #    def state_dict(self, runner):
 #        return {k: v.detach() for k, v in self.model.named_arch_parameters()}

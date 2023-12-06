@@ -10,6 +10,7 @@ import warnings
 
 from builder.utils import get_submodule_by_name
 
+
 def my_product(iter_fns, out=None):
     depth = len(iter_fns)
     if out is None: out = [None for _ in range(depth)]
@@ -59,6 +60,8 @@ class SampleNode(object):
         string = f"SampleNode(space_type={self.space.__class__.__name__}, sample={self.config})"
         return string
 
+###########################################
+
 def sample_monitor(func):
     def inner(self, num_to_sample, replace, *args, **kwargs):
         if not replace and num_to_sample >= self.size:
@@ -74,44 +77,54 @@ def sample_monitor(func):
         return samples
     return inner
 
+###########################################
+
 class SearchSpace(object):
     def __new__(cls, **kwargs):
         space = kwargs['space']
+        repeat = kwargs.pop('num_repeat', None)
+        ind_repeat = kwargs.pop('independent', True)
         flatten = kwargs.pop('flatten', False)
         if isinstance(space, dict):
-            return IIDSpace(**kwargs)
+            space = IIDSpace(**kwargs)
 #            return IIDSpace.__new__(IIDSpace, **kwargs)
         elif isinstance(space, (list, tuple)):
             if flatten:
-                return FlattenSampledDiscreteSpace(**kwargs)
+                space = FlattenSampledDiscreteSpace(**kwargs)
             else:
-                return DiscreteSpace(**kwargs)
+                space = DiscreteSpace(**kwargs)
 #            return DiscreteSpace.__new__(DiscreteSpace, **kwargs)
         elif isinstance(space, str):
-            return ContinuousSpace(**kwargs)
+            space = ContinuousSpace(**kwargs)
 #            return ContinuousSpace.__new__(ContinuousSpace, **kwargs)
         else:
             raise(NotImplementedError("No Implementation as such a search space"))
+        if repeat:
+            return RepeatSpace(space, num_repeat=repeat, independent=ind_repeat)
+        else: return space
+
+###########################################
 
 class _SearchSpace(ABC):
     MAX_ITER_NUM = 10000
     _cnt = 0
     _samplers = {}
-    def __init__(self, space, sampler, embed_fn=None, label=None):
+    def __init__(self, space, sampler_cfg, embed_fn=None, label=None):
         self.space = space
         self.embed_fn = embed_fn
+        self.sampler_cfg = deepcopy(sampler_cfg)
         if label is None:
             self.label = f'_SearchSpace#{_SearchSpace._cnt}'
         else: self.label = label
         _SearchSpace._cnt += 1
         self._child_spaces = self.extract_child_space(space)
-        if sampler is not None and self.label not in _SearchSpace._samplers:
-            if isinstance(sampler, str):
-                sampler = {'submodule_name': sampler}
-            sampler_cls = get_submodule_by_name(sampler.get('submodule_name'), search_path='src.search_space.sampler')
+        if sampler_cfg is not None and self.label not in _SearchSpace._samplers:
+            if isinstance(sampler_cfg, str):
+                sampler_cfg = {'submodule_name': sampler_cfg}
+            sampler_cls = get_submodule_by_name(sampler_cfg.get('submodule_name'), search_path='src.search_space.sampler')
             if 'space_size' in inspect.getfullargspec(sampler_cls.__init__).args:
-                sampler.setdefault('args', {}).update({'space_size': self.size})
-            _SearchSpace._samplers[self.label] = sampler_cls(**sampler.get('args', {}))
+                sampler_cfg.setdefault('args', {}).update({'space_size': self.size})
+            _SearchSpace._samplers[self.label] = sampler_cls(**sampler_cfg.get('args', {}))
 
     def extract_child_space(self, space, prefix="", child_spaces=None):
         if child_spaces is None: child_spaces = {}
@@ -166,6 +179,16 @@ class _SearchSpace(ABC):
             sample_nodes.append(self.sample_from_node(node, label_samples, num_sampled+idx))
         return sample_nodes
 
+    def named_sampler(self, prefix='', recurse=True, memo=None):
+        if memo is None: memo = set()
+        if self.sampler is not None and self.sampler not in memo:
+            memo.add(self.sampler)
+            if prefix: name = '.'.join([prefix, name])
+            yield name, self.sampler
+        if recurse:
+            for name, child_space in self._child_spaces.items():
+                yield from child_space.named_sampler(prefix=name, recurse=recurse, memo=memo)
+
     def named_sampler_weights(self, prefix='', recurse=True, memo=None):
         if memo is None: memo = set()
         if self.sampler is not None and self.sampler not in memo:
@@ -206,22 +229,63 @@ class _SearchSpace(ABC):
                 space.apply_sampler_weights(fn, recurse, memo)
 
     def __repr__(self):
-        string = f"{self.__class__.__name__}(space={self.space}, sampler={self.sampler})"
+        string = f"{self.__class__.__name__}(space={self.space}, label={self.label}, sampler={self.sampler})"
+#        string = f"{self.__class__.__name__}(space={self.space}, label=self.labelsampler={self.sampler})"
         return string
     def __getitem__(self, key):
         return self.space[key]
+    def __setitem__(self, key, value):
+        self.space[key] = value
 
     @abstractmethod
     def discretize(self, **replace_settings):
         pass
 
-    def show_info(self):
-        for prefix, child_space in self._child_spaces.items():
+    def show_info(self, prefix=''):
+        if self.sampler is not None:
             name = '.'.join([tmp.split('::')[-1] for tmp in prefix.split('.')])
-            string = f"name={name}, label={child_space.label}, space={child_space.__class__.__name__}, sampler={child_space.sampler.__class__.__name__}"
-            for n, v in child_space.named_sampler_weights():
-                string += f"\n{n}={v.data}; normed={child_space.sampler.norm_fn(v.data)}"
+            string = f"name={name}, label={self.label}, space={self.__class__.__name__}, sampler={self.sampler.__class__.__name__}: "
+            for name, weight in self.sampler.named_weights():
+                string += f"\n\t{name}={weight.data}; normed={self.sampler.norm_fn(weight).data}"
             print(string)
+        for child_prefix, child_space in self._child_spaces.items():
+            child_space.show_info(prefix='.'.join([prefix, child_prefix]))
+
+#        for prefix, child_space in self._child_spaces.items():
+#            name = '.'.join([tmp.split('::')[-1] for tmp in prefix.split('.')])
+#            string = f"name={name}, label={child_space.label}, space={child_space.__class__.__name__}, sampler={child_space.sampler.__class__.__name__}"
+#            for n, v in child_space.named_sampler_weights():
+#                string += f"\n{n}={v.data}"
+#            print(string)
+
+    def new_space(self, **kwargs):
+        def get_item(src, idx):
+            if isinstance(src, dict): 
+                return src.get(idx)
+            elif isinstance(src, (list, tuple)):
+                return src[int(idx)]
+            else:
+                raise(TypeError(f"Index {idx} from {src} is not supported"))
+        def set_item(src, idx, dst):
+            if isinstance(src, dict): 
+                src[idx] = dst
+            elif isinstance(src, (list, tuple)):
+                src[int(idx)] = dst
+            else:
+                raise(TypeError(f"Index {idx} from {src} is not supported"))
+        for key in inspect.getfullargspec(self.__class__.__init__).args:
+            if key not in kwargs and hasattr(self, key):
+                kwargs[key] = getattr(self, key)
+        for prefix, child_space in self._child_spaces.items():
+            keys = [tmp.split('::')[-1] for tmp in prefix.split('.')]
+            new_child_space = child_space.new_space()
+            tmp = kwargs['space']
+            for k in keys[:-1]:
+                tmp = get_item(tmp, k)
+            set_item(tmp, keys[-1], new_child_space)
+
+        return self.__class__(**kwargs)
+
 
 
 
@@ -229,8 +293,8 @@ class _SearchSpace(ABC):
 class IIDSpace(_SearchSpace):
     def __new__(cls, *args, **kwargs):
         return super().__new__(cls)
-    def __init__(self, space, sampler=None, embed_fn=None, label=None):
-        super(IIDSpace, self).__init__(space, sampler, embed_fn, label)
+    def __init__(self, space, sampler_cfg=None, embed_fn=None, label=None):
+        super(IIDSpace, self).__init__(space, sampler_cfg, embed_fn, label)
 
         # Similar to easydict
         for k, v in self.space.items():
@@ -334,22 +398,34 @@ class IIDSpace(_SearchSpace):
     
     def discretize(self, **replace_settings):
         for prefix, child_space in self._child_spaces.items():
-            name = '.'.join([tmp.split('::')[-1] for tmp in prefix.split('.')])
             replace_settings[prefix] = child_space.discretize()
         return self.build_config(replace_settings)
 
+#TODO
+class RepeatSpace(IIDSpace):
+    def __init__(self, space, num_repeat, independent=True):
+        assert isinstance(space, _SearchSpace)
+        self.num_repeat = num_repeat
+        space = {i: space.new_space(label=None) if i>0 and independent else space for i in range(num_repeat)}
+        super(IIDSpace, self).__init__(space, sampler_cfg=None, embed_fn=None, label=None)
+
+    def __len__(self):
+        return self.num_repeat
+
+    def discretize(self, **replace_settings):
+        return [self.space[i].discretize() for i in range(self.num_repeat)]
 
 ###########################################
 class DiscreteSpace(_SearchSpace):
     def __new__(cls, *args, **kwargs):
         return super().__new__(cls)
-    def __init__(self, space, sampler='UniformDiscreteSampler', num_reserve=None, reserve_replace=False, embed_fn=None, label=None):
+    def __init__(self, space, sampler_cfg='UniformDiscreteSampler', num_reserve=None, reserve_replace=False, embed_fn=None, label=None):
         """
         if num_reserve is None, we set it as 1 and return the value.
         if num_reserve is 1, we return a list with len equals to 1
         """
         space = self.to_tuple(space)
-        super(DiscreteSpace, self).__init__(space, sampler, embed_fn, label)
+        super(DiscreteSpace, self).__init__(space, sampler_cfg, embed_fn, label)
         self.return_list = num_reserve is not None
         self.num_reserve = 1 if num_reserve is None else num_reserve
         self.reserve_replace = reserve_replace
@@ -481,11 +557,11 @@ class DiscreteSpace(_SearchSpace):
 class FlattenSampledDiscreteSpace(DiscreteSpace):
     def __new__(cls, *args, **kwargs):
         return super().__new__(cls)
-    def __init__(self, space, sampler='UniformDiscreteSampler', num_reserve=None, reserve_replace=False, embed_fn=None, label=None):
-        super(FlattenSampledDiscreteSpace, self).__init__(space, sampler, label=label)
+    def __init__(self, space, sampler_cfg='UniformDiscreteSampler', num_reserve=None, reserve_replace=False, embed_fn=None, label=None):
+        super(FlattenSampledDiscreteSpace, self).__init__(space, sampler_cfg, label=label)
         flattened_space = [sample.config for sample in self.enum_space()]
         self.ori_space = space
-        super(FlattenSampledDiscreteSpace, self).__init__(flattened_space, sampler, num_reserve, reserve_replace, embed_fn, label)
+        super(FlattenSampledDiscreteSpace, self).__init__(flattened_space, sampler_cfg, num_reserve, reserve_replace, embed_fn, label)
 
     def __iter__(self):
         return iter(self.ori_space)
@@ -500,13 +576,13 @@ class ContinuousSpace(_SearchSpace):
     def __new__(cls, *args, **kwargs):
         return super().__new__(cls)
 
-    def __init__(self, space, sampler='UniformContinousSampler', num_reserve=None, reserve_replace=True, embed_fn=None, label=None):
+    def __init__(self, space, sampler_cfg='UniformContinousSampler', num_reserve=None, reserve_replace=True, embed_fn=None, label=None):
         """
         space is a string with format "start:end"
         if num_reserve is None, we set it as 1 and return the value.
         if num_reserve is 1, we return a list with len equals to 1
         """
-        super(ContinuousSpace, self).__init__(space, sampler, embed_fn, label)
+        super(ContinuousSpace, self).__init__(space, sampler_cfg, embed_fn, label)
         self.start, self.end = [float(tmp) for tmp in space.split(':')]
         self.return_list = num_reserve is not None
         self.num_reserve = 1 if num_reserve is None else num_reserve

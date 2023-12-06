@@ -31,6 +31,7 @@ case $Answer in
 #        echo "Start the process. Log file is saved to logs/${NAME}.log"
         CUDA_VISIBLE_DEVICES=$gpustr ${START_CMD} app/run_NN_engine.py \
 		--cfg ${cfg} \
+#		> logs/tmp.log 2>&1 &
 #		> logs/retrain_EAutoDet-s.log 2>&1 &
 #		> logs/retrain_mergenas_bs64.log 2>& 1 &
 #                > logs/yolov5s.log 2>&1 &

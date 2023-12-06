@@ -91,7 +91,7 @@ class BaseModel(nn.Module):
         gd, gw = self.gd, self.gw
 
         layers, save, out_ch = [], [], ch[-1]  # layers, savelist, ch out
-        for i, v in enumerate(arch_list):
+        for layer_idx, v in enumerate(arch_list):
             in_idx = v['input_idx']
             if 'num_repeat' in v:
                 v['num_repeat'] = num_repeat = max(round(v.get('num_repeat') * gd), 1) 
@@ -110,17 +110,19 @@ class BaseModel(nn.Module):
                 args['in_channel'] = cin
             cout = args.get('out_channel', None)
 
-            if cout:
-                if not freeze_ch: 
-                    cout = [int(make_divisible(c * gw, width_divisible)) for c in cout] if isinstance(cout, list) else make_divisible(cout*gw, width_divisible)
-                    args['out_channel'] = cout
-#                else:
-#                    if self.output_ch: args['out_channel'] = self.output_ch
-            else:
+            if not cout:
                 cout = get_outchannel(cin, v['submodule_name'], args)
+            elif not freeze_ch:
+                if isinstance(cout, Iterable):
+                    for i in range(len(cout)):
+                        cout[i] = int(make_divisible(cout[i] * gw, width_divisible))
+                else: 
+                    cout = make_divisible(cout*gw, width_divisible)
+#                    cout = [int(make_divisible(c * gw, width_divisible)) for c in cout] if isinstance(cout, list) else make_divisible(cout*gw, width_divisible)
+                args['out_channel'] = cout
+            if isinstance(cout, Iterable): cout = max(cout)
 
             m_ = layer(**args)
-            cout = getattr(m_, 'real_out_channel', cout)
 
             if num_repeat > 1:
                 if 'in_channel' in args and 'out_channel' in args: 
@@ -132,13 +134,13 @@ class BaseModel(nn.Module):
                 m_ = nn.ModuleList([m_] + [layer(**args) for _ in range(num_repeat-1)])
 
             num_param = sum([x.numel() for x in m_.parameters()])  # number params
-            self.logger.info('%3s%10s%10s%10.0f  %-20s%-40s' % (i, in_idx, num_repeat, num_param, v['submodule_name'], args))  # print
+            self.logger.info('%3s%10s%10s%10.0f  %-20s%-40s' % (layer_idx, in_idx, num_repeat, num_param, v['submodule_name'], args))  # print
 
-            m_.idx, m_.in_idx, m_.type, m_.np, m_.arch_yaml = i, in_idx, layer, num_param, deepcopy(v)  # attach index, 'from' index, type, number params
+            m_.idx, m_.in_idx, m_.type, m_.np, m_.arch_yaml = layer_idx, in_idx, layer, num_param, deepcopy(v)  # attach index, 'from' index, type, number params
 
-#            save.extend(x % i for x in ([in_idx] if isinstance(in_idx, int) else in_idx) if x != -1)  # append to savelist
+#            save.extend(x % layer_idx for x in ([in_idx] if isinstance(in_idx, int) else in_idx) if x != -1)  # append to savelist
             layers.append(m_)
-            if i == 0:
+            if layer_idx == 0:
                 ch = []
             ch.append(cout)
 #        return nn.Sequential(*layers), sorted(set(save))

@@ -1,0 +1,18 @@
+1. Search Space:
+1.1 add repeatSpace that can build search space from dict/list/str for N times
+1.2 update FlattenSampledDiscreteSpace as FlattenView
+1.3 now DiscreteSpace has to combine with IIDSpace for nesting
+1.4 implement flatten sampler
+
+2. Search Method:
+2.1 add BO
+2.2 add EA
+2.3 add RL
+
+3. Evaluation method for NAS
+3.1 complete SPOS, i.e., load supernet weights to sampled architecture
+3.2 add zero-cost proxies
+
+
+TODO order:
+1.4 1.3 1.2 2.1 3.1 1.1 2.2 3.2 2.3

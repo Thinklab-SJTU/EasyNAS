@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .utils import get_layer, gumbel_softmax
-from src.search_space.base import SearchSpace, IIDSpace
+from src.search_space.base import _SearchSpace, IIDSpace
 
 #OP_CFG = namedtuple('OP_CFG', ['submodule_name', 'args'])
 
@@ -240,7 +240,7 @@ class OpBuilder(object):
             op_config = [op_config]
         refined_op_config = []
         if isinstance(in_channel, int): in_channel = (in_channel,)*len(op_config)
-        if isinstance(out_channel, int): out_channel = (out_channel,)*len(op_config)
+        if isinstance(out_channel, (int, _SearchSpace)): out_channel = (out_channel,)*len(op_config)
         if isinstance(stride, (int, float)): stride = (stride,)*len(op_config)
         for idx, (cin, cout, s, op) in enumerate(zip(in_channel, out_channel, stride, op_config)):
             refined_op = deepcopy(op)

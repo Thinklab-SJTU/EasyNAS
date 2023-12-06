@@ -12,11 +12,11 @@ import torch.nn.functional as F
 
 from .utils import autopad, gumbel_softmax, get_layer, get_act, get_norm, get_layer
 from .base import  OpBuilder
-from src.search_space.base import DiscreteSpace, IIDSpace, _SearchSpace
+from src.search_space.base import DiscreteSpace, IIDSpace, _SearchSpace, RepeatSpace
 
 __all__ = ["ConvBNAct_search", "SepConvBNAct_search", "AFF", "SPP_search"]
 
-def check_nesting(src, least_depth, nest_type=(list, tuple, DiscreteSpace)):
+def check_nesting(src, least_depth, nest_type=(list, tuple, DiscreteSpace, RepeatSpace)):
     tmp_src = src
     while least_depth > 0:
         if not isinstance(tmp_src, nest_type): break
@@ -54,7 +54,6 @@ class AtomSearchModule(SearchModule):
     def __init__(self, in_channel, out_channel, strides, 
         input_idx, # candidate_edge
         candidate_op,
-        candidate_ch=[1.],
         auto_refine=False, adjust_ch_op=None, upsample_op=None, 
         act=nn.ReLU(), bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True)), bn_per_ch=True): 
         """
@@ -74,19 +73,23 @@ class AtomSearchModule(SearchModule):
         assert len(self.candidate_op) == len(self.cin)
 
         # candidate_ch
-        self.cout = out_channel
-        self.candidate_ch = check_nesting(candidate_ch, 1)
-        self.real_out_channel = int(self.cout * max(self.candidate_ch))
+        self.candidate_ch = check_nesting(out_channel, 1)
+        self.cout = max(self.candidate_ch)
+
         def assign_ch(op_cfg):
-            if isinstance(op_cfg, (list, tuple, DiscreteSpace)):
-                for cfg in op_cfg:
-                    assign_ch(cfg)
+            if isinstance(op_cfg, (list, tuple)): # only assign the cout of the last parametric operation
+                for cfg in op_cfg[-1:-1:-1]:
+                    if assign_ch(cfg):
+                        break
             elif isinstance(op_cfg, (dict, IIDSpace)):
                 arg_names = inspect.getfullargspec(get_layer(op_cfg['submodule_name']).__init__).args
-                if 'candidate_ch' in arg_names:
-                    op_cfg['args']['candidate_ch'] = self.candidate_ch
+                if 'out_channel' in arg_names:
+                    if isinstance(self.candidate_ch, _SearchSpace): 
+                        assert(op_cfg, IIDSpace)
+                    op_cfg['args']['out_channel'] = self.candidate_ch
                     op_cfg['args']['bn_per_ch'] = bn_per_ch
-
+                    return True
+                return False
         # build operations
         op_builder = OpBuilder(
               auto_refine=auto_refine,
@@ -94,24 +97,26 @@ class AtomSearchModule(SearchModule):
               upsample_op=upsample_op
         )
         self.m = nn.ModuleList([])
-        for ei, (cin, s, cand_op) in enumerate(zip(self.cin, self.strides, self.candidate_op)):
+        for ei, (cin, s, parallel_op) in enumerate(zip(self.cin, self.strides, self.candidate_op)):
             # assign candidate_ch to each candidate_op
-            assign_ch(cand_op)
+            for seq_op in parallel_op:
+                assign_ch(seq_op)
             # build operations on each edge
-            self.m.append(op_builder.build_parallel_op(cand_op, cin, out_channel, s))
+            self.m.append(op_builder.build_parallel_op(parallel_op, cin, out_channel, s))
 
         self.act = get_act(act)
         self.bn_per_ch = bn_per_ch and len(self.candidate_ch)>1
         if self.bn_per_ch:
-            self.bn = nn.ModuleList([get_norm(bn, int(self.cout*e)) for e in self.candidate_ch]) 
+            self.bn = nn.ModuleList([get_norm(bn, int(ch)) for ch in self.candidate_ch]) 
         else: self.bn = get_norm(bn, self.cout)
 
     def forward_edge(self, x, edge_module, op_alphas, op_space, ch_alphas):
         def _forward_op(x, op, op_in_space, ptr):
             if isinstance(op, SearchModule) and isinstance(op_in_space, _SearchSpace):
-               end_ptr = ptr + op_in_space.size
-               return op(x, op_alphas=op_alphas[ptr:end_ptr], ch_alphas=ch_alphas), end_ptr
-            else: return op(x), ptr
+                end_ptr = ptr + op_in_space.size
+                return op(x, op_alphas=op_alphas[ptr:end_ptr], ch_alphas=ch_alphas), end_ptr
+            else: 
+                return op(x), ptr
 
         out, ptr = 0., 0
         for idx, (op, op_in_space) in enumerate(zip(edge_module, op_space)):
@@ -214,35 +219,33 @@ class AtomSearchModule(SearchModule):
 class ConvBNAct_search(SearchModule):
     def __init__(self, in_channel, out_channel, 
             candidate_op=[(1,1), (3,1), (5,1), (3,2)], 
-            candidate_ch=[1.], 
             stride=1, pad=None, group=1, act=True, act_first=False, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True)), bn_per_ch=True, bias=False, merge_kernel=True):
         super(ConvBNAct_search, self).__init__()
         self.merge_kernel = merge_kernel
         self.kd = check_nesting(candidate_op, 2)
-        self.candidate_ch = check_nesting(candidate_ch, 1)
         self.stride = stride
         self.group = group
-        self.cout = out_channel
-        cout_max = int(out_channel * max(self.candidate_ch))
-        self.real_out_channel = cout_max
+        # candidate_ch
+        self.candidate_ch = check_nesting(out_channel, 1)
+        self.cout = int(max(self.candidate_ch))
 
         self.k_max = int(max([(k-1)*d+1 for k, d in self.kd]))
         if merge_kernel:
             self.padding = (self.k_max - 1)//2
-            self.weight = self.init_weight(cout_max, in_channel, self.k_max)
-            self.bias = self.init_bias(cout_max, self.weight) if bias else None
+            self.weight = self.init_weight(self.cout, in_channel, self.k_max)
+            self.bias = self.init_bias(self.cout, self.weight) if bias else None
         else:
             self.weight, self.bias = nn.ParameterList([]), nn.ParameterList([])
             for k, d in self.kd:
-                self.weight.append(self.init_weight(cout_max, in_channel, k))
-                self.bias.append(self.init_bias(cout_max, self.weight[-1]))
+                self.weight.append(self.init_weight(self.cout, in_channel, k))
+                self.bias.append(self.init_bias(self.cout, self.weight[-1]))
 
         self.act = get_act(act)
         self.act_first = act_first
 
         self.bn_per_ch = bn_per_ch and len(self.candidate_ch)>1
-        if self.bn_per_ch: self.bn = nn.ModuleList([get_norm(bn, int(self.cout*e)) for e in self.candidate_ch]) 
-        else: self.bn = get_norm(bn, cout_max)
+        if self.bn_per_ch: self.bn = nn.ModuleList([get_norm(bn, int(ch)) for ch in self.candidate_ch]) 
+        else: self.bn = get_norm(bn, self.cout)
 
     def init_weight(self, cout, cin, kernel):
         kernel = [kernel, kernel] if isinstance(kernel, int) else kernel
@@ -285,10 +288,10 @@ class ConvBNAct_search(SearchModule):
         Cout = merge_kernel.size(0)
         channel_mask = torch.zeros([Cout], dtype=merge_kernel.dtype, device=merge_kernel.device)
         valid_cout = 0
-        for e, a_e in zip(self.candidate_ch, alphas):
+        for ch, a_e in zip(self.candidate_ch, alphas):
             if a_e > 0:
-                channel_mask[:int(e*self.cout)] += a_e
-                valid_cout = max(valid_cout, int(e*self.cout))
+                channel_mask[:int(ch)] += a_e
+                valid_cout = max(valid_cout, int(ch))
         merge_kernel = merge_kernel[:valid_cout,:,:,:] * channel_mask[:valid_cout].view(-1,1,1,1)
         if bias is not None: bias = bias[:valid_cout] 
         return merge_kernel, bias
@@ -477,8 +480,8 @@ class SPP_search(SearchModule):
     def __init__(self, in_channel, out_channel, kernels=(5, 9, 13), bn=torch.nn.BatchNorm2d, act=nn.SiLU):
         super(SPP_search, self).__init__()
         c_ = in_channel // 2  # hidden channels
-        self.cv1 = ConvBNAct_search(in_channel, c_, candidate_op=[(1,1)], candidate_ch=[1.], stride=1, act=act, bn=bn, merge_kernel=True)
-        self.cv2 = ConvBNAct_search(c_ * (len(kernels) + 1), out_channel, candidate_op=[(1,1)], candidate_ch=[1.], stride=1, act=act, bn=bn, merge_kernel=True)
+        self.cv1 = ConvBNAct_search(in_channel, c_, candidate_op=[(1,1)], stride=1, act=act, bn=bn, merge_kernel=True)
+        self.cv2 = ConvBNAct_search(c_ * (len(kernels) + 1), out_channel, candidate_op=[(1,1)], stride=1, act=act, bn=bn, merge_kernel=True)
 
         self.m = nn.ModuleList([nn.MaxPool2d(kernel_size=x, stride=1, padding=x // 2) for x in kernels])
 
