@@ -3,13 +3,30 @@ from functools import reduce, partial
 from itertools import product
 import inspect
 from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
 from copy import deepcopy
+
 import torch
 import numpy as np
 import warnings
 
 from builder.utils import get_submodule_by_name
 
+def get_item(src, idx):
+    if isinstance(src, dict): 
+        return src.get(idx)
+    elif isinstance(src, (list, tuple)):
+        return src[int(idx)]
+    else:
+        raise(TypeError(f"Index {idx} from {src} is not supported"))
+
+def set_item(src, idx, dst):
+    if isinstance(src, dict): 
+        src[idx] = dst
+    elif isinstance(src, (list, tuple)):
+        src[int(idx)] = dst
+    else:
+        raise(TypeError(f"Index {idx} from {src} is not supported"))
 
 def my_product(iter_fns, out=None):
     depth = len(iter_fns)
@@ -52,7 +69,12 @@ class SampleNode(object):
 #        return self.config == other.config
 
     def __hash__(self):
-        return hash(tuple(self.sample.values()))
+        def to_hash(param):
+            if isinstance(param, dict):
+                return tuple(to_hash(v) for k, v in sorted(param.items(), key=lambda item: item[0]))
+            else: return param
+        return hash(to_hash(self.sample))
+#        return hash(tuple(to_hash(v) for v in self.sample.values()))
 #        return hash(tuple(hash(v) if isinstance(v, SampleNode) else v for v in self.sample.values()))
 #        return hash((self.embedding, *self.sample.values()))
 
@@ -163,7 +185,7 @@ class _SearchSpace(ABC):
     def build_config(self, *args, **kwargs):
         pass
     @abstractmethod
-    def sample(self, num_to_sample=1, replace=True, label_samples=None, num_sampled=0):
+    def _sample_once(self, label_samples=None):
         pass
     @abstractmethod
     def sample_from_node(self, node, label_samples, num_sampled=0):
@@ -171,6 +193,19 @@ class _SearchSpace(ABC):
     @abstractmethod
     def enum_space(self):
         pass
+
+    @sample_monitor
+    def sample(self, num_to_sample=1, replace=False):
+        sample_nodes = []
+        self._tmp_iter_in_sample, _num = 0, num_to_sample
+        while _num and self._tmp_iter_in_sample < self.MAX_ITER_NUM:
+            label_samples = {}
+            sample_nodes.append(self._sample_once(label_samples))
+            if not replace:
+                sample_nodes = self.deduplicate(sample_nodes)
+            _num = num_to_sample - len(sample_nodes)
+            self._tmp_iter_in_sample += 1
+        return sample_nodes
 
     def sample_from_nodes(self, src_sample_nodes, label_samples, num_sampled=0):
         sample_nodes = [] 
@@ -258,32 +293,42 @@ class _SearchSpace(ABC):
 #                string += f"\n{n}={v.data}"
 #            print(string)
 
+    def _get_item_by_name(self, src, name: str):
+        keys = [tmp.split('::')[-1] for tmp in name.split('.')]
+        tmp = src
+        for k in keys:
+            if k == '': continue
+            elif isinstance(tmp, (list, tuple)):
+                tmp = tmp[int(k)]
+            elif isinstance(tmp, dict): 
+                tmp = tmp.get(k)
+            else:
+                raise(TypeError(f"Index {name} from {src} is not supported"))
+        return tmp
+
+    def _set_item_by_name(self, src, name: str, value):
+        keys = [tmp.split('::')[-1] for tmp in name.split('.')]
+        if len(keys) == 0:
+            return value
+        tmp = self._get_item_by_name(src, '.'.join(keys[:-1]))
+        idx = keys[-1]
+        if isinstance(tmp, dict): 
+            tmp[idx] = value
+        elif isinstance(tmp, (list, tuple)):
+            tmp[int(idx)] = value
+        else:
+            raise(TypeError(f"Setting {value} to the item {name} of {src} is not supported"))
+        return src
+
     def new_space(self, **kwargs):
-        def get_item(src, idx):
-            if isinstance(src, dict): 
-                return src.get(idx)
-            elif isinstance(src, (list, tuple)):
-                return src[int(idx)]
-            else:
-                raise(TypeError(f"Index {idx} from {src} is not supported"))
-        def set_item(src, idx, dst):
-            if isinstance(src, dict): 
-                src[idx] = dst
-            elif isinstance(src, (list, tuple)):
-                src[int(idx)] = dst
-            else:
-                raise(TypeError(f"Index {idx} from {src} is not supported"))
         for key in inspect.getfullargspec(self.__class__.__init__).args:
             if key not in kwargs and hasattr(self, key):
                 kwargs[key] = getattr(self, key)
+        if getattr(kwargs, 'return_list', False):
+            kwargs['num_reserve'] = None
         for prefix, child_space in self._child_spaces.items():
-            keys = [tmp.split('::')[-1] for tmp in prefix.split('.')]
             new_child_space = child_space.new_space()
-            tmp = kwargs['space']
-            for k in keys[:-1]:
-                tmp = get_item(tmp, k)
-            set_item(tmp, keys[-1], new_child_space)
-
+            self._set_item_by_name(kwargs['space'], prefix, new_child_space)
         return self.__class__(**kwargs)
 
 
@@ -345,35 +390,23 @@ class IIDSpace(_SearchSpace):
         else:
             return None #len(sample)
                 
-    @sample_monitor
-    def sample(self, num_to_sample=1, replace=True, label_samples=None, num_sampled=0):
+    def _sample_once(self, label_samples=None):
         if label_samples is None: label_samples = {}
         if self.label in label_samples:
-            return self.sample_from_nodes(label_samples[self.label][num_sampled:num_sampled+num_to_sample], label_samples, num_sampled)
+            return self.sample_from_node(label_samples[self.label], label_samples, num_sampled)
+        sample = {}
+        for prefix, space in self._child_spaces.items():
+            sample[prefix] = space._sample_once(label_samples)
+        sample = SampleNode(self, sample)
+        if not self.label.startswith('_SearchSpace#'): label_samples[self.label] = sample
+        return sample
 
-        sample_nodes = []
-        self._tmp_iter_in_sample, _num = 0, num_to_sample
-        while _num and self._tmp_iter_in_sample < self.MAX_ITER_NUM:
-            sub_samples = [{} for _ in range(_num)]
-            for prefix, space in self._child_spaces.items():
-                _sub_samples = space.sample(_num, replace=True, label_samples=label_samples, num_sampled=num_sampled+len(sample_nodes))
-                for i in range(_num):
-                    sub_samples[i][prefix] = _sub_samples[i]
-            sample_nodes.extend([SampleNode(self, sub_sample) for sub_sample in sub_samples])
-            if not replace:
-                sample_nodes = self.deduplicate(sample_nodes)
-            _num = num_to_sample - len(sample_nodes)
-            self._tmp_iter_in_sample += 1
-
-            if not self.label.startswith('_SearchSpace#'): label_samples.setdefault(self.label, []).extend(sample_nodes)
-        return sample_nodes
-
-    def sample_from_node(self, src_sample_node, label_samples, num_sampled=0):
+    def sample_from_node(self, src_sample_node, label_samples):
         sample = {}
         for prefix, s in src_sample_node.sample.items():
             assert prefix in self._child_spaces, f"No found {prefix} in space."
             assert isinstance(s, SampleNode)
-            sample[prefix] = self._child_spaces[prefix].sample_from_node(s, label_samples, num_sampled)
+            sample[prefix] = self._child_spaces[prefix].sample_from_node(s, label_samples)
         return SampleNode(self, sample)
 
     def enum_from_node(self, src_sample_node, label_sample):
@@ -447,41 +480,44 @@ class DiscreteSpace(_SearchSpace):
             cand_sizes = [cand.get_size(label_computed) if isinstance(cand, _SearchSpace) else 1 for cand in self.space]
             return reduce(lambda x,y: x+y, cand_sizes)
 
-    @sample_monitor
-    def sample(self, num_to_sample=1, replace=True, label_samples=None, num_sampled=0):
+    def _sample_once(self, label_samples=None):
         if label_samples is None: label_samples = {}
         if self.label in label_samples:
-            return self.sample_from_nodes(label_samples[self.label][num_sampled:num_sampled+num_to_sample], label_samples, num_sampled)
+            return self.sample_from_node(label_samples[self.label], label_samples)
+        sample = {}
+        for idx in self.sampler.sample(range(len(self.space)), num=self.num_reserve, replace=self.reserve_replace):
+            cand = deepcopy(self.space[idx])
+            for ch_prefix, child_space in self._child_spaces.items():
+                keys = [tmp.split('::')[-1] for tmp in ch_prefix.split('.')]
+                if int(keys[0]) == idx:
+                    ch_cand = child_space._sample_once(label_samples=label_samples)
+                    if len(keys) == 1:
+                        cand = ch_cand
+                        break
+                    else:
+                        self._set_item_by_name(cand, '.'.join(keys[1:]), ch_cand)
+            sample[idx] = cand 
+        sample = SampleNode(self, sample)
+        if not self.label.startswith('_SearchSpace#'): label_samples[self.label] = sample
+        return sample
 
-        sample_nodes = []
-        self._tmp_iter_in_sample, _num = 0, num_to_sample
-        while _num and self._tmp_iter_in_sample < self.MAX_ITER_NUM:
-            for i in range(_num):
-                sample = {}
-                for idx in self.sampler.sample(range(len(self.space)), num=self.num_reserve, replace=self.reserve_replace):
-                    cand = self.space[idx] 
-                    if isinstance(cand, _SearchSpace):
-                        cand = cand.sample(num_to_sample=1, replace=True, label_samples=label_samples, num_sampled=num_sampled+len(sample_nodes))[0]
-                    sample[idx] = cand 
-                sample_nodes.append(SampleNode(self, sample))
-            if not replace:
-                sample_nodes = self.deduplicate(sample_nodes)
-            _num = num_to_sample - len(sample_nodes)
-            self._tmp_iter_in_sample += 1
-
-            if not self.label.startswith('_SearchSpace#'): 
-                label_samples.setdefault(self.label, []).extend(sample_nodes)
-        return sample_nodes
-
-    def sample_from_node(self, src_sample_node, label_samples, num_sampled):
+    def sample_from_node(self, src_sample_node, label_samples):
         sample = {}
         for idx, s in src_sample_node.sample.items():
-            cand = self.space[idx]
-            if isinstance(cand, _SearchSpace):
-                if isinstance(s, SampleNode):
-                    cand = cand.sample_from_node(s, label_samples, num_sampled)
-                else: 
-                    cand = cand.sample(num_to_sample=1, replace=True, label_samples=label_samples, num_sampled=num_sampled)[0]
+            cand = deepcopy(self.space[idx])
+            for ch_prefix, child_space in self._child_spaces.items():
+                keys = [tmp.split('::')[-1] for tmp in ch_prefix.split('.')]
+                if int(keys[0]) == idx:
+                    ch_s = self._get_item_by_name(s, '.'.join(keys[1:]))
+                    if isinstance(ch_s, SampleNode):
+                        ch_cand = child_space.sample_from_node(ch_s, label_samples)
+                    else:
+                        ch_cand = child_space._sample_once(label_samples=label_samples)
+                    if len(keys) == 1:
+                        cand = ch_cand
+                        break
+                    else:
+                        self._set_item_by_name(cand, '.'.join(keys[1:]), ch_cand)
             sample[idx] = cand
         return SampleNode(self, sample)
     
@@ -489,9 +525,20 @@ class DiscreteSpace(_SearchSpace):
     def build_config(self, sample):
         config = []
         for cand_idx, sample in sample.items():
-            if isinstance(sample, SampleNode):
-                config.append(sample.config)
-            else: config.append(sample)
+            conf = deepcopy(sample)
+            for ch_prefix in self._child_spaces.keys():
+                keys = [tmp.split('::')[-1] for tmp in ch_prefix.split('.')]
+                if int(keys[0]) == cand_idx:
+                    ch_s = self._get_item_by_name(sample, '.'.join(keys[1:]))
+                    if len(keys) == 1:
+                        conf = ch_s.config
+                        break
+                    else:
+                        self._set_item_by_name(conf, '.'.join(keys[1:]), ch_s.config)
+            config.append(conf)
+#            if isinstance(sample, SampleNode):
+#                config.append(sample.config)
+#            else: config.append(sample)
         return config if len(config)>1 or self.return_list else config[0]
 
     def build_embedding(self, sample):
@@ -506,7 +553,7 @@ class DiscreteSpace(_SearchSpace):
     def enum_from_node(self, src_sample_node, label_sample):
         assert len(src_sample_node.sample) == 1
         idx, s = list(src_sample_node.sample.items())[0]
-        cand = self.space[idx]
+        cand = deepcopy(self.space[idx])
         if isinstance(cand, _SearchSpace):
             if isinstance(s, SampleNode):
                 for sub_cand in cand.enum_from_node(s, label_sample):
@@ -558,17 +605,45 @@ class FlattenSampledDiscreteSpace(DiscreteSpace):
     def __new__(cls, *args, **kwargs):
         return super().__new__(cls)
     def __init__(self, space, sampler_cfg='UniformDiscreteSampler', num_reserve=None, reserve_replace=False, embed_fn=None, label=None):
-        super(FlattenSampledDiscreteSpace, self).__init__(space, sampler_cfg, label=label)
-        flattened_space = [sample.config for sample in self.enum_space()]
-        self.ori_space = space
-        super(FlattenSampledDiscreteSpace, self).__init__(flattened_space, sampler_cfg, num_reserve, reserve_replace, embed_fn, label)
+        super(FlattenSampledDiscreteSpace, self).__init__(space, sampler_cfg, num_reserve=num_reserve, reserve_replace=reserve_replace, embed_fn=embed_fn, label=label)
+        self.flattened_space = [super(FlattenSampledDiscreteSpace, self).build_config(sample.sample) for sample in self.enum_space()]
+        self.ori_space = self.space
+#        super(FlattenSampledDiscreteSpace, self).__init__(flattened_space, sampler_cfg, num_reserve, reserve_replace, embed_fn, label)
 
-    def __iter__(self):
-        return iter(self.ori_space)
-    def __len__(self):
-        return len(self.ori_space)
-    def index(self, v):
-        return self.ori_space.index(v)
+    @contextmanager
+    def change_to_flattened_space(self):
+        self.space = self.flattened_space
+        self._child_spaces, self._child_spaces_bk = {}, self._child_spaces
+        yield
+        self.space = self.ori_space
+        self._child_spaces = self._child_spaces_bk
+
+    def _sample_once(self, label_samples=None):
+        with self.change_to_flattened_space():
+            return super(FlattenSampledDiscreteSpace, self).sample(num_to_sample, replace, label_samples, num_sampled)
+
+    def sample_from_node(self, node, label_samples, num_sampled=0):
+        with self.change_to_flattened_space():
+            return super(FlattenSampledDiscreteSpace, self).sample_from_node(node, label_samples, num_sampled)
+
+    def build_config(self, sample):
+        with self.change_to_flattened_space():
+            return super(FlattenSampledDiscreteSpace, self).build_config(sample)
+
+    def build_embedding(self, sample):
+        with self.change_to_flattened_space():
+            return super(FlattenSampledDiscreteSpace, self).build_embedding(sample)
+
+    def discretize(self, **replace_settings):
+        with self.change_to_flattened_space():
+            return super(FlattenSampledDiscreteSpace, self).discretize(**replace_settings)
+
+#    def __iter__(self):
+#        return iter(self.ori_space)
+#    def __len__(self):
+#        return len(self.ori_space)
+#    def index(self, v):
+#        return self.ori_space.index(v)
     
 
 ###########################################
@@ -584,6 +659,7 @@ class ContinuousSpace(_SearchSpace):
         """
         super(ContinuousSpace, self).__init__(space, sampler_cfg, embed_fn, label)
         self.start, self.end = [float(tmp) for tmp in space.split(':')]
+        self.sampler.set_param(space)
         self.return_list = num_reserve is not None
         self.num_reserve = 1 if num_reserve is None else num_reserve
         self.reserve_replace = reserve_replace
@@ -595,43 +671,16 @@ class ContinuousSpace(_SearchSpace):
         label_computed.add(self.label)
         return self.end - self.start
 
-    @sample_monitor
-    def sample(self, num_to_sample=None, replace=True, label_samples=None, num_sampled=0):
+    def _sample_once(self, label_samples=None):
         if label_samples is None: label_samples = {}
         if self.label in label_samples:
-            return self.sample_from_nodes(label_samples[self.label][num_sampled:num_sampled+num_to_sample], label_samples, num_sampled)
+            return self.sample_from_node(label_samples[self.label], label_samples)
+        sample = tuple(self.sampler.sample(self.num_reserve, self.reserve_replace))
+        sample = SampleNode(self, {(s-self.start)/self.size: s for s in sample})
+        if not self.label.startswith('_SearchSpace#'): label_samples[self.label] = sample
+        return sample
 
-        def _sample_once(num, replace):
-            if replace:
-                samples = tuple(self.sampler.sample(self.start, self.end, num))
-                return samples # if return_list else samples[0]
-            else:
-                samples = set()
-                _num = num
-                while _num > 0:
-                    samples.union(set(self.sampler.sample(self.start, self.end, _num)))
-                    if not replace:
-                        samples = self.deduplicate(samples)
-                    _num = num - len(samples)
-                return tuple(samples) # if return_list else samples[0]
-
-        if replace:
-            samples = []
-            for _ in range(num_to_sample):
-                samples.append(_sample_once(self.num_reserve, self.reserve_replace))
-        else:
-            samples = set()
-            while len(samples) < num_to_sample:
-                samples.add(_sample_once(self.num_reserve, self.reserve_replace))
-
-        sample_nodes = []
-        for sample in samples:
-            sample_nodes.append(SampleNode(self, {(s-self.start)/self.size: s for s in sample}))
-        if not self.label.startswith('_SearchSpace#'): 
-            label_samples.setdefault(self.label, []).extend(sample_nodes)
-        return sample_nodes
-
-    def sample_from_node(self, src_sample_node, label_samples, num_sampled=0):
+    def sample_from_node(self, src_sample_node, label_samples):
         sample = {}
         for ratio in src_sample_node.sample.keys():
             sample[ratio] = ratio * self.size + self.start

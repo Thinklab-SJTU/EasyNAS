@@ -73,8 +73,8 @@ args:
       args: 
         out_channel: !search_space {space: [192,256], sampler_cfg: *ss_gumbel_sampler}
         num_repeat: 3
-        candidate_op: !search_space {space: [[3,1],[5,1],[3,2]], sampler_cfg: WeightedSampler, num_repeat: 3}
-        e_bottleneck: !search_space {space: [0.5,0.75,1.0], sampler_cfg: *ss_gumbel_sampler, num_repeat: 3}
+        candidate_op: !search_space {space: [[3,1],[5,1],[3,2]], sampler_cfg: WeightedSampler, num_reserve: 1, num_repeat: 3}
+        e_bottleneck: !search_space {space: [0.5,0.75,1.0], sampler_cfg: *ss_gumbel_sampler, num_reserve: 1, num_repeat: 3}
         merge_kernel: True
         separable: False
     - input_idx: -1 # 5-P4/16
@@ -91,8 +91,8 @@ args:
       args: 
         out_channel: !search_space {space: [384,512], sampler_cfg: *ss_gumbel_sampler}
         num_repeat: 3
-        candidate_op: !search_space {space: [[3,1],[5,1],[3,2]], sampler_cfg: WeightedSampler, num_repeat: 3}
-        e_bottleneck: !search_space {space: [0.5,0.75,1.0], sampler_cfg: *ss_gumbel_sampler, num_repeat: 3}
+        candidate_op: !search_space {space: [[3,1],[5,1],[3,2]], sampler_cfg: WeightedSampler, num_reserve: 1, num_repeat: 3}
+        e_bottleneck: !search_space {space: [0.5,0.75,1.0], sampler_cfg: *ss_gumbel_sampler, num_reserve: 1, num_repeat: 3}
         merge_kernel: True
         separable: False
     - input_idx: -1 # 7-P5/32
@@ -135,7 +135,7 @@ args:
                 - !search_space
                   submodule_name: SepConvBNAct_search
                   args: !edict
-                    candidate_op: !search_space {space: [[3,1], [5,1], [3,2]], sampler_cfg: WeightedSampler}
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
                     out_channel:  #[0.5,0.75,1.0]
                     act: torch.nn.SiLU
                     bn: torch.nn.BatchNorm2d
@@ -147,7 +147,7 @@ args:
                 - !search_space
                   submodule_name: SepConvBNAct_search
                   args: !edict
-                    candidate_op: !search_space {space: [[3,1], [5,1], [3,2]], sampler_cfg: WeightedSampler}
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
                     out_channel:  #[0.5,0.75,1.0]
                     act: torch.nn.SiLU
                     bn: torch.nn.BatchNorm2d
@@ -159,7 +159,7 @@ args:
                 - !search_space
                   submodule_name: SepConvBNAct_search
                   args: !edict
-                    candidate_op: !search_space {space: [[3,1], [5,1], [3,2]], sampler_cfg: WeightedSampler}
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
                     out_channel:  #[0.5,0.75,1.0]
                     act: torch.nn.SiLU
                     bn: torch.nn.BatchNorm2d
@@ -208,7 +208,7 @@ args:
                 - !search_space
                   submodule_name: SepConvBNAct_search
                   args: !edict
-                    candidate_op: !search_space {space: [[3,1], [5,1], [3,2]], sampler_cfg: WeightedSampler}
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
                     out_channel:  #[0.5,0.75,1.0]
                     act: torch.nn.SiLU
                     bn: torch.nn.BatchNorm2d
@@ -220,7 +220,7 @@ args:
                 - !search_space
                   submodule_name: SepConvBNAct_search
                   args: !edict
-                    candidate_op: !search_space {space: [[3,1], [5,1], [3,2]], sampler_cfg: WeightedSampler}
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
                     out_channel:  #[0.5,0.75,1.0]
                     act: torch.nn.SiLU
                     bn: torch.nn.BatchNorm2d
@@ -232,7 +232,7 @@ args:
                 - !search_space
                   submodule_name: SepConvBNAct_search
                   args: !edict
-                    candidate_op: !search_space {space: [[3,1], [5,1], [3,2]], sampler_cfg: WeightedSampler}
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
                     out_channel:  #[0.5,0.75,1.0]
                     act: torch.nn.SiLU
                     bn: torch.nn.BatchNorm2d
@@ -244,7 +244,7 @@ args:
                 - !search_space
                   submodule_name: SepConvBNAct_search
                   args: !edict
-                    candidate_op: !search_space {space: [[3,1], [5,1], [3,2]], sampler_cfg: WeightedSampler}
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
                     out_channel:  #[0.5,0.75,1.0]
                     act: torch.nn.SiLU
                     bn: torch.nn.BatchNorm2d
@@ -293,7 +293,7 @@ args:
                 - !search_space
                   submodule_name: SepConvBNAct_search
                   args: !edict
-                    candidate_op: !search_space {space: [[3,1], [5,1], [3,2]], sampler_cfg: WeightedSampler}
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
                     out_channel:  #[0.5,0.75,1.0]
                     act: torch.nn.SiLU
                     bn: torch.nn.BatchNorm2d
@@ -305,7 +305,7 @@ args:
                 - !search_space
                   submodule_name: SepConvBNAct_search
                   args: !edict
-                    candidate_op: !search_space {space: [[3,1], [5,1], [3,2]], sampler_cfg: WeightedSampler}
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
                     out_channel:  #[0.5,0.75,1.0]
                     act: torch.nn.SiLU
                     bn: torch.nn.BatchNorm2d
@@ -317,7 +317,7 @@ args:
                 - !search_space
                   submodule_name: SepConvBNAct_search
                   args: !edict
-                    candidate_op: !search_space {space: [[3,1], [5,1], [3,2]], sampler_cfg: WeightedSampler}
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
                     out_channel:  #[0.5,0.75,1.0]
                     act: torch.nn.SiLU
                     bn: torch.nn.BatchNorm2d
@@ -329,7 +329,7 @@ args:
                 - !search_space
                   submodule_name: SepConvBNAct_search
                   args: !edict
-                    candidate_op: !search_space {space: [[3,1], [5,1], [3,2]], sampler_cfg: WeightedSampler}
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
                     out_channel:  #[0.5,0.75,1.0]
                     act: torch.nn.SiLU
                     bn: torch.nn.BatchNorm2d
@@ -341,7 +341,7 @@ args:
                 - !search_space
                   submodule_name: SepConvBNAct_search
                   args: !edict
-                    candidate_op: !search_space {space: [[3,1], [5,1], [3,2]], sampler_cfg: WeightedSampler}
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
                     out_channel:  #[0.5,0.75,1.0]
                     act: torch.nn.SiLU
                     bn: torch.nn.BatchNorm2d
@@ -390,7 +390,7 @@ args:
                 - !search_space
                   submodule_name: SepConvBNAct_search
                   args: !edict
-                    candidate_op: !search_space {space: [[3,1], [5,1], [3,2]], sampler_cfg: WeightedSampler}
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
                     out_channel:  #[0.5,0.75,1.0]
                     act: torch.nn.SiLU
                     bn: torch.nn.BatchNorm2d
@@ -402,7 +402,7 @@ args:
                 - !search_space
                   submodule_name: SepConvBNAct_search
                   args: !edict
-                    candidate_op: !search_space {space: [[3,1], [5,1], [3,2]], sampler_cfg: WeightedSampler}
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
                     out_channel:  #[0.5,0.75,1.0]
                     act: torch.nn.SiLU
                     bn: torch.nn.BatchNorm2d
@@ -414,7 +414,7 @@ args:
                 - !search_space
                   submodule_name: SepConvBNAct_search
                   args: !edict
-                    candidate_op: !search_space {space: [[3,1], [5,1], [3,2]], sampler_cfg: WeightedSampler}
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
                     out_channel:  #[0.5,0.75,1.0]
                     act: torch.nn.SiLU
                     bn: torch.nn.BatchNorm2d
@@ -463,7 +463,7 @@ args:
                 - !search_space
                   submodule_name: SepConvBNAct_search
                   args: !edict
-                    candidate_op: !search_space {space: [[3,1], [5,1], [3,2]], sampler_cfg: WeightedSampler}
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
                     out_channel:  #[0.5,0.75,1.0]
                     act: torch.nn.SiLU
                     bn: torch.nn.BatchNorm2d
@@ -475,7 +475,7 @@ args:
                 - !search_space
                   submodule_name: SepConvBNAct_search
                   args: !edict
-                    candidate_op: !search_space {space: [[3,1], [5,1], [3,2]], sampler_cfg: WeightedSampler}
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
                     out_channel:  #[0.5,0.75,1.0]
                     act: torch.nn.SiLU
                     bn: torch.nn.BatchNorm2d
@@ -487,7 +487,7 @@ args:
                 - !search_space
                   submodule_name: SepConvBNAct_search
                   args: !edict
-                    candidate_op: !search_space {space: [[3,1], [5,1], [3,2]], sampler_cfg: WeightedSampler}
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
                     out_channel:  #[0.5,0.75,1.0]
                     act: torch.nn.SiLU
                     bn: torch.nn.BatchNorm2d
@@ -499,7 +499,7 @@ args:
                 - !search_space
                   submodule_name: SepConvBNAct_search
                   args: !edict
-                    candidate_op: !search_space {space: [[3,1], [5,1], [3,2]], sampler_cfg: WeightedSampler}
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
                     out_channel:  #[0.5,0.75,1.0]
                     act: torch.nn.SiLU
                     bn: torch.nn.BatchNorm2d
@@ -548,7 +548,7 @@ args:
                 - !search_space
                   submodule_name: SepConvBNAct_search
                   args: !edict
-                    candidate_op: !search_space {space: [[3,1], [5,1], [3,2]], sampler_cfg: WeightedSampler}
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
                     out_channel:  #[0.5,0.75,1.0]
                     act: torch.nn.SiLU
                     bn: torch.nn.BatchNorm2d
@@ -560,7 +560,7 @@ args:
                 - !search_space
                   submodule_name: SepConvBNAct_search
                   args: !edict
-                    candidate_op: !search_space {space: [[3,1], [5,1], [3,2]], sampler_cfg: WeightedSampler}
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
                     out_channel:  #[0.5,0.75,1.0]
                     act: torch.nn.SiLU
                     bn: torch.nn.BatchNorm2d
@@ -572,7 +572,7 @@ args:
                 - !search_space
                   submodule_name: SepConvBNAct_search
                   args: !edict
-                    candidate_op: !search_space {space: [[3,1], [5,1], [3,2]], sampler_cfg: WeightedSampler}
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
                     out_channel:  #[0.5,0.75,1.0]
                     act: torch.nn.SiLU
                     bn: torch.nn.BatchNorm2d
@@ -584,7 +584,7 @@ args:
                 - !search_space
                   submodule_name: SepConvBNAct_search
                   args: !edict
-                    candidate_op: !search_space {space: [[3,1], [5,1], [3,2]], sampler_cfg: WeightedSampler}
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
                     out_channel:  #[0.5,0.75,1.0]
                     act: torch.nn.SiLU
                     bn: torch.nn.BatchNorm2d
@@ -596,7 +596,7 @@ args:
                 - !search_space
                   submodule_name: SepConvBNAct_search
                   args: !edict
-                    candidate_op: !search_space {space: [[3,1], [5,1], [3,2]], sampler_cfg: WeightedSampler}
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
                     out_channel:  #[0.5,0.75,1.0]
                     act: torch.nn.SiLU
                     bn: torch.nn.BatchNorm2d

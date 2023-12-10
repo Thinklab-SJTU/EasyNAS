@@ -9,6 +9,7 @@ from .search_common import SearchModule, ConvBNAct_search, SepConvBNAct_search, 
 from .yolov5 import YOLODetect
 from .utils import gumbel_softmax, get_norm
 from ..utils import count_parameters_in_MB
+from src.search_space.base import _SearchSpace
 
 class YOLOBottleneck_search(SearchModule):
     # Standard bottleneck
@@ -19,7 +20,8 @@ class YOLOBottleneck_search(SearchModule):
         expansion = check_nesting(expansion, 1)
 
         c_ = [int(max(candidate_ch) * e) for e in expansion]  # hidden channels
-        c_ = expansion.new_space(space=c_)
+        if isinstance(expansion, _SearchSpace):
+            c_ = expansion.new_space(space=c_)
         self.cv1 = ConvBNAct_search(in_channel, c_, candidate_op=[(1,1)], stride=1, act=nn.SiLU, bn=nn.BatchNorm2d, merge_kernel=merge_kernel, bn_per_ch=bn_per_ch)
         if separable: my_conv = SepConvBNAct_search
         else: my_conv = ConvBNAct_search
@@ -50,6 +52,8 @@ class YOLOC3_search(SearchModule):
 #                    for _ in range(num_repeat-1):
 #                        p.append(deepcopy(p[0]))
 #                else: p = [p[0]] * num_repeat
+        print(e_bottleneck)
+        print(candidate_op)
         self.e_bottleneck = _refine_param(e_bottleneck, 2)
         self.candidate_op = _refine_param(candidate_op, 3)
 

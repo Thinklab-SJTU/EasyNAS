@@ -84,9 +84,9 @@ class AtomSearchModule(SearchModule):
             elif isinstance(op_cfg, (dict, IIDSpace)):
                 arg_names = inspect.getfullargspec(get_layer(op_cfg['submodule_name']).__init__).args
                 if 'out_channel' in arg_names:
-                    if isinstance(self.candidate_ch, _SearchSpace): 
-                        assert(op_cfg, IIDSpace)
-                    op_cfg['args']['out_channel'] = self.candidate_ch
+#                    if isinstance(self.candidate_ch, _SearchSpace): 
+#                        assert(op_cfg, IIDSpace)
+                    op_cfg['args']['out_channel'] = self.candidate_ch.space
                     op_cfg['args']['bn_per_ch'] = bn_per_ch
                     return True
                 return False
@@ -102,7 +102,7 @@ class AtomSearchModule(SearchModule):
             for seq_op in parallel_op:
                 assign_ch(seq_op)
             # build operations on each edge
-            self.m.append(op_builder.build_parallel_op(parallel_op, cin, out_channel, s))
+            self.m.append(op_builder.build_parallel_op(parallel_op, cin, [out_channel.space if isinstance(out_channel, _SearchSpace) else out_channel for _ in range(len(parallel_op))], s))
 
         self.act = get_act(act)
         self.bn_per_ch = bn_per_ch and len(self.candidate_ch)>1

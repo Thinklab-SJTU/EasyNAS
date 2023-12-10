@@ -92,6 +92,11 @@ class InstanceLoader:
         "Regions200": "mip_Regions200.tar.gz",
     }
 
+    MIK = {
+        "MIK_bounded": "data/mip_instances/MIK/bounded/",
+        "MIK_unbounded": "data/mip_instances/MIK/unbounded/",
+        }
+
     COMPETITION = {
         "ANONYMOUS_train": "data/mip_instances/ML4CO/instances/3_anonymous/train/",
         "ITEM_PLACEMENT_train": "data/mip_instances/ML4CO/instances/1_item_placement/train/",
@@ -166,6 +171,8 @@ class InstanceLoader:
             return self.load_local_instance(dataset_name)
         elif dataset_name in self.COMPETITION:
             return self.load_competition(dataset_name)
+        elif dataset_name in self.MIK:
+            return self.load_mik(dataset_name)
 
         filename = self.DATASETS[dataset_name]
         local_version = os.path.join(self.dataset_loc, filename)
@@ -251,6 +258,20 @@ class InstanceLoader:
 
     def load_competition(self, instance_type):
         filename = self.COMPETITION[instance_type]
+        if os.path.isdir(filename):
+            for instance_file in glob.iglob(filename+'*.mps.gz'):
+                if self.load_metadata:
+                    with open(instance_file.replace('mps.gz', 'json')) as f:
+                        instance_info = json.load(f)
+                    yield instance_file, instance_info
+                else: yield instance_file
+        else:
+            local_version = os.path.join(self.dataset_loc, filename)
+            filter = re.compile(".+mps")
+            return self.load_tar(local_version, filter=filter)
+
+    def load_mik(self, instance_type):
+        filename = self.MIK[instance_type]
         if os.path.isdir(filename):
             for instance_file in glob.iglob(filename+'*.mps.gz'):
                 if self.load_metadata:

@@ -48,7 +48,7 @@ class Evaluater(object):
         return eval_fns
 
     def run(self, sample_queue, reward_queue, worker_id=None):
-        if worker_id is not None:
+        if self.log_dir is not None and worker_id is not None:
             self.config_logger(f'EVAL_WORKER#{worker_id}', os.path.join(self.log_dir, f'worker-{worker_id}'))
             import builtins as __builtin__
             builtin_print = __builtin__.print
@@ -66,7 +66,7 @@ class Evaluater(object):
                 rewards.append(fn(deepcopy(task)))
             print('='*20+f"Task-{self.task_id} End"+'='*20)
             reward_queue.put((task, rewards))
-        if worker_id is not None:
+        if self.log_dir is not None and worker_id is not None:
             __builtin__.print = builtin_print
 
 #    def run(self, sample_queue: JoinableQueue, reward_queue: JoinableQueue):

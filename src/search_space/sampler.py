@@ -72,11 +72,15 @@ class WeightedSampler(_NumpySampler):
 
 # Parameterless, Continuous
 class UniformContinousSampler(_NumpySampler):
-    def sample(self, start, end, num):
-        return self.rdm.uniform(start, end, size=num)
+    def set_param(self, space):
+        self.start, self.end = [float(tmp) for tmp in space.split(':')]
+    def sample(self, num):
+        return self.rdm.uniform(self.start, self.end, size=num)
 class NormalSampler(_NumpySampler):
-    def sample(self, mean, std, num):
-        return self.rdm.normal(loc=mean, scale=std, size=num)
+    def set_param(self, space):
+        self.mean, self.std = [float(tmp) for tmp in space.split(':')]
+    def sample(self, num):
+        return self.rdm.normal(loc=self.mean, scale=self.std, size=num)
 
 NORM_FN = {
         'normalize': lambda x, dim=-1: x / x.sum(dim=-1, keepdim=True),

@@ -34,11 +34,15 @@ class EvalHOOK(HOOK):
             return -1, name[1], name[2]
 
     def after_iter(self, runner):
-        for i, name in enumerate(self.eval_names):
-            sign, gather_fn, name = self._get_fn_name(name)
-            sign_label = '' if sign == 1 else 'neg-'
-            runner.info.results.setdefault(name, []).append(get_result_by_name(runner.info.current_model, name))
-            runner.info.results[f'{sign_label}{gather_fn}-{name}'] = fn_getter[gather_fn](runner.info.results[name]) * sign
+        computed_name = set()
+        for i, eval_name in enumerate(self.eval_names):
+            sign, gather_fn, name = self._get_fn_name(eval_name)
+#            sign_label = '' if sign == 1 else 'neg-'
+            if name not in computed_name:
+                runner.info.results.setdefault(name, []).append(get_result_by_name(runner.info.current_model, name))
+                computed_name.add(name)
+            runner.info.results[eval_name] = fn_getter[gather_fn](runner.info.results[name]) * sign
+#            runner.info.results[f'{sign_label}{gather_fn}-{name}'] = fn_getter[gather_fn](runner.info.results[name]) * sign
 
     def after_run(self, runner):
         for i, name in enumerate(self.eval_names):
