@@ -75,18 +75,18 @@ space: &search_space !search_space
         space:
             h3: !search_space 0.8:1.8:0.1
 
-  i: !search_space 
-    space:
-#      - i1
-      - i21: i21
-        i22: !search_space 
-          space: [i221, i222, i223]
-        i23: !search_space 
-          space: [i231, i232, i233]
-          label: h2
-      - !search_space
-        space:
-            i3: !search_space 0.8:1.8:0.1
+            #  i: !search_space 
+            #    space:
+            #      - i1
+            #      - i21: i21
+            #        i22: !search_space 
+            #          space: [i221, i222, i223]
+            #        i23: !search_space 
+            #          space: [i231, i232, i233]
+            #          #          label: h2
+            #      - !search_space
+            #        space:
+            #            i3: !search_space 0.8:1.8:0.1
 
 searcher: &searcher
   submodule_name: src.searcher.Hyperband

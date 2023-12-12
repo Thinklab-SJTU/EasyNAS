@@ -12,7 +12,8 @@ scip_result_getter = {
 
 fn_getter = {
         'sum': sum,
-        'geoMean': lambda rewards: reduce(lambda x, y: x*y, rewards)**(1/len(rewards))
+        'geoMean': lambda rewards: reduce(lambda x, y: x*y, rewards)**(1/len(rewards)),
+        'mean': lambda rewards: sum(rewards)/len(rewards)
         }
 
 def get_result_by_name(model, name):

@@ -434,7 +434,6 @@ class IIDSpace(_SearchSpace):
             replace_settings[prefix] = child_space.discretize()
         return self.build_config(replace_settings)
 
-#TODO
 class RepeatSpace(IIDSpace):
     def __init__(self, space, num_repeat, independent=True):
         assert isinstance(space, _SearchSpace)
@@ -553,16 +552,26 @@ class DiscreteSpace(_SearchSpace):
     def enum_from_node(self, src_sample_node, label_sample):
         assert len(src_sample_node.sample) == 1
         idx, s = list(src_sample_node.sample.items())[0]
-        cand = deepcopy(self.space[idx])
-        if isinstance(cand, _SearchSpace):
-            if isinstance(s, SampleNode):
-                for sub_cand in cand.enum_from_node(s, label_sample):
-                    yield SampleNode(self, {idx: sub_cand})
-            else:
-                for sub_cand in cand.enum_space(recurse=True, label_sample=label_sample):
-                    yield SampleNode(self, {idx: sub_cand})
+        config = deepcopy(self.space[idx])
+        enum_child_spaces = []
+        for ch_prefix, child_space in self._child_spaces.items():
+            keys = [tmp.split('::')[-1] for tmp in ch_prefix.split('.')]
+            if int(keys[0]) == idx:
+                enum_child_spaces.append((keys, child_space))
+        if len(enum_child_spaces) > 0:
+            for child_sample in my_product([partial(key_space[1].enum_space, recurse=True, label_sample=label_sample) for key_space in enum_child_spaces]):
+                cand = deepcopy(config)
+                for k_space, s in zip(enum_child_spaces, child_sample):
+                    k = k_space[0]
+                    if len(k) == 1:
+                        cand = s
+                    else:
+                        self._set_item_by_name(cand, '.'.join(k[1:]), s)
+                yield SampleNode(self, {idx: cand})
+
         else:
-            yield SampleNode(self, {idx: cand})
+            yield SampleNode(self, {idx: config})
+
         
     def enum_space(self, recurse=True, label_sample=None):
 #        print("***", self.label, label_sample)
@@ -575,16 +584,27 @@ class DiscreteSpace(_SearchSpace):
                 yield from self.enum_from_node(label_sample[self.label], label_sample)
             else:
                 for idx, config in enumerate(self.space):
-                    if isinstance(config, _SearchSpace):
-                        for sub_cand in config.enum_space(recurse, label_sample):
-                            sample = SampleNode(self, {idx: sub_cand})
+                    enum_child_spaces = []
+                    for ch_prefix, child_space in self._child_spaces.items():
+                        keys = [tmp.split('::')[-1] for tmp in ch_prefix.split('.')]
+                        if int(keys[0]) == idx:
+                            enum_child_spaces.append((keys, child_space))
+                    if len(enum_child_spaces) > 0:
+                        for child_sample in my_product([partial(key_space[1].enum_space, recurse, label_sample) for key_space in enum_child_spaces]):
+                            cand = deepcopy(config)
+                            for k_space, s in zip(enum_child_spaces, child_sample):
+                                k = k_space[0]
+                                if len(k) == 1:
+                                    cand = s
+                                else:
+                                    self._set_item_by_name(cand, '.'.join(k[1:]), s)
+                            sample = SampleNode(self, {idx: cand})
                             label_sample[self.label] = sample
                             yield sample
                             del label_sample[self.label]
                     else:
                         sample = SampleNode(self, {idx: config})
                         label_sample[self.label] = sample
-#                        print("***", self.label, label_sample)
                         yield sample
                         del label_sample[self.label]
 
@@ -638,12 +658,6 @@ class FlattenSampledDiscreteSpace(DiscreteSpace):
         with self.change_to_flattened_space():
             return super(FlattenSampledDiscreteSpace, self).discretize(**replace_settings)
 
-#    def __iter__(self):
-#        return iter(self.ori_space)
-#    def __len__(self):
-#        return len(self.ori_space)
-#    def index(self, v):
-#        return self.ori_space.index(v)
     
 
 ###########################################
@@ -651,7 +665,7 @@ class ContinuousSpace(_SearchSpace):
     def __new__(cls, *args, **kwargs):
         return super().__new__(cls)
 
-    def __init__(self, space, sampler_cfg='UniformContinousSampler', num_reserve=None, reserve_replace=True, embed_fn=None, label=None):
+    def __init__(self, space, sampler_cfg='UniformContinousSampler', num_reserve=None, embed_fn=None, label=None):
         """
         space is a string with format "start:end"
         if num_reserve is None, we set it as 1 and return the value.
@@ -662,7 +676,6 @@ class ContinuousSpace(_SearchSpace):
         self.sampler.set_param(space)
         self.return_list = num_reserve is not None
         self.num_reserve = 1 if num_reserve is None else num_reserve
-        self.reserve_replace = reserve_replace
 
     def get_size(self, label_computed=None):
         if label_computed is None: label_computed = set()
@@ -675,7 +688,7 @@ class ContinuousSpace(_SearchSpace):
         if label_samples is None: label_samples = {}
         if self.label in label_samples:
             return self.sample_from_node(label_samples[self.label], label_samples)
-        sample = tuple(self.sampler.sample(self.num_reserve, self.reserve_replace))
+        sample = tuple(self.sampler.sample(self.num_reserve))
         sample = SampleNode(self, {(s-self.start)/self.size: s for s in sample})
         if not self.label.startswith('_SearchSpace#'): label_samples[self.label] = sample
         return sample

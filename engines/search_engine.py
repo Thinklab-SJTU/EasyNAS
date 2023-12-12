@@ -18,7 +18,7 @@ class SearchEngine(BaseEngine):
 #        print(self.search_space.size)
 #        tmp = []
 #        for sample_node in self.search_space.enum_space(recurse=True):
-#            print(sample_node.config)
+##            print(sample_node.config)
 #            tmp.append(sample_node)
 #        print(len(tmp), len(set(tmp)), self.search_space.size)
 #        assert 0
@@ -112,5 +112,7 @@ class SearchEngine(BaseEngine):
                 print(hash(q), r)
                 print(q.config)
 
-        print("Best: ", QueryReward(*self.info.results.best))
+#        print("Best: ", QueryReward(*self.info.results.best))
+
+        # write
 

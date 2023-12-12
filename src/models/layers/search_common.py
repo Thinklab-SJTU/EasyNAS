@@ -86,7 +86,7 @@ class AtomSearchModule(SearchModule):
                 if 'out_channel' in arg_names:
 #                    if isinstance(self.candidate_ch, _SearchSpace): 
 #                        assert(op_cfg, IIDSpace)
-                    op_cfg['args']['out_channel'] = self.candidate_ch.space
+                    op_cfg['args']['out_channel'] = self.candidate_ch.space if isinstance(self.candidate_ch, _SearchSpace) else self.candidate_ch
                     op_cfg['args']['bn_per_ch'] = bn_per_ch
                     return True
                 return False

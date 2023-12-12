@@ -1,4 +1,4 @@
-root_path: &root_path runs/mip/MIK_SCIP/
+root_path: &root_path runs/mip/MIK_SCIP_presolve/
 
 instance: &instance
   submodule_name: src.mip.loader.InstanceLoader
@@ -10,6 +10,13 @@ solver: &solver
   args:
     solver_params:
         limits/time: 600
+        # presolving
+        presolving/stuffing/priority: -6786393.6531085995
+        presolving/stuffing/maxrounds: -1
+        presolving/stuffing/timing: 6
+        presolving/dualsparsify/priority: -371900.1335700763
+        presolving/dualsparsify/maxrounds: 1
+        presolving/dualsparsify/timing: 16
         ##        limits/memory: 12288 #12*1024
         #        # Branching
         #        branching/scorefunc: p #['s', 'q', 'p']
@@ -55,6 +62,7 @@ engine:
     instance: *instance
     solver: *solver
     hooks: *hooks
+
 
 
 

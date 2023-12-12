@@ -1,0 +1,139 @@
+root_path: &root_path runs/mip/HB_MIK_SCIP_presolve/
+priority_range_neg: &priority_range_neg -1000000:-1
+priority_range: &priority_range 1:1000000
+round_range: &round_range [-1, 0, 1]
+time_range: &time_range "4:32" #[4, 8, 16, 32]
+
+search_space: &space
+  instance: &instance
+    submodule_name: src.mip.loader.InstanceLoader
+    args:
+        dataset_name: MIK_bounded
+  
+  solver: &solver
+    submodule_name: src.mip.scip_solver.SCIPSolver
+    args:
+      solver_params:
+          limits/time: 600
+  ##        limits/memory: 12288 #12*1024
+          # presolving
+          presolving/stuffing/priority: !search_space {space: *priority_range_neg}
+          presolving/stuffing/maxrounds: !search_space {space: *round_range}
+          presolving/stuffing/timing: !search_space {space: *time_range}
+          presolving/dualsparsify/priority: !search_space {space: *priority_range_neg}
+          presolving/dualsparsify/maxrounds: !search_space {space: *round_range}
+          presolving/dualsparsify/timing: !search_space {space: *time_range}
+          presolving/sparsify/priority: !search_space {space: *priority_range_neg}
+          presolving/sparsify/maxrounds: !search_space {space: *round_range}
+          presolving/sparsify/timing: !search_space {space: *time_range}
+          presolving/tworowbnd/priority: !search_space {space: *priority_range_neg}
+          presolving/tworowbnd/maxrounds: !search_space {space: *round_range}
+          presolving/tworowbnd/timing: !search_space {space: *time_range}
+          presolving/redvub/priority: !search_space {space: *priority_range_neg}
+          presolving/redvub/maxrounds: !search_space {space: *round_range}
+          presolving/redvub/timing: !search_space {space: *time_range}
+          presolving/implics/priority: !search_space {space: *priority_range_neg}
+          presolving/implics/maxrounds: !search_space {space: *round_range}
+          presolving/implics/timing: !search_space {space: *time_range}
+          presolving/dualinfer/priority: !search_space {space: *priority_range_neg}
+          presolving/dualinfer/maxrounds: !search_space {space: *round_range}
+          presolving/dualinfer/timing: !search_space {space: *time_range}
+          presolving/dualagg/priority: !search_space {space: *priority_range_neg}
+          presolving/dualagg/maxrounds: !search_space {space: *round_range}
+          presolving/dualagg/timing: !search_space {space: *time_range}
+          presolving/domcol/priority: !search_space {space: *priority_range_neg}
+          presolving/domcol/maxrounds: !search_space {space: *round_range}
+          presolving/domcol/timing: !search_space {space: *time_range}
+          presolving/gateextraction/priority: !search_space {space: *priority_range}
+          presolving/gateextraction/maxrounds: !search_space {space: *round_range}
+          presolving/gateextraction/timing: !search_space {space: *time_range}
+          presolving/boundshift/priority: !search_space {space: *priority_range}
+          presolving/boundshift/maxrounds: !search_space {space: *round_range}
+          presolving/boundshift/timing: !search_space {space: *time_range}
+          presolving/convertinttobin/priority: !search_space {space: *priority_range}
+          presolving/convertinttobin/maxrounds: !search_space {space: *round_range}
+          presolving/convertinttobin/timing: !search_space {space: *time_range}
+          presolving/inttobinary/priority: !search_space {space: *priority_range}
+          presolving/inttobinary/maxrounds: !search_space {space: *round_range}
+          presolving/inttobinary/timing: !search_space {space: *time_range}
+          presolving/trivial/priority: !search_space {space: *priority_range}
+          presolving/trivial/maxrounds: !search_space {space: *round_range}
+          presolving/trivial/timing: !search_space {space: *time_range}
+  #        # Branching
+  #        branching/scorefunc: p #['s', 'q', 'p']
+  #        branching/scorefac: 0.167 # 0.0...1.0
+  #        branching/preferbinary: False # [True, False]
+  #        branching/clamp: 0.2 # 0.0...0.5
+  #        branching/midpull: 0.75 # 0.0...1.0
+  #        branching/midpullreldomtrig: 0.5 # 0.0...1.0
+  #        branching/lpgainnormalize: s # ['d', 'l', 's']
+  #        # LP
+  ##        lp/threads: 8
+  #        lp/pricing: l # ["l", "a", "f", "p", "s", "q", "d"]
+  #        lp/colagelimit: 10 # -1...2147483647
+  #        lp/rowagelimit: 10 # -1...2147483647
+  #        # Node Selection
+  #        nodeselection/childsel: h # ["d", "u", "p", "i", "l", "r", "h"]
+  #        # Separating
+  ##        separating/minortho: 0.9 # 0.0...1.0
+  ##        separating/minorthoroot: 0.9 # 0.0...1.0
+  #        separating/maxcuts: 100 # 0...2147483647
+  #        separating/maxcutsroot: 2000 # 0...2147483647
+  #        separating/cutagelimit: 80 # -1...2147483647
+  #        separating/poolfreq: 10 # -1...65534
+  
+  hooks: &hooks
+    eval_hook:
+      submodule_name: src.mip.eval_hook.EvalHOOK
+      args: 
+        priority: 10
+        eval_names: [neg-sum-gap, neg-geoMean-time, neg-mean-time]
+    
+    log_hook:
+      submodule_name: src.mip.log_hook.LogHOOK
+      args:
+        logger_name: MIPEngine
+        log_path: !join [*root_path, train.log]
+        print_freq: 1
+        priority: 30
+  
+  engine:
+    submodule_name: engines.MIPEngine
+    args:
+      instance: *instance
+      solver: *solver
+      hooks: *hooks
+
+
+searcher: &searcher
+  submodule_name: src.searcher.Hyperband
+  args:
+    num_initial: 81
+    max_resource_inner_loop: {solver.args.solver_params.limits/time: 600}
+    min_resource_per_query: {solver.args.solver_params.limits/time: 180}
+
+evaluater: &evaluater
+  submodule_name: src.evaluater.Evaluater
+  args:
+    eval_fns: !get_module src.evaluater.performance.get_performance
+    log_dir: !join [*root_path, eval_worker/]
+
+search_hooks: &search_hooks
+  ckpt_hook:
+    submodule_name: SearchCkptHOOK
+    args:
+      priority: 30
+      save_root: !join [*root_path, search_ckpt]
+
+
+engine:
+  submodule_name: engines.SearchEngine
+  args:
+    search_space: *space
+    searcher: *searcher
+    evaluater: *evaluater
+    hooks: *search_hooks
+    num_eval_workers: 9
+
+
+

@@ -173,6 +173,7 @@ class InstanceLoader:
             return self.load_competition(dataset_name)
         elif dataset_name in self.MIK:
             return self.load_mik(dataset_name)
+#        elif dataset_name.endswith
 
         filename = self.DATASETS[dataset_name]
         local_version = os.path.join(self.dataset_loc, filename)
