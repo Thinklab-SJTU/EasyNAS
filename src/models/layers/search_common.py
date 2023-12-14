@@ -36,10 +36,10 @@ class SearchModule(nn.Module):
         if isinstance(search_space, DiscreteSpace):
             arch_param = list(search_space.sampler_weights())
             if len(arch_param) == 0:
-                return [1./search_space.size for _ in range(search_space.size)]
+                return torch.tensor([1./search_space.size for _ in range(search_space.size)])
             assert len(arch_param) == 1
             return search_space.sampler.norm_fn(arch_param[0])
-        else: return [1./len(search_space) for _ in range(len(search_space))]
+        else: return torch.tensor([1./len(search_space) for _ in range(len(search_space))])
 
     def get_norm_layer(self, ch_alphas, bn, bn_per_ch=True):
         return bn[ch_alphas.argmax()] if bn_per_ch and isinstance(bn, nn.ModuleList) else bn
@@ -47,6 +47,8 @@ class SearchModule(nn.Module):
     def state_dict(self, *args, destination=None, prefix='', keep_vars=False):
         destination = super(SearchModule, self).state_dict(*args, destination, prefix, keep_vars)
         destination[prefix+'search_space'] = {k:v for k, v in vars(self).items() if isinstance(v, _SearchSpace)}
+        print(destination[prefix+'search_space'])
+        assert 0
         return destination
     
 
@@ -180,7 +182,7 @@ class AtomSearchModule(SearchModule):
         op_idx = []
         for ei, ss_ei in enumerate(edge_idx):
             space_size = [cand.size if isinstance(cand, _SearchSpace) else 1 for cand in search_space['candidate_op'][ss_ei]]
-            flattened_idx = [search_space['candidate_op'][ss_ei].space.index(tmp) for tmp in self.candidate_op[ei]]
+            flattened_idx = [search_space['candidate_op'][ss_ei].index(tmp) for tmp in self.candidate_op[ei]]
             op_idx.append([bisect.bisect_right(space_size, tmp) for tmp in flattened_idx])
         # rename the op weights in the state dict
         edge_prefix = prefix + 'm'
@@ -188,6 +190,13 @@ class AtomSearchModule(SearchModule):
         for ei, ss_ei in enumerate(edge_idx):
             for opi, ss_opi in enumerate(op_idx[ei]):
                 prefix_mapping[edge_prefix+'.%d.%d'%(ss_ei, ss_opi)] = edge_prefix+'.%d.%d'%(ei, opi)
+        # deal with bn
+        if self.bn_per_ch:
+            bn_prefix = prefix + 'bn'
+            candidate_ch = search_space['candidate_ch']
+            ch_idx = candidate_ch.index(self.cout)
+            prefix_mapping[bn_prefix+'.%d'%(ch_idx)] = bn_prefix
+
 
         tmp_state_dict = {}
         keys = list(state_dict.keys())
@@ -196,15 +205,6 @@ class AtomSearchModule(SearchModule):
             for ss_prefix, new_prefix in prefix_mapping.items():
                 if key.startswith(ss_prefix):
                     tmp_state_dict[key.replace(ss_prefix, new_prefix, 1)] = weight
-            #TODO: How to deal with op_alphas?
-#            if key.startswith(prefix+'op_alphas'):
-#                op_alphas = torch.gather(weight, dim=0, index=torch.tensor(edge_idx))
-#                tmp_state_dict[key] = op_alphas / op_alphas.sum(dim=-1, keepdim=True)
-#            if key.startswith(prefix+'edge_alphas'):
-#                edge_alphas = torch.gather(weight, dim=-1, index=torch.tensor(edge_idx))
-#                tmp_state_dict[key] = edge_alphas / edge_alphas.sum(dim=-1, keepdim=True)
-
-        #TODO: how to deal with bn?
 
         # load search space
         #TODO: How to deal with sampler_weights?
@@ -323,6 +323,8 @@ class ConvBNAct_search(SearchModule):
         weight_name = prefix + 'weight'
         bias_name = prefix + 'bias'
         search_space = state_dict.pop(prefix+'search_space', None)
+        print(search_space)
+        assert 0
         if search_space is None or 'kd' not in search_space:
             cout, cin, _, _ = self.weight.shape
             state_dict[weight_name] = state_dict[weight_name][:cout, :cin, :, :]
@@ -338,6 +340,9 @@ class ConvBNAct_search(SearchModule):
             start = int((weight.shape[-1] - self.k_max) / 2)
             end = int(weight.shape[-1] - start)
             cout, cin, _, _ = self.weight.shape
+            with torch.no_grad():
+                state_dict_op_alphas = self.norm_arch_parameters(search_space['kd'])
+            state_dict_op_alphas = torch.gather(state_dict_op_alphas, dim=-1, index=torch.tensor(op_idx))
             weight = self.get_merge_kernel(weight[:cout,:cin,start:end, start:end], state_dict_op_alphas, self.merge_kernel)
             state_dict[weight_name] = weight[:cout,:cin,:, :]
             if self.bias is not None:
@@ -350,13 +355,22 @@ class ConvBNAct_search(SearchModule):
                 state_dict[weight_name+'.%s'%i] = weights[op_i][:cout, :cin, :, :]
                 if biases is not None:
                     state_dict[bias_name+'.%s'%i] = biases[op_i][:cout]
+        # deal with bn
+        if self.bn_per_ch:
+            bn_prefix = prefix + 'bn'
+            candidate_ch = search_space['candidate_ch']
+            ch_idx = candidate_ch.index(self.cout)
+            keys = [k for k in state_dict.keys() if k.startswith(bn_prefix)]
+            for key in keys:
+                param = state_dict.pop(key)
+                if key.startswith(bn_prefix+'.%d'%ch_idx):
+                    state_dict[bn_prefix] = param
 
         for k, v in search_space.items():
             this_v = getattr(self, k)
             if isinstance(this_v, _SearchSpace) and this_v.size == v.size:
                 setattr(self, k, v)
 
-        #TODO: how to deal with bn?
 
         #TODO: How to deal with arch parameters?
 #        state_dict_op_alphas = state_dict.pop(prefix+'op_alphas', torch.tensor([1.]*len(ss_kd)))
@@ -445,6 +459,9 @@ class SepConvBNAct_search(ConvBNAct_search):
             start = int((depth_weight.shape[-1] - self.k_max) / 2)
             end = int(depth_weight.shape[-1] - start)
             cout, cin, _, _ = self.weight['point_weight'].shape
+            with torch.no_grad():
+                state_dict_op_alphas = self.norm_arch_parameters(search_space['kd'])
+            state_dict_op_alphas = torch.gather(state_dict_op_alphas, dim=-1, index=torch.tensor(op_idx))
             depth_weight = self.get_merge_kernel(depth_weight[:cin,:,start:end,start:end], state_dict_op_alphas, self.merge_kernel)
             state_dict[weight_name+'.depth_weight'] = depth_weight[:cin,:,:,:]
             state_dict[weight_name+'.point_weight'] = state_dict[weight_name+'.point_weight'][:cout,:cin,:,:]
@@ -460,7 +477,16 @@ class SepConvBNAct_search(ConvBNAct_search):
                 state_dict[weight_name+'.%d.point_weight'%i] = point_weights[op_i][:cout, :cin, :, :]
                 if biases is not None:
                     state_dict[bias_name+'.%s'%i] = biases[op_i][:cout]
-        #TODO: how to deal with bn?
+        # deal with bn
+        if self.bn_per_ch:
+            bn_prefix = prefix + 'bn'
+            candidate_ch = search_space['candidate_ch']
+            ch_idx = candidate_ch.index(self.cout)
+            keys = [k for k in state_dict.keys() if k.startswith(bn_prefix)]
+            for key in keys:
+                param = state_dict.pop(key)
+                if key.startswith(bn_prefix+'.%d'%ch_idx):
+                    state_dict[bn_prefix] = param
 
         for k, v in search_space.items():
             this_v = getattr(self, k)

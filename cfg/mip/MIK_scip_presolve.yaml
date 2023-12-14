@@ -10,13 +10,56 @@ solver: &solver
   args:
     solver_params:
         limits/time: 600
+        #        presolving/stuffing/priority: -480124.1078791458
+        #        presolving/stuffing/maxrounds: -1
+        #        presolving/stuffing/timing: 8.658026974597561 
+        #        presolving/dualsparsify/priority: -87780.17254810582
+        #        presolving/dualsparsify/maxrounds: -1
+        #        presolving/dualsparsify/timing: 18.768835966605174
+        #        presolving/sparsify/priority: -725244.3936919568
+        #        presolving/sparsify/maxrounds: 1
+        #        presolving/sparsify/timing: 14.262776733950098 
+        #        presolving/tworowbnd/priority: -787747.4422131501 
+        #        presolving/tworowbnd/maxrounds: 0 
+        #        presolving/tworowbnd/timing: 30.71251556809599 
+        #        presolving/redvub/priority: -277258.3784563476 
+        #        presolving/redvub/maxrounds: -1
+        #        presolving/redvub/timing: 6.356313124269432 
+        #        presolving/implics/priority: -37479.32252476772
+        #        presolving/implics/maxrounds: 0
+        #        presolving/implics/timing: 31.491309455036152 
+        #        presolving/dualinfer/priority: -680317.2109326716 
+        #        presolving/dualinfer/maxrounds: 1
+        #        presolving/dualinfer/timing: 18.29620437032925 
+        #        presolving/dualagg/priority: -650895.559549964 
+        #        presolving/dualagg/maxrounds: 1 
+        #        presolving/dualagg/timing: 18.938955725391125 
+        #        presolving/domcol/priority: -831746.2406719232 
+        #        presolving/domcol/maxrounds: 1 
+        #        presolving/domcol/timing: 25.584265139204582 
+        #        presolving/gateextraction/priority: 933937.6541840371 
+        #        presolving/gateextraction/maxrounds: 0 
+        #        presolving/gateextraction/timing: 5.286002832051571 
+        #        presolving/boundshift/priority: 282604.07781965984
+        #        presolving/boundshift/maxrounds: 1 
+        #        presolving/boundshift/timing: 8.236113790637917 
+        #        presolving/convertinttobin/priority: 102370.32954627344 
+        #        presolving/convertinttobin/maxrounds: -1 
+        #        presolving/convertinttobin/timing: 16.93209291569214 
+        #        presolving/inttobinary/priority: 679212.4940299873 
+        #        presolving/inttobinary/maxrounds: 1 
+        #        presolving/inttobinary/timing: 22.207834815218114 
+        #        presolving/trivial/priority: 88670.81389259029 
+        #        presolving/trivial/maxrounds: 1 
+        #        presolving/trivial/timing: 11.624052781902877
+
         # presolving
-        presolving/stuffing/priority: -6786393.6531085995
-        presolving/stuffing/maxrounds: -1
-        presolving/stuffing/timing: 6
-        presolving/dualsparsify/priority: -371900.1335700763
-        presolving/dualsparsify/maxrounds: 1
-        presolving/dualsparsify/timing: 16
+        #        presolving/stuffing/priority: -6786393.6531085995
+        #        presolving/stuffing/maxrounds: -1
+        #        presolving/stuffing/timing: 6
+        #        presolving/dualsparsify/priority: -371900.1335700763
+        #        presolving/dualsparsify/maxrounds: 1
+        #        presolving/dualsparsify/timing: 16
         ##        limits/memory: 12288 #12*1024
         #        # Branching
         #        branching/scorefunc: p #['s', 'q', 'p']

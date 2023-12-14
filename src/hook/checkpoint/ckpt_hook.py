@@ -56,6 +56,8 @@ class CkptHOOK(HOOK):
             for hook in runner.hooks:
                 if hook.__class__.__name__ in checkpoint:
                     hook.load_state_dict(checkpoint[hook.__class__.__name__])
+        self.save_model(runner)
+        assert 0
 
     def _save_model(self, runner, model_name: Union[None, str]=None):
         ckpt = {

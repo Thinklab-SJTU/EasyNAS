@@ -657,6 +657,8 @@ class FlattenSampledDiscreteSpace(DiscreteSpace):
     def discretize(self, **replace_settings):
         with self.change_to_flattened_space():
             return super(FlattenSampledDiscreteSpace, self).discretize(**replace_settings)
+    def index(self, v):
+        return self.flattened_space.index(v)
 
     
 

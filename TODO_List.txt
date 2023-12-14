@@ -1,6 +1,5 @@
 1. Search Space:
 1.2 update FlattenSampledDiscreteSpace as FlattenView
-1.3 now DiscreteSpace has to combine with IIDSpace for nesting
 
 2. Search Method:
 2.1 add BO
@@ -13,4 +12,4 @@
 
 
 TODO order:
-1.3 1.2 2.1 3.1 2.2 3.2 2.3
+2.1 3.1 2.2 3.2 2.3
