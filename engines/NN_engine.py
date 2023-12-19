@@ -170,7 +170,7 @@ class NNEngine(BaseEngine):
                 self.val(self.val_loader, self.model, self.criterion)
 
     def run(self, epochs=None):
-        if epochs is None:
+        if epochs is None or epochs <=0:
             self.validate()
         else:
             self.train(epochs)

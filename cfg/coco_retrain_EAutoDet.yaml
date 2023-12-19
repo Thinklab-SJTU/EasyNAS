@@ -1,12 +1,12 @@
 base_path: &base_path runs/coco_EAutoDet-s/
-root_path: &root_path !join [*base_path, tmp/]
+root_path: &root_path !join [*base_path, retrain/]
 epoch: &epoch 300
 accumulate_gradient: &acc_grad 1
 
 data: &data cfg/dataset/coco_yolo.yaml
 criterion: &criterion cfg/criterion/yolov5.yaml
 model: &model !join [*base_path, arch/architecture_49.yaml]
-pretrain: &pretrain runs/coco_EAutoDet-s/ckpt/best.pt
+pretrain: &pretrain runs/coco_EAutoDet-s/ckpt/last.pt
 
 train_hyp: &hyp
   lr0: &lr0 0.01  # initial learning rate (SGD=1E-2, Adam=1E-3)

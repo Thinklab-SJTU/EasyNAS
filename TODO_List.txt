@@ -1,5 +1,6 @@
 1. Search Space:
 1.2 update FlattenSampledDiscreteSpace as FlattenView
+1.3 Build BN via SearchModule when bn_per_ch = True
 
 2. Search Method:
 2.1 add BO

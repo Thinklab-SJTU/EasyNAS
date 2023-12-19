@@ -52,8 +52,6 @@ class YOLOC3_search(SearchModule):
 #                    for _ in range(num_repeat-1):
 #                        p.append(deepcopy(p[0]))
 #                else: p = [p[0]] * num_repeat
-        print(e_bottleneck)
-        print(candidate_op)
         self.e_bottleneck = _refine_param(e_bottleneck, 2)
         self.candidate_op = _refine_param(candidate_op, 3)
 

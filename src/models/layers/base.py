@@ -211,12 +211,13 @@ class OpBuilder(object):
             else:
                 arg_names = inspect.getfullargspec(tmp_module.__init__).args
             if 'stride' in arg_names:
-                op.args.update(stride=s, **update_args)
+                op.args.update(stride=s)
                 s = 1
             if 'in_channel' in arg_names: 
                 op.args.update(in_channel=in_channel)
             if 'out_channel' in arg_names: 
                 op.args.update(out_channel=out_channel)
+            op.args.update(**update_args)
             if in_channel != out_channel and ('in_channel' not in arg_names or 'out_channel' not in arg_names):
                 Warning("Input channel should be the same as output channel. Otherwise, you should set auto_refine as True")
                 adjust_ch = True

@@ -122,10 +122,6 @@ class DARTSHOOK(HOOK):
 
     @only_master
     def after_train_epoch(self, runner):
-#        arch_param = {k:v.data.cpu().numpy().tolist() for k, v in runner.model_without_ddp.named_arch_parameters()}
-#        alpha_file = os.path.join(self.save_root, "alpha_%d.json"%runner.info.current_epoch)
-#        with open(alpha_file, 'w') as f:
-#          json.dump(arch_param, f)
         out_model_yaml = runner.search_space.discretize(**self.replace_settings)
         yaml_file = os.path.join(self.save_root, "architecture_%d.yaml"%runner.info.current_epoch)
         with open(yaml_file, encoding='utf-8', mode='w') as f:
@@ -136,13 +132,5 @@ class DARTSHOOK(HOOK):
         print('='*10+' Show Arch Parameters Begin '+'='*10)
         runner.search_space.show_info()
         print('='*10+' Show Arch Parameters Done '+'='*10)
-
-#    def state_dict(self, runner):
-#        return {k: v.detach() for k, v in self.model.named_arch_parameters()}
-#
-#    def load_state_dict(self, ckpt):
-#        with torch.no_grad():
-#            for name, p in self.model.named_arch_parameters():
-#                p.copy_(ckpt[name])
 
 

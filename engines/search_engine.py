@@ -15,7 +15,7 @@ class SearchEngine(BaseEngine):
     def __init__(self, search_space, searcher, evaluater, hooks, num_eval_workers=1):
         self.search_space, self.searcher, self.evaluater = self.build_from_cfg(search_space, searcher, evaluater, hooks)
 
-#        print(self.search_space.size)
+        print(f"The size of Search space is {self.search_space.size}")
 #        tmp = []
 #        for sample_node in self.search_space.enum_space(recurse=True):
 ##            print(sample_node.config)
@@ -66,6 +66,7 @@ class SearchEngine(BaseEngine):
                 p.start()
 
             # initialize queries
+            print("Initializing...")
             init_queries = self.searcher.query_initial()
             for q in init_queries:
                 q = self.searcher.preprocess_cfg(q)
@@ -73,6 +74,7 @@ class SearchEngine(BaseEngine):
                 self.searcher.current_queries[q] = 'waiting'
 
             # iterablely search
+            print("Searching...")
             while not self.searcher.stop_search():
                 q, r = reward_queue.get()
                 assert q in self.searcher.current_queries
@@ -106,13 +108,9 @@ class SearchEngine(BaseEngine):
             for p in eval_ps:
                 p.join()
 
-        for i, rewards in enumerate(self.searcher.history_reward):
-            print("Iter", i)
-            for q, r in rewards:
-                print(hash(q), r)
-                print(q.config)
-
-#        print("Best: ", QueryReward(*self.info.results.best))
-
-        # write
+#        for i, rewards in enumerate(self.searcher.history_reward):
+#            print("Iter", i)
+#            for q, r in rewards:
+#                print(hash(q), r)
+#                print(q.config)
 

@@ -46,10 +46,64 @@ class SearchModule(nn.Module):
 
     def state_dict(self, *args, destination=None, prefix='', keep_vars=False):
         destination = super(SearchModule, self).state_dict(*args, destination, prefix, keep_vars)
-        destination[prefix+'search_space'] = {k:v for k, v in vars(self).items() if isinstance(v, _SearchSpace)}
-        print(destination[prefix+'search_space'])
-        assert 0
+        search_space, sampler = {}, {}
+        for k, v in vars(self).items():
+            if isinstance(v, _SearchSpace):
+                search_space[k] = v
+                sampler[v.label] = v.sampler
+            #TODO: we should reserve candidate_ch to make sure load multiple bn weight from nn.ModuleList. Maybe after we build multiple bn by SearchModule, there will be no needs to reserve candidate_ch 
+            elif k == 'candidate_ch':
+                search_space[k] = v
+        destination[prefix+'search_space'] = search_space
+        destination[prefix+'search_space_sampler'] = sampler
+
+#        destination[prefix+'search_space'] = {k:v for k, v in vars(self).items() if isinstance(v, _SearchSpace)}
         return destination
+
+    def _load_from_state_dict(self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs):
+        # deal with search space
+        search_space = state_dict.pop(prefix+'search_space', {})
+        for k, v in search_space.items():
+            this_v = getattr(self, k)
+            if isinstance(this_v, _SearchSpace) and this_v.size == v.size:
+                setattr(self, k, v)
+
+        # deal with sampler in search space
+        sampler = state_dict.pop(prefix+'search_space_sampler', {})
+        for label, s in sampler.items():
+            if label not in _SearchSpace._samplers:
+                _SearchSpace._samplers[label] = s
+
+        #TODO: Maybe we should build bn as SearchModule, then we donot have to specifically deal with bn weights.
+        # deal with bn
+        def _bn_weight(ss_bn_prefix, bn_prefix, bn_state_dict, cout):
+            for key in bn_state_dict.keys():
+                if key.startswith(ss_bn_prefix):
+                    state_dict[key.replace(ss_bn_prefix, bn_prefix)] = bn_state_dict[key][:cout] if bn_state_dict[key].dim() == 1 else bn_state_dict[key]
+
+        ss_candidate_ch = search_space.get('candidate_ch', None)
+        if ss_candidate_ch is not None: # and len(ss_candidate_ch)>1:
+            for k, v in self.named_children():
+                if isinstance(v, nn.BatchNorm2d):
+                    bn_prefix = prefix + k
+                    keys = [k for k in state_dict.keys() if k.startswith(bn_prefix)]
+                    bn_state_dict = {k: state_dict.pop(k) for k in keys}
+                    try:
+                        ch_idx = ss_candidate_ch.index(v.num_features)
+                    except:
+                        ch_idx = bisect.bisect_right(ss_candidate_ch, v.num_features)
+                    _bn_weight(bn_prefix+'.%d'%ch_idx, bn_prefix, bn_state_dict, v.num_features)
+                elif isinstance(v, nn.ModuleList) and isinstance(v[0], nn.BatchNorm2d):
+                    bn_prefix = prefix + k
+                    keys = [k for k in state_dict.keys() if k.startswith(bn_prefix)]
+                    bn_state_dict = {k: state_dict.pop(k) for k in keys}
+                    for sub_idx, sub_bn in enumerate(v):
+                        try:
+                            ch_idx = ss_candidate_ch.index(sub_bn.num_features)
+                        except:
+                            ch_idx = bisect.bisect_right(ss_candidate_ch, v.num_features)
+                        _bn_weight(bn_prefix+'.%d'%ch_idx, bn_prefix+'.%d'%sub_idx, bn_state_dict, v.num_features)
+        return super()._load_from_state_dict(state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs)
     
 
 class AtomSearchModule(SearchModule):
@@ -101,6 +155,7 @@ class AtomSearchModule(SearchModule):
         self.m = nn.ModuleList([])
         for ei, (cin, s, parallel_op) in enumerate(zip(self.cin, self.strides, self.candidate_op)):
             # assign candidate_ch to each candidate_op
+            parallel_op = deepcopy(parallel_op)
             for seq_op in parallel_op:
                 assign_ch(seq_op)
             # build operations on each edge
@@ -173,7 +228,7 @@ class AtomSearchModule(SearchModule):
         return out
 
     def _load_from_state_dict(self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs):
-        search_space = state_dict.pop(prefix+'search_space')
+        search_space = state_dict.get(prefix+'search_space')
         # get the selected edge
         edge_idx = [search_space['input_idx'].index(idx) for idx in self.input_idx]
         # get the selected op on each selected edge
@@ -190,13 +245,6 @@ class AtomSearchModule(SearchModule):
         for ei, ss_ei in enumerate(edge_idx):
             for opi, ss_opi in enumerate(op_idx[ei]):
                 prefix_mapping[edge_prefix+'.%d.%d'%(ss_ei, ss_opi)] = edge_prefix+'.%d.%d'%(ei, opi)
-        # deal with bn
-        if self.bn_per_ch:
-            bn_prefix = prefix + 'bn'
-            candidate_ch = search_space['candidate_ch']
-            ch_idx = candidate_ch.index(self.cout)
-            prefix_mapping[bn_prefix+'.%d'%(ch_idx)] = bn_prefix
-
 
         tmp_state_dict = {}
         keys = list(state_dict.keys())
@@ -322,9 +370,7 @@ class ConvBNAct_search(SearchModule):
     def _load_from_state_dict(self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs):
         weight_name = prefix + 'weight'
         bias_name = prefix + 'bias'
-        search_space = state_dict.pop(prefix+'search_space', None)
-        print(search_space)
-        assert 0
+        search_space = state_dict.get(prefix+'search_space', None)
         if search_space is None or 'kd' not in search_space:
             cout, cin, _, _ = self.weight.shape
             state_dict[weight_name] = state_dict[weight_name][:cout, :cin, :, :]
@@ -342,7 +388,7 @@ class ConvBNAct_search(SearchModule):
             cout, cin, _, _ = self.weight.shape
             with torch.no_grad():
                 state_dict_op_alphas = self.norm_arch_parameters(search_space['kd'])
-            state_dict_op_alphas = torch.gather(state_dict_op_alphas, dim=-1, index=torch.tensor(op_idx))
+            state_dict_op_alphas = torch.gather(state_dict_op_alphas, dim=-1, index=torch.tensor(op_idx, device=state_dict_op_alphas.device))
             weight = self.get_merge_kernel(weight[:cout,:cin,start:end, start:end], state_dict_op_alphas, self.merge_kernel)
             state_dict[weight_name] = weight[:cout,:cin,:, :]
             if self.bias is not None:
@@ -355,16 +401,6 @@ class ConvBNAct_search(SearchModule):
                 state_dict[weight_name+'.%s'%i] = weights[op_i][:cout, :cin, :, :]
                 if biases is not None:
                     state_dict[bias_name+'.%s'%i] = biases[op_i][:cout]
-        # deal with bn
-        if self.bn_per_ch:
-            bn_prefix = prefix + 'bn'
-            candidate_ch = search_space['candidate_ch']
-            ch_idx = candidate_ch.index(self.cout)
-            keys = [k for k in state_dict.keys() if k.startswith(bn_prefix)]
-            for key in keys:
-                param = state_dict.pop(key)
-                if key.startswith(bn_prefix+'.%d'%ch_idx):
-                    state_dict[bn_prefix] = param
 
         for k, v in search_space.items():
             this_v = getattr(self, k)
@@ -442,7 +478,7 @@ class SepConvBNAct_search(ConvBNAct_search):
     def _load_from_state_dict(self, state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs):
         weight_name = prefix + 'weight'
         bias_name = prefix + 'bias'
-        search_space = state_dict.pop(prefix+'search_space', None)
+        search_space = state_dict.get(prefix+'search_space', None)
         if search_space is None or 'kd' not in search_space:
             cout, cin, _, _ = self.weight['point_weight'].shape
             state_dict[weight_name+'.depth_weight'] = state_dict[weight_name+'.depth_weight'][:cin,:,start:end, start:end]
@@ -451,8 +487,7 @@ class SepConvBNAct_search(ConvBNAct_search):
                 state_dict[bias_name] = state_dict[bias_name][:cout]
             return super(ConvBNAct_search, self)._load_from_state_dict(state_dict, prefix, local_metadata, strict, missing_keys, unexpected_keys, error_msgs)
 
-#        ss_kd = [list(kd) for kd in search_space['kd']]
-        ss_kd = search_space['kd']
+        ss_kd = [list(kd) for kd in search_space['kd']]
         op_idx = [ss_kd.index(list(kd)) for kd in self.kd]
         if self.merge_kernel:
             depth_weight = state_dict[weight_name+'.depth_weight']
@@ -477,16 +512,6 @@ class SepConvBNAct_search(ConvBNAct_search):
                 state_dict[weight_name+'.%d.point_weight'%i] = point_weights[op_i][:cout, :cin, :, :]
                 if biases is not None:
                     state_dict[bias_name+'.%s'%i] = biases[op_i][:cout]
-        # deal with bn
-        if self.bn_per_ch:
-            bn_prefix = prefix + 'bn'
-            candidate_ch = search_space['candidate_ch']
-            ch_idx = candidate_ch.index(self.cout)
-            keys = [k for k in state_dict.keys() if k.startswith(bn_prefix)]
-            for key in keys:
-                param = state_dict.pop(key)
-                if key.startswith(bn_prefix+'.%d'%ch_idx):
-                    state_dict[bn_prefix] = param
 
         for k, v in search_space.items():
             this_v = getattr(self, k)

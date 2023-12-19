@@ -47,12 +47,12 @@ class SearchCkptHOOK(HOOK):
         best = runner.info.results.get('best', None)
         if best is None or current_epoch_best.reward > best[-1]:
             runner.info.results.best = copy.copy(current_epoch_best)
-            self.save_yaml(best[0].config, name='best.yaml')
-        print("Best: Query", QueryReward(*self.info.results.best))
+            self.save_yaml(runner.info.results.best[0].config, name='best.yaml')
+        print("Best: Query", QueryReward(*runner.info.results.best))
 
         # save reward
 #        self.save_reward(runner, current_epoch_reward)
-        self.save_yaml(data=[[k, v] for k, v in current_epoch_reward.items()], name='epoch%d.yaml'%runner.info.get('current_epoch', 0))
+        self.save_yaml(data=[[qr.query, qr.reward] for qr in current_epoch_reward], name='epoch%d.yaml'%runner.info.get('current_epoch', 0))
 
     def after_run(self, runner):
         self.after_epoch(runner)

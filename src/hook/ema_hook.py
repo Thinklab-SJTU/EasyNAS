@@ -111,6 +111,8 @@ class EMA():
         self.backup = {}
 
     def load_state_dict(self, ckpt):
+        for k in ckpt.keys():
+            assert hasattr(self, k)
         for k, v in ckpt.items():
             setattr(self, k, v)
 
@@ -129,7 +131,11 @@ class EMAHOOK(HOOK):
         self.only_master = only_master
 
     def load_state_dict(self, ckpt_ema): 
-        self.ema.load_state_dict(ckpt_ema)
+        try:
+            self.ema.load_state_dict(ckpt_ema)
+        except Exception as e:
+            print("Cannot load EMA checkpoint!")
+            print(e)
 
     def state_dict(self, runner):
         return self.ema.state_dict()
@@ -141,9 +147,11 @@ class EMAHOOK(HOOK):
             self.ema.update(runner.model_without_ddp)
 
     def before_val_epoch(self, runner):
+        if self.ema.updates == 0: return 
         with torch.no_grad():
             self.ema.apply_shadow(runner.model_without_ddp)
 
     def after_val_epoch(self, runner):
+        if self.ema.updates == 0: return 
         with torch.no_grad():
             self.ema.restore(runner.model_without_ddp)

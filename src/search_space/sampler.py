@@ -52,12 +52,12 @@ class PoissonSampler(_NumpySampler):
 class WeightedSampler(_NumpySampler):
     def __init__(self, space_size, norm_fn='softmax', seed=None):
         super(WeightedSampler, self).__init__(seed)
-#        self.register_weight('weight', torch.tensor(torch.ones(space_size) / space_size, requires_grad=True))
-        self.register_weight('weight', (1e-3*torch.randn(space_size, requires_grad=True)).clone().detach().requires_grad_())
+        self.register_weight('weight', torch.zeros(space_size, requires_grad=True))
+#        self.register_weight('weight', (1e-3*torch.randn(space_size, requires_grad=True)).clone().detach().requires_grad_())
         self.norm_fn = NORM_FN[norm_fn]
     def sample(self, space, num, replace):
         normed_weight = self.norm_fn(self.weight)
-        return self.rdm.choice(space, size=num, p=normed_weight.numpy(), replace=replace)
+        return self.rdm.choice(space, size=num, p=normed_weight.detach().cpu().numpy(), replace=replace)
     def topk(self, space, k=None):
         return_list = False if k is None else True
         k = 1 if k is None else k
@@ -69,6 +69,14 @@ class WeightedSampler(_NumpySampler):
 #            normed_weight = self.norm_fn(self.weight)
 #        string = f"{self.__class__.__name__}(seed={self.seed}, \nweights={self.weight.data}, \nnormed_weights={normed_weight})"
 #        return string
+
+class UniformDiscreteWeightedSampler(UniformDiscreteSampler):
+    def __init__(self, space_size, norm_fn='softmax', seed=None):
+        super(UniformDiscreteWeightedSampler, self).__init__(seed)
+        self.register_weight('weight', torch.ones(space_size) / space_size)
+        self.norm_fn = lambda x: x
+    def sample(self, space, num, replace):
+        return self.rdm.choice(space, size=num, replace=replace)
 
 # Parameterless, Continuous
 class UniformContinousSampler(_NumpySampler):
@@ -98,6 +106,19 @@ def softmax(x, dim=-1, temperature=1):
     return torch.softmax(x / temperature, dim=dim)
 #    exp_x = np.exp(x)
 #    return exp_x/exp_x.sum(axis=dim, keepdims=True)
+
+@register_norm_fn
+def pseudo_gumbel_softmax(logits, temperature=1, hard=True):
+    y = torch.nn.functional.softmax(logits / temperature, dim=-1)
+    if not hard:
+        return y
+    idx = torch.tensor(np.random.choice(list(range(y.shape[-1])), size=1, p=y.cpu().detach().numpy()), device=y.device)
+
+    y_hard = torch.zeros_like(y)
+    y_hard.scatter_(-1, idx, 1.)
+    # Set gradients w.r.t. y_hard gradients w.r.t. y
+    y_hard = y_hard - y.detach() + y
+    return y_hard
 
 @register_norm_fn
 def gumbel_softmax(logits, temperature=1, hard=True):

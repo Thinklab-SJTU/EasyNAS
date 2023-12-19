@@ -72,6 +72,8 @@ class SampleNode(object):
         def to_hash(param):
             if isinstance(param, dict):
                 return tuple(to_hash(v) for k, v in sorted(param.items(), key=lambda item: item[0]))
+            elif isinstance(param, list):
+                return tuple(param)
             else: return param
         return hash(to_hash(self.sample))
 #        return hash(tuple(to_hash(v) for v in self.sample.values()))
@@ -349,13 +351,13 @@ class IIDSpace(_SearchSpace):
     #TODO: We should build the tree of search space according to the label rather than the name.
     def get_size(self, label_computed=None):
         try:
-            return len(list(self.enum_space()))
-        except:
             if label_computed is None: label_computed = set()
             if self.label in label_computed: 
                 return 1
             label_computed.add(self.label)
             return reduce(lambda x,y: x*y, [1 if x.label in label_computed else x.get_size(label_computed) for x in self._child_spaces.values()])
+        except:
+            return len(list(self.enum_space()))
 
     def build_config(self, sample):
         def get_item(src, idx):
@@ -438,11 +440,19 @@ class RepeatSpace(IIDSpace):
     def __init__(self, space, num_repeat, independent=True):
         assert isinstance(space, _SearchSpace)
         self.num_repeat = num_repeat
+        self.independent = independent
         space = {i: space.new_space(label=None) if i>0 and independent else space for i in range(num_repeat)}
         super(IIDSpace, self).__init__(space, sampler_cfg=None, embed_fn=None, label=None)
 
     def __len__(self):
         return self.num_repeat
+
+    def build_config(self, sample):
+        _config = super().build_config(sample)
+        config = [None for _ in range(self.num_repeat)]
+        for k, v in _config.items():
+            config[int(k)] = v
+        return config
 
     def discretize(self, **replace_settings):
         return [self.space[i].discretize() for i in range(self.num_repeat)]
@@ -470,14 +480,14 @@ class DiscreteSpace(_SearchSpace):
 
     def get_size(self, label_computed=None):
         try:
-            return len(list(self.enum_space()))
-        except:
             if label_computed is None: label_computed = set()
             if self.label in label_computed: 
                 return 1
             label_computed.add(self.label)
             cand_sizes = [cand.get_size(label_computed) if isinstance(cand, _SearchSpace) else 1 for cand in self.space]
             return reduce(lambda x,y: x+y, cand_sizes)
+        except:
+            return len(list(self.enum_space()))
 
     def _sample_once(self, label_samples=None):
         if label_samples is None: label_samples = {}
@@ -626,7 +636,9 @@ class FlattenSampledDiscreteSpace(DiscreteSpace):
         return super().__new__(cls)
     def __init__(self, space, sampler_cfg='UniformDiscreteSampler', num_reserve=None, reserve_replace=False, embed_fn=None, label=None):
         super(FlattenSampledDiscreteSpace, self).__init__(space, sampler_cfg, num_reserve=num_reserve, reserve_replace=reserve_replace, embed_fn=embed_fn, label=label)
+        self.return_list, return_list_bk = False, self.return_list
         self.flattened_space = [super(FlattenSampledDiscreteSpace, self).build_config(sample.sample) for sample in self.enum_space()]
+        self.return_list = return_list_bk
         self.ori_space = self.space
 #        super(FlattenSampledDiscreteSpace, self).__init__(flattened_space, sampler_cfg, num_reserve, reserve_replace, embed_fn, label)
 
@@ -640,7 +652,7 @@ class FlattenSampledDiscreteSpace(DiscreteSpace):
 
     def _sample_once(self, label_samples=None):
         with self.change_to_flattened_space():
-            return super(FlattenSampledDiscreteSpace, self).sample(num_to_sample, replace, label_samples, num_sampled)
+            return super(FlattenSampledDiscreteSpace, self)._sample_once(label_samples)
 
     def sample_from_node(self, node, label_samples, num_sampled=0):
         with self.change_to_flattened_space():
