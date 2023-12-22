@@ -64,6 +64,7 @@ class Evaluater(object):
             rewards = Reward()
             for fn in self.eval_fns:
                 rewards.append(fn(deepcopy(task)))
+            print(f'Get reward = {rewards}')
             print('='*20+f"Task-{self.task_id} End"+'='*20)
             reward_queue.put((task, rewards))
         if self.log_dir is not None and worker_id is not None:

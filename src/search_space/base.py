@@ -64,6 +64,23 @@ class SampleNode(object):
     def embedding(self):
         return self._build_sample_attr('_embedding', self.space.build_embedding, self.sample)
 
+    def get_sampleNode(self, sample):
+        if isinstance(sample, SampleNode):
+            return [sample]
+        elif isinstance(sample, (list, tuple)):
+            sub_samplenodes = []
+            for tmp in sample:
+                sub_samplenodes.extend(self.get_sampleNode(tmp))
+            return sub_samplenodes
+        elif isinstance(sample, dict):
+            sub_samplenodes = []
+            for tmp in sample.values():
+                sub_samplenodes.extend(self.get_sampleNode(tmp))
+            return sub_samplenodes
+        else:
+            return []
+#            raise(TypeError(f"sample should be either SampleNode, list, tuple, or dict, but get {type(sampe)}"))
+
     def __eq__(self, other):
         return hash(self) == hash(other)
 #        return self.config == other.config
@@ -87,7 +104,7 @@ class SampleNode(object):
 ###########################################
 
 def sample_monitor(func):
-    def inner(self, num_to_sample, replace, *args, **kwargs):
+    def inner(self, num_to_sample, replace=False, *args, **kwargs):
         if not replace and num_to_sample >= self.size:
             msg = "Required sample number is larger than the space. You should decrease 'num_to_sample' or set replace as True, otherwise, there contains at leaset one ContinuousSpace."
             warnings.warn(msg, RuntimeWarning)
@@ -441,7 +458,11 @@ class RepeatSpace(IIDSpace):
         assert isinstance(space, _SearchSpace)
         self.num_repeat = num_repeat
         self.independent = independent
-        space = {i: space.new_space(label=None) if i>0 and independent else space for i in range(num_repeat)}
+        space = {0: space}
+        if independent:
+            for i in range(1, num_repeat):
+                space[i] = space[0].new_space(label=None)
+#        space = {i: space.new_space(label=None) if i>0 and independent else space for i in range(num_repeat)}
         super(IIDSpace, self).__init__(space, sampler_cfg=None, embed_fn=None, label=None)
 
     def __len__(self):
@@ -449,9 +470,12 @@ class RepeatSpace(IIDSpace):
 
     def build_config(self, sample):
         _config = super().build_config(sample)
-        config = [None for _ in range(self.num_repeat)]
-        for k, v in _config.items():
-            config[int(k)] = v
+        if self.independent:
+            config = [None for _ in range(self.num_repeat)]
+            for k, v in _config.items():
+                config[int(k)] = v
+        else:
+            config = [_config['0'] for _ in range(self.num_repeat)]
         return config
 
     def discretize(self, **replace_settings):

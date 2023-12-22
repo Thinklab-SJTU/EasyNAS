@@ -148,7 +148,7 @@ class CfgDumper(yaml.SafeDumper):
         module = inspect.getmodule(cls_or_func)
         return self.represent_sequence('!get_module', [module.__name__+'.'+cls_or_func.__name__, data.keywords])
     def represent_sampleNode(self, data):
-        return self.represent_mapping('!sample_node', data.cfg)
+        return self.represent_mapping('!sample_node', data.config)
 CfgDumper.add_representer(edict, CfgDumper.represent_python_edict)
 CfgDumper.add_representer(tuple, CfgDumper.represent_python_tuple)
 CfgDumper.add_representer(partial, CfgDumper.represent_python_partial)

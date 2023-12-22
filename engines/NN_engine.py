@@ -1,6 +1,7 @@
 from easydict import EasyDict
 from typing import Union, List
 import bisect
+import math
 from itertools import chain
 import torch
 
@@ -84,9 +85,10 @@ class NNEngine(BaseEngine):
     def is_ddp(self):
         return self.local_rank >= 0
 
-    def train_one_epoch(self, train_loader, model, criterion):
+    def train_one_epoch(self, train_loader, model, criterion, early_stop=None):
 #        if self.amp: model.half()
         for step, (input, target, *bs_args) in enumerate(train_loader):
+            if early_stop is not None and step==early_stop: break
 #            self.call_hook('before_train_iter')
             with hooks_train_iter(self._hooks, self):
                 self.info.current_iter = step
@@ -137,7 +139,7 @@ class NNEngine(BaseEngine):
 #                self.call_hook('after_val_iter')
             if self.amp_val: model.float()
 
-    def train(self, epochs):
+    def train(self, epochs, max_iter):
         self.info.epochs = epochs
 #        self.call_hook('before_run')
         with hooks_run(self._hooks, self):
@@ -146,12 +148,13 @@ class NNEngine(BaseEngine):
                 with hooks_epoch(self._hooks, self):
                     self.model.train()
                     with hooks_train_epoch(self.hooks, self):
-                        self.train_one_epoch(self.train_loader, self.model, self.criterion)
+                        self.train_one_epoch(self.train_loader, self.model, self.criterion, early_stop=max_iter)
           
                     if self.local_rank in [-1, 0] or self.val_loader.cfg.get('use_dist', True):
                         self.model.eval()
                         with hooks_val_epoch(self._hooks, self):
                             self.val(self.val_loader, self.model, self.criterion)
+                max_iter -= len(self.train_loader)
 #        self.call_hook('after_run')
 
     def validate(self):
@@ -169,11 +172,19 @@ class NNEngine(BaseEngine):
             with hooks_val_epoch(self._hooks, self):
                 self.val(self.val_loader, self.model, self.criterion)
 
-    def run(self, epochs=None):
-        if epochs is None or epochs <=0:
-            self.validate()
+    def run(self, epochs=0, max_iter=0):
+        epochs = max(epochs, 0)
+        max_iter = max(max_iter, 0)
+        if epochs or max_iter:
+            if epochs == 0: 
+                epochs =  math.ceil(max_iter/len(self.train_loader))
+            elif max_iter == 0:
+                max_iter = math.ceil(epochs * len(self.train_loadera))
+            else:
+                epochs, max_iter = min(math.ceil(epochs), math.ceil(max_iter/len(self.train_loader))), min(math.ceil(epochs*len(self.train_loader)), max_iter)
+            self.train(epochs, max_iter)
         else:
-            self.train(epochs)
+            self.validate()
 
     def extract_performance(self):
         return self.info.results.val.best

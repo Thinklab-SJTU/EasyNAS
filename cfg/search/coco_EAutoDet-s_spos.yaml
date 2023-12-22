@@ -1,4 +1,4 @@
-search_root_path: &search_root_path runs/coco_EAutoDet-s_SPOS/
+search_root_path: &search_root_path runs/coco_EAutoDet-s_SPOS_PretrainNogumbelSampler/max_iter-1000/
 
 eval_cfg: &search_space 
   epoch: &epoch 2
@@ -7,7 +7,7 @@ eval_cfg: &search_space
   
   data: &data cfg/dataset/coco_yolo.yaml
   model: &model cfg/model/EAutoDet-s_noAlpha.yaml
-  pretrain: &pretrain runs/coco_EAutoDet-s_noAlpha_gumbelSampler/ckpt/best.pt 
+  pretrain: &pretrain runs/coco_EAutoDet-s_noAlpha_nogumbelSampler/ckpt/best.pt 
   criterion: &criterion 
     submodule_name: src.criterions.YOLOv5Loss
     args:
@@ -125,6 +125,7 @@ eval_cfg: &search_space
       amp_val: True
     run_args:
       epochs: *epoch
+      max_iter: 1000
 
 searcher: &searcher
   submodule_name: src.searcher.RandomSearch

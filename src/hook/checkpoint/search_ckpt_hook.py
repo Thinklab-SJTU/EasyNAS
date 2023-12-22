@@ -51,8 +51,7 @@ class SearchCkptHOOK(HOOK):
         print("Best: Query", QueryReward(*runner.info.results.best))
 
         # save reward
-#        self.save_reward(runner, current_epoch_reward)
-        self.save_yaml(data=[[qr.query, qr.reward] for qr in current_epoch_reward], name='epoch%d.yaml'%runner.info.get('current_epoch', 0))
+        self.save_yaml(data=[[qr.query.config, qr.reward] for qr in current_epoch_reward], name='epoch%d.yaml'%runner.info.get('current_epoch', 0))
 
     def after_run(self, runner):
         self.after_epoch(runner)
@@ -65,16 +64,4 @@ class SearchCkptHOOK(HOOK):
                     yaml.dump(data=data, stream=f, allow_unicode=True, Dumper=CfgDumper, default_flow_style=False)
                 except Exception as e:
                     raise(e)
-
-#    def save_reward(self, runner, current_epoch_reward):
-#        if self.save_root:
-#            yaml_file = os.path.join(self.save_root, 'epoch%d.yaml'%runner.info.get('current_epoch', 0))
-#            with open(yaml_file, encoding='utf-8', mode='w') as f:
-#                try:
-#                    yaml.dump(data=[[k, v] for k, v in current_epoch_reward.items()], stream=f, allow_unicode=True, Dumper=CfgDumper, default_flow_style=False)
-#                except Exception as e:
-#                    raise(e)
-
-
-
 

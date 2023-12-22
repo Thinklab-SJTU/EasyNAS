@@ -89,10 +89,14 @@ space: &search_space !search_space
             #            i3: !search_space 0.8:1.8:0.1
 
 searcher: &searcher
-  submodule_name: src.searcher.Hyperband
+  submodule_name: src.searcher.EvolutionAlgorithm
   args:
-    num_initial: 16
-    max_resource_inner_loop: {epoch: 9}
+    num_epoch: 5
+    num_survive: 10
+    num_crossover: 4
+    num_mutation: 4
+    num_population: 10
+    prob_mutation: 0.1
 
 evaluater: &evaluater
   submodule_name: src.evaluater.Evaluater
