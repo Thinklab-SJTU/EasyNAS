@@ -109,7 +109,7 @@ class SearchEngine(BaseEngine):
                 p.join()
 
 #        for i, rewards in enumerate(self.searcher.history_reward):
-#            print("Iter", i)
+#            print("Epoch", i)
 #            for q, r in rewards:
 #                print(hash(q), r)
 #                print(q.config)

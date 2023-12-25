@@ -51,7 +51,7 @@ class SearchCkptHOOK(HOOK):
         print("Best: Query", QueryReward(*runner.info.results.best))
 
         # save reward
-        self.save_yaml(data=[[qr.query.config, qr.reward] for qr in current_epoch_reward], name='epoch%d.yaml'%runner.info.get('current_epoch', 0))
+        self.save_yaml(data=[{'query': qr.query.config, 'reward': qr.reward.to_parsable()} for qr in current_epoch_reward], name='epoch%d.yaml'%runner.info.get('current_epoch', 0))
 
     def after_run(self, runner):
         self.after_epoch(runner)

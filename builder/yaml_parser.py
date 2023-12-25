@@ -113,7 +113,6 @@ class CfgLoader(yaml.SafeLoader):
             else:
                 assert len(ss_args_tmp) == 3
                 ss_args = {'space': np.arange(*[str2float(tmp) for tmp in ss_args_tmp]).tolist()}
-                print(ss_args)
         elif isinstance(node, yaml.SequenceNode):
             ss_args = {'space': self.construct_sequence(node, deep=True)}
         elif isinstance(node, yaml.MappingNode):

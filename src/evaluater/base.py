@@ -9,7 +9,8 @@ import logging
 from builder import parse_cfg, get_submodule_by_name
 
 class Reward(UserList):
-    pass
+    def to_parsable(self):
+        return [float(tmp) for tmp in self]
 
 
 class Evaluater(object):

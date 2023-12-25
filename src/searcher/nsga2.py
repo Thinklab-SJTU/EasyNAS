@@ -98,7 +98,7 @@ class NSGA2(EvolutionAlgorithm):
                 sort_list[i]['distance'] += (sort_list[i+1]['reward'][r_i] - sort_list[i-1]['reward'][r_i])/normalize
 
         sort_list.sort(key=lambda x: x['distance'], reverse=True)
-        return [candidates[x['id']] for x in sort_list]
+        return [candidates[x['idx']] for x in sort_list]
 
     def natural_selection(self, cands, num_survive):
         '''Elitist Non-Dominated Sorting
@@ -111,10 +111,10 @@ class NSGA2(EvolutionAlgorithm):
                 survive += [cands[i] for i in front]
             else:
                 sort_list = self.crowding_distance(cands, front)
-                #survive += sort_list[:k-len(self.keep_top_k[k])]
-                survive += sort_list[:k-len(survive)]
-        return survive
+                #survive += sort_list[:num_survive-len(self.keep_top_k[k])]
+                survive += sort_list[:num_survive-len(survive)]
 
-        self.pareto_front = [cands[i] for i in fronts[0]]
+        self.pareto_front = [cands[i] for i in fronts_idx[0]]
         self.pareto_front.sort(key=lambda x: x.reward)
+        return survive
 

@@ -425,7 +425,10 @@ class IIDSpace(_SearchSpace):
         for prefix, s in src_sample_node.sample.items():
             assert prefix in self._child_spaces, f"No found {prefix} in space."
             assert isinstance(s, SampleNode)
-            sample[prefix] = self._child_spaces[prefix].sample_from_node(s, label_samples)
+            if self._child_spaces[prefix].label.startswith('_SearchSpace#') or self._child_spaces[prefix].label==s.space.label:
+                sample[prefix] = self._child_spaces[prefix].sample_from_node(s, label_samples)
+            else:
+                sample[prefix] = self._child_spaces[prefix]._sample_once(label_samples)
         return SampleNode(self, sample)
 
     def enum_from_node(self, src_sample_node, label_sample):
