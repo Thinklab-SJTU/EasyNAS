@@ -179,7 +179,7 @@ class NNEngine(BaseEngine):
             if epochs == 0: 
                 epochs =  math.ceil(max_iter/len(self.train_loader))
             elif max_iter == 0:
-                max_iter = math.ceil(epochs * len(self.train_loadera))
+                max_iter = math.ceil(epochs * len(self.train_loader))
             else:
                 epochs, max_iter = min(math.ceil(epochs), math.ceil(max_iter/len(self.train_loader))), min(math.ceil(epochs*len(self.train_loader)), max_iter)
             self.train(epochs, max_iter)

@@ -236,7 +236,8 @@ class YOLODetect(nn.Module):
         self.no = num_classes + 5  # number of outputs per anchor
         self.nl = len(anchors)  # number of detection layers
         self.na = len(anchors[0]) // 2  # number of anchors
-        self.grid = [torch.zeros(1)] * self.nl  # init grid
+#        self.grid = [torch.zeros(1)] * self.nl  # init grid
+        self.grid = [None for _ in range(self.nl)]# init grid
         a = torch.tensor(anchors).float().view(self.nl, -1, 2)
         self.register_buffer('anchors', a)  # shape(nl,na,2)
         self.register_buffer('anchor_grid', a.clone().view(self.nl, 1, -1, 1, 1, 2))  # shape(nl,1,na,1,1,2)
@@ -268,22 +269,28 @@ class YOLODetect(nn.Module):
         z = []  # inference output
         self.training |= self.export
         for i in range(self.nl):
-            tmp = self.m[i](x[i])  # conv
+            logits.append(self.m[i](x[i]))  # conv
             if hasattr(self, 'bias'): 
-                tmp += self.bias[i].view(1,-1,1,1)
-            bs, _, ny, nx = tmp.shape  # x(bs,255,20,20) to x(bs,3,20,20,85)
-            tmp = tmp.view(bs, self.na, self.no, ny, nx).permute(0, 1, 3, 4, 2).contiguous()
-            logits.append(tmp)
+                logits[-1] += self.bias[i].view(1,-1,1,1)
+            bs, _, ny, nx = logits[-1].shape  # x(bs,255,20,20) to x(bs,3,20,20,85)
+            if not self.export:
+                logits[-1] = logits[-1].view(bs, self.na, self.no, ny, nx).permute(0, 1, 3, 4, 2).contiguous()
+#            logits.append(tmp)
 
             if not self.training:
-                if self.grid[i].shape[2:4] != tmp.shape[2:4]:
-                    self.grid[i] = self._make_grid(nx, ny).to(tmp.device)
+                grid = self._make_grid(nx, ny).to(logits[-1].device)
+#                if self.grid[i] is None or self.grid[i].shape[2:4] != x[i].shape[2:4]:
+#                    self.grid[i] = self._make_grid(nx, ny).to(logits[-1].device)
     
-                y = tmp.sigmoid()
-                y[..., 0:2] = (y[..., 0:2] * 2. - 0.5 + self.grid[i]) * self.strides[i]  # xy
+                y = logits[-1].sigmoid()
+                y[..., 0:2] = (y[..., 0:2] * 2. - 0.5 + grid) * self.strides[i]  # xy
                 y[..., 2:4] = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh
                 z.append(y.view(bs, -1, self.no))
 
+#        if self.export:
+#            for idx in range(len(logits)):
+#                logits[idx] = logits[idx].view(bs, -1, self.no)
+#            logits = torch.cat(logits, 1)
         return logits if self.training else torch.cat(z, 1)
 
 

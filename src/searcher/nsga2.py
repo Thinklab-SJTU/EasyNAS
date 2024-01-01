@@ -114,7 +114,7 @@ class NSGA2(EvolutionAlgorithm):
                 #survive += sort_list[:num_survive-len(self.keep_top_k[k])]
                 survive += sort_list[:num_survive-len(survive)]
 
-        self.pareto_front = [cands[i] for i in fronts_idx[0]]
-        self.pareto_front.sort(key=lambda x: x.reward)
+        self.info.resuts.pareto_front = [cands[i] for i in fronts_idx[0]]
+        self.info.results.pareto_front.sort(key=lambda x: x.reward)
         return survive
 

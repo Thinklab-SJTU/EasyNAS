@@ -48,13 +48,24 @@ class SearchCkptHOOK(HOOK):
         if best is None or current_epoch_best.reward > best[-1]:
             runner.info.results.best = copy.copy(current_epoch_best)
             self.save_yaml(runner.info.results.best[0].config, name='best.yaml')
+            self.save_ckpt(runner, 'best.pt')
         print("Best: Query", QueryReward(*runner.info.results.best))
 
         # save reward
         self.save_yaml(data=[{'query': qr.query.config, 'reward': qr.reward.to_parsable()} for qr in current_epoch_reward], name='epoch%d.yaml'%runner.info.get('current_epoch', 0))
+        # save results
+        self.save_ckpt(runner, 'last.pt')
 
     def after_run(self, runner):
         self.after_epoch(runner)
+
+    def save_ckpt(self, runner, name=None):
+        name = 'ckpt_%d.pt'%runner.info.current_epoch if name is None else name
+        ckpt = {
+          'results': runner.info.results,
+               }
+        save_path = os.path.join(self.save_root, name)
+        torch.save(ckpt, save_path)
 
     def save_yaml(self, data, name):
         if self.save_root:

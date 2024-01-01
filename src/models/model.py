@@ -51,14 +51,17 @@ class BaseModel(nn.Module):
         if init_func is not None: self.apply(init_func)
         else: self.apply(default_init_weights)
 
-        self.info(input_size)
+        if input_size:
+            self.input_size = [input_size, input_size] if isinstance(input_size, int) else input_size
+        else: self.input_size = None
+
+        self.info(self.input_size)
 
         self.to(self.device)
 
 
     def info(self, input_size=None):
         if input_size:
-            input_size = [input_size, input_size] if isinstance(input_size, int) else input_size
             self.logger.info("param size = %fMB, FLOPS=%fG", count_parameters_in_MB(self), thop.profile(self, inputs=(torch.zeros(1, self.input_ch, *input_size),), verbose=False)[0] / 1E9 if thop else 0)
         else:
             self.logger.info("param size = %fMB", count_parameters_in_MB(self))

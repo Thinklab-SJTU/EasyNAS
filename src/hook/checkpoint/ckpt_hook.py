@@ -21,15 +21,23 @@ class CkptHOOK(HOOK):
         if not os.path.exists(pretrain): 
             raise(ValueError(f"{pretrain} is not an existed file or a directory."))
         if os.path.isdir(pretrain):
+            pretrain_path = pretrain
             files = os.listdir(pretrain)
             for f in files:
               tmp = f.split('.')
               if tmp[-1] not in ['pt', 'pth']: continue
-              tmp = int(tmp[0].split('_')[-1])
+              if 'last' in tmp[0]:
+                pretrain = os.path.join(pretrain_path, f)
+                continue
+              if 'best' in tmp[0]:
+                pretrain = os.path.join(pretrain_path, f)
+                break
+
+              tmp = tmp[0].split('_')[-1]
               if not isinstance(tmp, int): 
                   raise(ValueError(f"Please set pretrain as the path of file or name the model as *_[epoch].pt"))
-              if tmp > runner.start_epoch: 
-                pretrain = os.path.join(pretrain, f)
+              if int(tmp) > runner.start_epoch: 
+                pretrain = os.path.join(pretrain_path, f)
         elif os.path.isfile(pretrain): 
               pretrain = pretrain
         else: raise(ValueError(f"Get unknown type as pretrain. Expect path of file or directory, but get {type(pretrain)}"))
@@ -90,6 +98,7 @@ class CkptHOOK(HOOK):
     def _save_model(self, runner, model_name: Union[None, str]=None):
         ckpt = {
           'epoch': runner.info.current_epoch,
+          'architecture': runner.model.arch_list,
           'state_dict': runner.model.state_dict(),
           'results': runner.info.results,
           'optimizer': runner.optimizer.state_dict(),
@@ -99,7 +108,7 @@ class CkptHOOK(HOOK):
             if hasattr(hook, 'state_dict'):
                 ckpt[hook.__class__.__name__] = hook.state_dict(runner)
                 
-        model_name = 'weight_%d.pt'%epoch if model_name is None else model_name
+        model_name = 'weight_%d.pt'%runner.info.current_epoch if model_name is None else model_name
         save_path = os.path.join(self.save_root, model_name)
         torch.save(ckpt, save_path)
 

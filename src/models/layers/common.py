@@ -77,7 +77,7 @@ class LinearBNAct(nn.Module):
 
 
 class ConvBNAct(nn.Module):
-    def __init__(self, in_channel, out_channel, kernel=1, dilation=1, stride=1, pad=None, group=1, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=True)), act=nn.ReLU(), bias=False):  
+    def __init__(self, in_channel, out_channel, kernel=1, dilation=1, stride=1, pad=None, group=1, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True)), act=nn.ReLU(), bias=False):  
         super(ConvBNAct, self).__init__()
         if isinstance(kernel, list): kernel = kernel[0]
         if isinstance(dilation, list): dilation = dilation[0]

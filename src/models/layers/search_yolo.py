@@ -30,8 +30,13 @@ class YOLOBottleneck_search(SearchModule):
 
     def forward(self, x, op_alphas=None, ch_alphas=None):
         out = self.cv2(self.cv1(x), op_alphas, ch_alphas)
-        cout = min(x.size(1), out.size(1))
-        return x[:,:cout,:,:] + out[:,:cout,:,:] if self.add else out
+        if self.add and x.size(1) != out.size(1):
+            cout = min(x.size(1), out.size(1))
+            return x[:,:cout,:,:] + out[:,:cout,:,:]
+        else:
+            return x + out if self.add else out
+#        cout = min(x.size(1), out.size(1))
+#        return x[:,:cout,:,:] + out[:,:cout,:,:] if self.add else out
 
 class YOLOC3_search(SearchModule):
     # CSP Bottleneck with 3 convolutions
@@ -75,6 +80,8 @@ class YOLOC3_search(SearchModule):
         return self.cv3_act(bn(out))
 
 class YOLODetect_search(YOLODetect, SearchModule):
+    export = False  # onnx export
+
     def __init__(self, in_channel, strides, num_classes=80, anchors=()):  # detection layer
         super(YOLODetect_search, self).__init__(in_channel, strides, num_classes=num_classes, anchors=anchors)
 
