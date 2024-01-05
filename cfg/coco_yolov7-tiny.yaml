@@ -1,9 +1,9 @@
-root_path: &root_path runs/coco_yolov7
+root_path: &root_path runs/coco_yolov7-tiny/225/
 epoch: &epoch 300
 accumulate_gradient: &acc_grad 1
 
-data: &data cfg/dataset/coco_yolov7.yaml
-criterion: &criterion cfg/criterion/yolov7.yaml
+data: &data cfg/dataset/coco_yolov7-tiny.yaml
+criterion: &criterion cfg/criterion/yolov5.yaml
 model: &model cfg/model/yolov7-tiny.yaml
 
 train_hyp: &hyp
@@ -106,5 +106,6 @@ engine:
     hooks: *hooks
     amp: True
     amp_val: True
+
 
 

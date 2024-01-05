@@ -545,9 +545,12 @@ class SepConvBNAct_search(ConvBNAct_search):
 
 class SPP_search(SearchModule):
     # Spatial pyramid pooling layer used in YOLOv3-SPP
-    def __init__(self, in_channel, out_channel, kernels=(5, 9, 13), bn=torch.nn.BatchNorm2d, act=nn.SiLU):
+    def __init__(self, in_channel, out_channel, kernels=(5, 9, 13), expansion=0.5, bn=torch.nn.BatchNorm2d, act=nn.SiLU):
         super(SPP_search, self).__init__()
-        c_ = in_channel // 2  # hidden channels
+        if isinstance(expansion, _SearchSpace):
+            c_ = expansion.new_space(space=[int(in_channel*e) for e in expansion])
+        else:
+            c_ = int(in_channel * expansion)  # hidden channels
         self.cv1 = ConvBNAct_search(in_channel, c_, candidate_op=[(1,1)], stride=1, act=act, bn=bn, merge_kernel=True)
         self.cv2 = ConvBNAct_search(c_ * (len(kernels) + 1), out_channel, candidate_op=[(1,1)], stride=1, act=act, bn=bn, merge_kernel=True)
 

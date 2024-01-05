@@ -23,7 +23,15 @@ def get_performance(task):
     torch.cuda.empty_cache()
     return reward
 
-def get_edgeDevice_latency(task):
+def get_num_parameters(task):
+    task_cfg = task.config
+    engine_cfg = task_cfg['engine']
+    engine = get_submodule_by_name(engine_cfg['submodule_name'], search_path='engines')(
+                      **engine_cfg['args'],
+                      )
+    return count_parameters_in_MB(engine.model_without_ddp)
+
+def get_edgeDevice_latency(task, remote_cmd, host, username, password, port=22):
     if isinstance(task, SampleNode):
         task_cfg = task.config
     elif isinstance(task, dict):
@@ -52,7 +60,25 @@ def get_edgeDevice_latency(task):
     from src.evaluater.export import export_onnx
     onnx = export_onnx(model, onnx_path)
 
-    # scp the command to the device that connected to the edge device.
+    # scp the model to the device that connected to the edge device.
+    from src.evaluater.connect import build_sshclient, fetch_info_rk3588
+    ssh = build_sshclient(host, username, password, port)
+    sftp = ssh.open_sftp()
+    remote_path = '~/' + onnx_path.split('/')[-1]
+    sftp.put(onnx_path, remote_path)
+#    scpclient = SCPClient(ssh_client.get_transport(), socket_timeout=15.0)
+#    local_path = file_path + "/" + file_name
+#    try:
+#        scpclient.put(local_path, remote_path, True)
+#    except FileNotFoundError :
+#        print "上传失败:" + local_path
+#    else:
+#        print "上传成功:" + local_path
+
+    # ssh the command to the device and test.
+#    remote_cmd = f"docker run -t -i --privileged -v /dev/bus/usb:/dev/bus/usb -v /home/wangxiaoxing:/home/wangxiaoxing rknn-toolkit2:ubuntu20.04-cp38 sh -c 'adb devices && cd /home/wangxiaoxing/rknn_model_zoo/examples/yolov7/python && python test_onnx.py --onnx_path ../model/yolov7-tiny.onnx --target rk3588 --quant i8'"
+    cmd = remote_cmd + f' --onnx_path {remote_path}'
+    info = fetch_info_rk3588(ssh, remote_cmd)
 
 #def get_mip_reward(task):
 #    task_cfg = task.config

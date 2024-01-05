@@ -170,9 +170,9 @@ class FuseLayer(nn.Module):
 
 class SPP(nn.Module):
     # Spatial pyramid pooling layer used in YOLOv3-SPP
-    def __init__(self, in_channel, out_channel, kernels=(5, 9, 13), bn=torch.nn.BatchNorm2d, act=nn.SiLU):
+    def __init__(self, in_channel, out_channel, kernels=(5, 9, 13), expansion=0.5, bn=torch.nn.BatchNorm2d, act=nn.SiLU):
         super(SPP, self).__init__()
-        c_ = in_channel // 2  # hidden channels
+        c_ = int(in_channel * expansion)  # hidden channels
         self.cv1 = ConvBNAct(in_channel, c_, kernel=1, dilation=1, stride=1, bn=bn, act=act)
         self.cv2 = ConvBNAct(c_ * (len(kernels) + 1), out_channel, kernel=1, dilation=1, stride=1, bn=bn, act=act)
         self.m = nn.ModuleList([nn.MaxPool2d(kernel_size=x, stride=1, padding=x // 2) for x in kernels])

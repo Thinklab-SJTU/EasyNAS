@@ -1,6 +1,6 @@
 #!/bin/sh
 
-cfg=cfg/coco_yolov7.yaml
+cfg=cfg/coco_EAutoDet-yolov7-tiny_noAlpha.yaml
 #cfg=cfg/coco_EAutoDet_noAlpha.yaml
 #cfg=cfg/coco_retrain_EAutoDet.yaml
 #cfg=cfg/cifar10_mergenas.yaml
@@ -31,8 +31,8 @@ case $Answer in
 #        echo "Start the process. Log file is saved to logs/${NAME}.log"
         CUDA_VISIBLE_DEVICES=$gpustr ${START_CMD} app/run_NN_engine.py \
 		--cfg ${cfg} \
-                > logs/yolov7.log 2>&1 &
-#		> logs/EAutoDet-s_noAlpha_nogumbelSampler.log 2>&1 &
+		> logs/EAutoDet-yolov7-tiny_noAlpha_nogumbelOp.log 2>&1 &
+#                > logs/yolov7-tiny_225.log 2>&1 &
 #		> logs/retrain_mergenas_bs64.log 2>& 1 &
 #        	> logs/retrain_mergenas_noPermutation_noEdgeAlpha_noCutout_noActEachOp_SepConvInterReLU_alphaInit1e-3_actBeforeOp_gradClip5_noInitW_updateFreq1_withZeroOp.log 2>&1 &
         ;;

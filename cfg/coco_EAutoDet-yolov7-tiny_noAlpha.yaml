@@ -1,10 +1,10 @@
-root_path: &root_path runs/coco_yolov7
-epoch: &epoch 300
+root_path: &root_path runs/coco_EAutoDet-yolov7-tiny/supernet_nogumbelOp/
+epoch: &epoch 200
 accumulate_gradient: &acc_grad 1
 
-data: &data cfg/dataset/coco_yolov7.yaml
-criterion: &criterion cfg/criterion/yolov7.yaml
-model: &model cfg/model/yolov7-tiny.yaml
+data: &data cfg/dataset/coco_yolov7-tiny.yaml
+criterion: &criterion cfg/criterion/yolov5.yaml
+model: &model cfg/model/EAutoDet-yolov7tiny_noAlpha.yaml
 
 train_hyp: &hyp
   lr0: &lr0 0.01  # initial learning rate (SGD=1E-2, Adam=1E-3)
@@ -106,5 +106,7 @@ engine:
     hooks: *hooks
     amp: True
     amp_val: True
+
+
 
 
