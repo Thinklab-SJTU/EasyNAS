@@ -71,6 +71,7 @@ class SearchModule(nn.Module):
                 setattr(self, k, v)
 
         # deal with sampler in search space
+        #TODO: when the current search space differs from the search space in the state_dict
         sampler = state_dict.pop(prefix+'search_space_sampler', {})
         for label, s in sampler.items():
             if label not in _SearchSpace._samplers:

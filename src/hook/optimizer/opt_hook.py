@@ -36,3 +36,7 @@ class OptHOOK(HOOK):
         else:
             self.optimizer.step()
         self.optimizer.zero_grad()
+
+    @execute_period('accumulate_gradient')
+    def after_iter(self, runner):
+        self.after_train_iter(runner)

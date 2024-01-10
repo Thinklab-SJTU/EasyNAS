@@ -2,7 +2,7 @@ from contextlib import contextmanager
 
 def only_master(func):
     def inner(self, runner, *args, **kwargs):
-        if runner.local_rank in [-1, 0]:
+        if (not hasattr(runner, 'local_rank')) or runner.local_rank in [-1, 0]:
             return func(self, runner, *args, **kwargs)
     return inner
 

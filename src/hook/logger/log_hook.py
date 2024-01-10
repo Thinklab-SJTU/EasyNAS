@@ -34,7 +34,8 @@ class LogHOOK(HOOK):
         for group in runner.optimizer.param_groups:
             string += ' %4.3e' % group['lr']
         for k, v in runner.info.results.train.items():
-            string += ' %s: %f' % (k, v)
+            if 'ignore' not in k:
+                string += ' %s: %f' % (k, v)
         self.logger.info(string)
 
     @only_master
@@ -61,3 +62,14 @@ class LogHOOK(HOOK):
                 string += ' %s: %f' % (k, v)
         self.logger.info(string)
         self.logger.info('='*10+f'Epoch {runner.info.current_epoch} Done'+'='*10)
+
+    @only_master
+    @execute_period("print_freq")
+    def after_iter(self, runner):
+        string = '%03d lr' % (runner.info.current_iter)
+        for group in runner.optimizer.param_groups:
+            string += ' %4.3e' % group['lr']
+        for k, v in runner.info.results.items():
+            if 'ignore' not in k:
+                string += ' %s: %f' % (k, v)
+        self.logger.info(string)
