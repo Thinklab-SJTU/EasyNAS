@@ -125,3 +125,9 @@ class EvolutionAlgorithm(Searcher):
         self.current_epoch += 1
         return population
 
+    def state_dict(self):
+        ckpt = super(EvolutionAlgorithm, self).state_dict()
+        ckpt['current_epoch'] = self.current_epoch
+        ckpt['current_survive'] = self.current_survive
+        return ckpt
+

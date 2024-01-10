@@ -66,9 +66,13 @@ class SearchEngine(BaseEngine):
                 p.start()
 
             # initialize queries
-            print("Initializing...")
-            init_queries = self.searcher.query_initial()
-            for q in init_queries:
+            if len(self.searcher.current_queries) == 0:
+                print("Initializing...")
+                next_queries = self.searcher.query_initial()
+            else:
+                print("Loading queries")
+                next_queries = self.searcher.current_queries.values()
+            for q in next_queries:
                 q = self.searcher.preprocess_cfg(q)
                 sample_queue.put(q)
                 self.searcher.current_queries[q] = 'waiting'

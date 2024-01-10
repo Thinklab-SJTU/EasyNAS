@@ -59,7 +59,7 @@ def export_onnx(model, onnx_path=None, dynamic=False, dynamic_batch=False):
                 setattr(m, child_k, SiLU())
 
 
-    torch.onnx.export(model, img, onnx_path, verbose=True, opset_version=12, input_names=['images'],
+    torch.onnx.export(model, img, onnx_path, verbose=False, opset_version=12, input_names=['images'],
                       output_names=output_names,
                       dynamic_axes=dynamic_axes)
 

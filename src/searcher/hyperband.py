@@ -55,3 +55,8 @@ class Hyperband(Searcher):
 
         return next_queries
 
+    def state_dict(self):
+        ckpt = super(EvolutionAlgorithm, self).state_dict()
+        ckpt['current_outer_loop'] = self.current_outer_loop
+        return ckpt
+

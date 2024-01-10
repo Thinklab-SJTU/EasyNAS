@@ -24,13 +24,24 @@ class Searcher(object):
         else:
             return (len(self.current_queries) - sum(1 for reward in self.current_queries.values() if reward == 'waiting')) >= num_reward_one_deal
 
-    def query_next(self, queries, rewards):
+    def query_next(self):
         raise(NotImplementedError("No Implementation."))
 
     def preprocess_cfg(self, q):
         if q.config.get('root_path', None):
             q.config['root_path'] = os.path.join(q.config['root_path'], 'hash%d'%(hash(q)))
         return q
+
+    def state_dict(self):
+        ckpt = {
+                'history_reward': self.history_reward,
+                'current_queries': self.current_queries,
+                }
+        return ckpt
+
+    def load_state_dict(self, state_dict):
+        for k, v in state_dict.items():
+            setattr(self, k, v)
 
 
 

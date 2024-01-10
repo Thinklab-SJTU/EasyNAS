@@ -17,23 +17,28 @@ class SearchCkptHOOK(HOOK):
         if self.save_root: 
             os.makedirs(self.save_root, exist_ok=True)
 
-    def get_presearch_reward(self):
-        if self.presearch is None: return None
-        raise(NotImplementedError())
-        if not os.path.exists(self.pretrain): 
-            raise(ValueError(f"{self.pretrain} is not an existed file or a directory."))
-        if os.path.isdir(self.pretrain):
+    def get_presearch_reward(self, presearch=None):
+        if presearch is None: return None
+        if not os.path.exists(self.presearch): 
+            raise(ValueError(f"{self.presearch} is not an existed file or a directory."))
+        if os.path.isdir(self.presearch):
             #TODO: get cfg and embedding
-            pass
+            raise(NotImplementedError())
+        elif os.path.isfile(presearch): 
+            presearch = presearch
+        print('====== Load search ckpt ======')
+        print(f"Loading from {presearch}")
+        checkpoint = torch.load(presearch)
+        return checkpoint
 
     def before_run(self, runner):
         """
-        load pretrain model
+        load presearch model
         """
-        history_reward = self.get_presearch_reward()
-        if history_reward is not None:
-            runner.searcher.history_reward = history_reward
-            runner.info.results.best = self.get_best(history_reward[-1])
+        checkpoint = self.get_presearch_reward(presearch=self.presearch)
+        if checkpoint is not None:
+            runner.searcher.load_state_dict(checkpoint['searcher'])
+            runner.info.results = checkpoint['results']
 
     def get_best(self, query_reward):
         best_query_reward = max(query_reward, key=lambda x: x.reward)
@@ -63,6 +68,7 @@ class SearchCkptHOOK(HOOK):
         name = 'ckpt_%d.pt'%runner.info.current_epoch if name is None else name
         ckpt = {
           'results': runner.info.results,
+          'searcher': runner.searcher.state_dict(),
                }
         save_path = os.path.join(self.save_root, name)
         torch.save(ckpt, save_path)

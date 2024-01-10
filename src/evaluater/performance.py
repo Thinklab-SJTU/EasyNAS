@@ -4,6 +4,7 @@ import numpy as np
 
 from builder import parse_cfg, get_submodule_by_name, create_model
 from src.hook import CkptHOOK
+from src.models.utils import count_parameters_in_MB
 from src.search_space.base import SampleNode
 
 def get_random(task):
@@ -31,7 +32,7 @@ def get_num_parameters(task):
                       )
     return count_parameters_in_MB(engine.model_without_ddp)
 
-def get_edgeDevice_latency(task, remote_cmd, host, username, password, port=22):
+def get_edgeDevice_latency(task, remote_path, remote_cmd, host, username, password, port=22):
     if isinstance(task, SampleNode):
         task_cfg = task.config
     elif isinstance(task, dict):
@@ -57,6 +58,7 @@ def get_edgeDevice_latency(task, remote_cmd, host, username, password, port=22):
 #                model.load_state_dict(checkpoint['state_dict'], strict=False)
 
     # convert to onnx
+    print("Export onnx model")
     from src.evaluater.export import export_onnx
     onnx = export_onnx(model, onnx_path)
 
@@ -64,7 +66,8 @@ def get_edgeDevice_latency(task, remote_cmd, host, username, password, port=22):
     from src.evaluater.connect import build_sshclient, fetch_info_rk3588
     ssh = build_sshclient(host, username, password, port)
     sftp = ssh.open_sftp()
-    remote_path = '~/' + onnx_path.split('/')[-1]
+    remote_path = remote_path + onnx_path.split('/')[-1]
+    print(f"Transport onnx model from {onnx_path} to the host computer {remote_path}")
     sftp.put(onnx_path, remote_path)
 #    scpclient = SCPClient(ssh_client.get_transport(), socket_timeout=15.0)
 #    local_path = file_path + "/" + file_name
@@ -77,8 +80,10 @@ def get_edgeDevice_latency(task, remote_cmd, host, username, password, port=22):
 
     # ssh the command to the device and test.
 #    remote_cmd = f"docker run -t -i --privileged -v /dev/bus/usb:/dev/bus/usb -v /home/wangxiaoxing:/home/wangxiaoxing rknn-toolkit2:ubuntu20.04-cp38 sh -c 'adb devices && cd /home/wangxiaoxing/rknn_model_zoo/examples/yolov7/python && python test_onnx.py --onnx_path ../model/yolov7-tiny.onnx --target rk3588 --quant i8'"
-    cmd = remote_cmd + f' --onnx_path {remote_path}'
-    info = fetch_info_rk3588(ssh, remote_cmd)
+    cmd = remote_cmd.format(onnx_path=remote_path)
+    print("Fetch information from the host computer")
+    info = fetch_info_rk3588(ssh, cmd)
+    return info
 
 #def get_mip_reward(task):
 #    task_cfg = task.config
@@ -97,5 +102,12 @@ def get_edgeDevice_latency(task, remote_cmd, host, username, password, port=22):
 if __name__ == '__main__':
     cfg = 'cfg/EdgeDevice/test.yaml'
     cfg = parse_cfg(cfg)
-    get_edgeDevice_latency(cfg)
+    remote_path = '/home/wangxiaoxing/'
+    remote_cmd = "docker run -t -i --privileged -v /dev/bus/usb:/dev/bus/usb -v /home/wangxiaoxing:/home/wangxiaoxing rknn-toolkit2:ubuntu20.04-cp38 sh -c 'adb devices && cd /home/wangxiaoxing/rknn_model_zoo/examples/yolov7/python && python test_onnx.py --onnx_path {onnx_path} --target rk3588 --quant i8'"
+    host = '202.120.39.51'
+    username = 'wangxiaoxing'
+    password = '1353559118Wxx!'
+    port = 30022
+    info = get_edgeDevice_latency(cfg, remote_path, remote_cmd, host, username, password, port)
+    print(info)
 

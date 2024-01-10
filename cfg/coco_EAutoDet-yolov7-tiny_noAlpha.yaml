@@ -1,5 +1,5 @@
 root_path: &root_path runs/coco_EAutoDet-yolov7-tiny/supernet_nogumbelOp/
-epoch: &epoch 200
+epoch: &epoch 50
 accumulate_gradient: &acc_grad 1
 
 data: &data cfg/dataset/coco_yolov7-tiny.yaml

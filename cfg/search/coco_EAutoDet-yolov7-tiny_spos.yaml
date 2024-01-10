@@ -1,4 +1,4 @@
-search_root_path: &search_root_path runs/coco_EAutoDet-yolov7-tiny/EA-maxIter1000/
+search_root_path: &search_root_path runs/coco_EAutoDet-yolov7-tiny_small/NSGA2-maxIter1000/
 
 eval_cfg: &search_space 
   epoch: &epoch 2
@@ -6,7 +6,7 @@ eval_cfg: &search_space
   accumulate_gradient: &acc_grad 1
   
   data: &data cfg/dataset/coco_yolov7-tiny.yaml
-  model: &model cfg/model/EAutoDet-yolov7tiny_noAlpha.yaml
+  model: &model cfg/model/EAutoDet-yolov7tiny_noAlpha_small.yaml
   pretrain: &pretrain runs/coco_EAutoDet-yolov7-tiny/supernet_nogumbelOp/ckpt/best.pt 
   criterion: &criterion 
     submodule_name: src.criterions.YOLOv5Loss
@@ -132,9 +132,9 @@ searcher: &searcher
   args:
     num_epoch: 20
     num_survive: 10
-    num_crossover: 10
-    num_mutation: 15
-    num_population: 30
+    num_crossover: 5
+    num_mutation: 5
+    num_population: 15
     prob_mutation: 0.1
 
 evaluater: &evaluater
@@ -142,6 +142,7 @@ evaluater: &evaluater
   args:
     eval_fns: 
       - !get_module src.evaluater.performance.get_performance
+      - !get_module [src.evaluater.performance.get_edgeDevice_latency, {remote_path: '/home/wangxiaoxing/', remote_cmd: "docker run -t -i --privileged -v /dev/bus/usb:/dev/bus/usb -v /home/wangxiaoxing:/home/wangxiaoxing rknn-toolkit2:ubuntu20.04-cp38 sh -c 'adb devices && cd /home/wangxiaoxing/rknn_model_zoo/examples/yolov7/python && python test_onnx.py --onnx_path {onnx_path} --target rk3588 --quant i8'", host: 202.120.39.51, username: wangxiaoxing, password: "1353559118Wxx!", port: 30022}]
       - !get_module src.evaluater.performance.get_num_parameters
 #    log_dir: !join [*root_path, eval_worker/]
 

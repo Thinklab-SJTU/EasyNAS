@@ -6,6 +6,7 @@
 2.1 add BO
 2.2 add EA
 2.3 add RL
+2.4 add state_dict and load_state_dict for each search method
 
 3. Evaluation method for NAS
 3.1 complete SPOS, i.e., load supernet weights to sampled architecture

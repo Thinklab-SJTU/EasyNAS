@@ -63,8 +63,11 @@ class Evaluater(object):
             self.task_id += 1
             print('='*20+f"Task-{self.task_id} Begin"+'='*20)
             rewards = Reward()
-            for fn in self.eval_fns:
-                rewards.append(fn(deepcopy(task)))
+            for fn_idx, fn in enumerate(self.eval_fns):
+                print(f"Get {fn_idx}-th evaluation fn as {fn}")
+                reward = fn(deepcopy(task))
+                if isinstance(reward, (list, tuple)): rewards.extend(list(reward))
+                else: rewards.append(reward)
             print(f'Get reward = {rewards}')
             print('='*20+f"Task-{self.task_id} End"+'='*20)
             reward_queue.put((task, rewards))

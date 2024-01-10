@@ -48,7 +48,7 @@ dataloader:
     submodule_name: src.datasets.LOADER_YOLO
     dataloader_args:
       batch_size: *bs
-      pin_memory: True
+      pin_memory: False
       num_workers: 8
       collate_fn: !get_module [src.datasets.coco_yolo.collate_fn]
   val:
@@ -58,7 +58,7 @@ dataloader:
     shuffle: False
     dataloader_args:
       batch_size: *val_bs
-      pin_memory: True
+      pin_memory: False
       num_workers: 4
       collate_fn: !get_module [src.datasets.coco_yolo.collate_fn]
 

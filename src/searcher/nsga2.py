@@ -114,7 +114,13 @@ class NSGA2(EvolutionAlgorithm):
                 #survive += sort_list[:num_survive-len(self.keep_top_k[k])]
                 survive += sort_list[:num_survive-len(survive)]
 
-        self.info.resuts.pareto_front = [cands[i] for i in fronts_idx[0]]
-        self.info.results.pareto_front.sort(key=lambda x: x.reward)
+        self.pareto_front = [cands[i] for i in fronts_idx[0]]
+        self.pareto_front.sort(key=lambda x: x.reward)
         return survive
 
+    def state_dict(self):
+        ckpt = super(EvolutionAlgorithm, self).state_dict()
+        ckpt['current_epoch'] = self.current_epoch
+        ckpt['current_survive'] = self.current_survive
+        ckpt['pareto_front'] = self.pareto_front
+        return ckpt
