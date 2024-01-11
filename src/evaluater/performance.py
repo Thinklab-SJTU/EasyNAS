@@ -10,7 +10,7 @@ from src.search_space.base import SampleNode
 def get_random(task):
     return np.random.randn(1)[0]
 
-def neg(reward):
+def turn_neg(reward):
     if isinstance(reward, (list, tuple)):
         return [-x for x in reward]
     elif isinstance(reward, dict):
@@ -30,7 +30,7 @@ def get_performance(task, neg=False):
     reward = engine.extract_performance() #engine.info.results.val.best
     del engine
     torch.cuda.empty_cache()
-    return neg(reward) if neg else reward
+    return turn_neg(reward) if neg else reward
 
 def get_num_parameters(task, neg=True):
     task_cfg = task.config
@@ -39,7 +39,7 @@ def get_num_parameters(task, neg=True):
                       **engine_cfg['args'],
                       )
     reward = count_parameters_in_MB(engine.model_without_ddp)
-    return neg(reward) if neg else reward
+    return turn_neg(reward) if neg else reward
 
 def get_edgeDevice_latency(task, remote_path, remote_cmd, host, username, password, port=22, neg=True):
     if isinstance(task, SampleNode):
@@ -92,7 +92,7 @@ def get_edgeDevice_latency(task, remote_path, remote_cmd, host, username, passwo
     cmd = remote_cmd.format(onnx_path=remote_path)
     print("Fetch information from the host computer")
     info = fetch_info_rk3588(ssh, cmd)
-    return neg(info) if neg else info
+    return turn_neg(info) if neg else info
 
 #def get_mip_reward(task):
 #    task_cfg = task.config
