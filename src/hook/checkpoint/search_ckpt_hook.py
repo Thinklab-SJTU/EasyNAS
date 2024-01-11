@@ -53,7 +53,7 @@ class SearchCkptHOOK(HOOK):
         if best is None or current_epoch_best.reward > best[-1]:
             runner.info.results.best = copy.copy(current_epoch_best)
             self.save_yaml(runner.info.results.best[0].config, name='best.yaml')
-            self.save_ckpt(runner, 'best.pt')
+#            self.save_ckpt(runner, 'best.pt')
         print("Best: Query", QueryReward(*runner.info.results.best))
 
         # save reward

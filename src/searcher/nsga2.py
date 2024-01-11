@@ -95,7 +95,7 @@ class NSGA2(EvolutionAlgorithm):
             sort_list[-1]['distance'] = math.inf
             normalize = abs(sort_list[-1]['reward'][r_i] - sort_list[0]['reward'][r_i])
             for i in range(1, len(sort_list)-1):
-                sort_list[i]['distance'] += (sort_list[i+1]['reward'][r_i] - sort_list[i-1]['reward'][r_i])/normalize
+                sort_list[i]['distance'] += (sort_list[i+1]['reward'][r_i] - sort_list[i-1]['reward'][r_i])/(normalize + 1e-6)
 
         sort_list.sort(key=lambda x: x['distance'], reverse=True)
         return [candidates[x['idx']] for x in sort_list]

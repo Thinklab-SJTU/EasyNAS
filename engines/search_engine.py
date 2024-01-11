@@ -71,7 +71,7 @@ class SearchEngine(BaseEngine):
                 next_queries = self.searcher.query_initial()
             else:
                 print("Loading queries")
-                next_queries = self.searcher.current_queries.values()
+                next_queries = self.searcher.current_queries.keys()
             for q in next_queries:
                 q = self.searcher.preprocess_cfg(q)
                 sample_queue.put(q)
