@@ -42,6 +42,9 @@ class Searcher(object):
     def load_state_dict(self, state_dict):
         for k, v in state_dict.items():
             setattr(self, k, v)
+        num_epoch = len(self.history_reward)
+        num_task = sum(len(tmp) for tmp in self.history_reward)
+        print(f"{num_epoch}-epochs and {num_task}-tasks have been loaded")
 
 
 
