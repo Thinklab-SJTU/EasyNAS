@@ -8,6 +8,16 @@ def register_benchmark(benchmark):
     BENCHMARK[benchmark.__name__] = benchmark
     return benchmark
 
+
+@register_benchmark
+def branin(x, a=1, b=5.1/(4*math.pi*math.pi), c=5/math.pi, r=6, s=10, t=1/(8*math.pi)):
+    x1, x2 = x[0], x[1]
+    term1 = a * (x2 - b*x1^2 + c*x1 - r).pow(2)
+    term2 = s*(1-t)*torch.cos(x1) 
+    out = term1 + term2 + s
+    return out
+
+
 @register_benchmark
 def rosenbrock(x):
     """

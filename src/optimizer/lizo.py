@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from torch.optim import Optimizer
 
@@ -8,9 +9,11 @@ class LIZO(Optimizer):
         This optimizer doesn't support per-parameter options and parameter
         groups (there can be only one).
     """
-    def __init__(self, params, lr=1e-3, weight_decay=0, num_sample_per_step=8, reuse_distance_bound=0.01, orthogonal_sample=True, fast_alg=True)
+    def __init__(self, params, lr=1e-3, weight_decay=0, num_sample_per_step=8, reuse_distance_bound=0.01, orthogonal_sample=True, fast_alg=True, line_search_fn=None):
         defaults = dict(lr=lr,
-                        weight_decay=weight_decay
+                        weight_decay=weight_decay,
+                        state={},
+                        line_search_fn=line_search_fn
                         )
         super(LIZO, self).__init__(params, defaults)
         self._params = self.param_groups[0]['params']
@@ -23,14 +26,17 @@ class LIZO(Optimizer):
         self.orthogonal_sample = orthogonal_sample
         self.fast_alg = fast_alg
 
-        self.last_delta_samples = None
-        self.last_obj = None
-        self.dist_matrix = torch.zeros(self.num_sample_per_step, self.num_sample_per_step)
+        #TODO: switch one-point/two-point difference
+
+        #TODO: add momentum
+
+        #TODO: add line search
+
 
     def _flat_param(self, params):
         views = []
         for p in params:
-            views.append(p.grad.data.view(-1))
+            views.append(p.data.view(-1))
         return torch.cat(views, 0)
 
     def _add_grad(self, step_size, update):
@@ -40,7 +46,7 @@ class LIZO(Optimizer):
             # view as to avoid deprecated pointwise semantics
             p.add_(update[offset:offset + numel].view_as(p), alpha=step_size)
             offset += numel
-        assert offset == self._numel()
+        assert offset == self.numel_params
 
     def _clone_param(self):
         return [p.clone(memory_format=torch.contiguous_format) for p in self._params]
@@ -57,84 +63,208 @@ class LIZO(Optimizer):
 
     #TODO: Euclidean distance
     def get_distance(self, delta_samples, distance_mode='euclidean'):
-        return current @ delta_samples.t()
+        return delta_samples.norm(p='fro', dim=-1)
 
     #TODO: sample points
-    def get_samples(self, last_delta_samples, num_to_samples, orthogonal=True):
+    def get_samples(self, last_delta_samples, num_to_samples, sample_dim, orthogonal=True):
         if orthogonal:
             pass
         else:
             # directly sample
-            pass
-        return new_delta_samples
+            new_delta_samples = torch.randn(num_to_samples, sample_dim)
+            new_lr = new_delta_samples.norm(dim=-1)
+            new_delta_samples.div_(new_lr.view(-1,1))
+#            new_delta_samples = torch.eye(num_to_samples, sample_dim)
+#            new_lr = torch.ones(num_to_samples)
+        return new_delta_samples, new_lr
 
     @torch.no_grad()
     def step(self, closure):
         assert len(self.param_groups) == 1
 
-        loss = None
+        device = self._params[0].device
+        current_obj = float(closure())
         group = self.param_groups[0]
-        state = group['state']
+        sample_norm = 1e-4
         lr = group['lr']
+        line_search_fn = group['line_search_fn']
 
-        flat_params = self._flat_param(self._params)
+        state = group['state']
+        last_delta_samples = state.get('last_delta_samples', torch.zeros(self.num_sample_per_step, self.numel_params, device=device))
+        sample_lr = state.get('sample_lr', torch.zeros(self.num_sample_per_step, device=device))
+        sample_obj = state.get('sample_obj', torch.zeros(self.num_sample_per_step, device=device))
+        last_obj = state.get('last_obj', None)
+        last_lr = state.get('last_lr', None)
+        last_grad = state.get('last_grad', None)
+        dist_matrix = state.get('dist_matrix', torch.zeros(self.num_sample_per_step, self.num_sample_per_step, device=device))
+
+        sample_obj = torch.cat([sample_obj, torch.tensor([last_obj]) if last_obj is not None else torch.tensor([0], device=device)], dim=0)
+        sample_lr = torch.cat([sample_lr, torch.tensor([0], device=device)], dim=0)
+        last_delta_samples = torch.cat([last_delta_samples, torch.zeros(1, self.numel_params, device=device)], dim=0)
+
+        reuse_last = last_grad is not None
         # get reused samples from last samples
-        if self.last_delta_samples is not None:
-            distances = self.get_distance(self.last_delta_samples-self.last_grad.view(1,-1))
+        if reuse_last:
+            history_delta_samples = last_delta_samples
+            last_delta_samples = last_delta_samples.mul(sample_lr.view(-1,1))+last_grad.mul(last_lr).view(1,-1)
+            distances = self.get_distance(last_delta_samples)
+            # norm last_delta_samples, which is not necessary but can be good to compute inverse
+            history_sample_lr = sample_lr
+            sample_lr = last_delta_samples.norm(dim=-1)
+            last_delta_samples.div_(sample_lr.view(-1, 1))
             sample_idx = torch.where(distances < self.reuse_distance_bound)[0]
-            # if all samples can be reused then remove the farthest, since last_sample should be used
-            if len(sample_idx) == self.num_sample_per_step:
-                sample_idx = sample_idx[torch.where(distances!=distances.max())[0]]
-        else: sample_idx = []
+            # if all samples can be reused then remove the farthest, since last_sample is added to the reused samples 
+            if len(sample_idx) > self.num_sample_per_step:
+                sample_idx = torch.argsort(distances, dim=0, descending=False)[:self.num_sample_per_step]
+        else: 
+            sample_idx = []
+#        print('sample_idx', sample_idx)
 
-        # random sample orthogonal points
-        num_random = self.num_sample_per_step -1 - len(sample_idx)
-        if self.last_delta_samples is None or num_random > 0:
-            new_delta_samples = self.get_samples(self.last_delta_samples, num_random, orthogonal=self.orthogonal_sample)
+        # random sample (orthogonal) points
+        num_random = self.num_sample_per_step - len(sample_idx)
+        if num_random > 0:
+            new_delta_samples, new_lr = self.get_samples(last_delta_samples[sample_idx] if len(sample_idx)>0 else None, num_random, self.numel_params, orthogonal=self.orthogonal_sample)
+            new_lr.mul_(sample_norm)
+
+        if len(sample_idx) > 0:
+            last_delta_samples[:len(sample_idx)] = last_delta_samples[sample_idx]
+            sample_obj[:len(sample_idx)] = sample_obj[sample_idx]
+            sample_lr[:len(sample_idx)] = sample_lr[sample_idx]
+            history_sample_lr = history_sample_lr[sample_idx]
+        if num_random > 0:
+            last_delta_samples[-num_random-1:-1] = new_delta_samples
+            sample_lr[-num_random-1:-1] = new_lr
             # get object of the new sampled points
             x_init = self._clone_param()
-            for idx in range(len(sample_idx)+1, len(self.last_obj)):
-                self.last_obj[idx] = self._directional_evaluate(closure, x_init, lr, new_delta_samples[idx-1-len(sample_idx)])
+            for idx in range(num_random, 0, -1):
+                sample_obj[-idx-1] = self._directional_evaluate(closure, x_init, new_lr[-idx], new_delta_samples[-idx])
+        last_delta_samples = last_delta_samples[:self.num_sample_per_step]
+        sample_lr = sample_lr[:self.num_sample_per_step]
+        sample_obj = sample_obj[:self.num_sample_per_step]
 
         # compute dist_matrix: \delta_w * \delta_w^\top
-        # the first row of last_delta_samples should be last_grad, so we should deal with the first row and first column of dist_matrix
-        self.dist_matrix[0,0] = self.last_lr * self.last_lr
-        if len(sample_idx) > 0:
-            self.last_delta_samples[1:len(sample_idx)+1] = self.last_delta_samples[sample_idx]
-            self.last_delta_samples[0] = -self.last_grad
-            self.last_obj[1:len(sample_idx)+1] = self.last_obj[sample_idx]
+        if len(sample_idx) > 0 and self.fast_alg:
+            # fast algorithm to compute dist_matrix
+            tmp = history_delta_samples[sample_idx] @ last_grad
+            if self.num_sample_per_step in sample_idx:
+                # when the last sample is reused, then add new row/column to the last row/column of dist_matrix for fast algorithm to obtain the current dist_matrix
+                new_vec = torch.zeros(self.num_sample_per_step+1, device=device).scatter_(dim=0, index=sample_idx, src=tmp)
+                dist_matrix = torch.cat([dist_matrix, new_vec[1:].view(1,-1)], dim=0)
+                dist_matrix = torch.cat([dist_matrix, new_vec.view(-1,1)], dim=1)
 
-            tmp = self.last_delta_samples[1:1+len(sample_idx)] @ self.last_grad
-            self.dist_matrix[0, 1:1+len(sample_idx)] = -tmp + self.last_lr * self.last_lr
-            self.dist_matrix[1:1+len(sample_idx), 0] = self.dist_matrix[0, 1:1+len(sample_idx)].t()
-        self.last_delta_samples[-num_random:] = new_delta_samples
+            tmp_lr = sample_lr[:len(sample_idx)]
+            tmp.mul_(history_sample_lr).mul_(last_lr)
+            dist_matrix[:len(sample_idx),:len(sample_idx)] = (dist_matrix[sample_idx][:,sample_idx].mul(history_sample_lr.view(-1,1)@history_sample_lr.view(1,-1)) + tmp.view(-1, 1) + tmp.view(1, -1) + last_lr*last_lr).div(tmp_lr.view(-1,1)@tmp_lr.view(1,-1))
+            dist_matrix = dist_matrix[:self.num_sample_per_step][:,:self.num_sample_per_step]
+            if num_random > 0:
+                if self.orthogonal_sample:
+                    dist_matrix[-num_random:] = 0
+                    dist_matrix[:, -num_random:] = 0
+                    # only need the diagonal items
+                    vector = (new_delta_samples * new_delta_samples).sum(dim=-1)
+                    dist_matrix.diagonal()[-num_random:] = vector
+                else:
+                    dist_matrix[-num_random:] = last_delta_samples[-num_random:] @ last_delta_samples.t()
+                    dist_matrix[:, -num_random:] = dist_matrix[-num_random:].t()
+#            gt_dist_matrix = last_delta_samples @ last_delta_samples.t()
+#            print(gt_dist_matrix-dist_matrix)
+
+        else:
+            dist_matrix = last_delta_samples @ last_delta_samples.t()
+
+#        last_grad = dist_matrix.inverse() @ (sample_obj-current_obj).t()
+#        last_grad = torch.linalg.solve(dist_matrix, (sample_obj-current_obj).t().div_(sample_lr))
+        last_grad = torch.linalg.torch.linalg.lstsq(dist_matrix, (sample_obj-current_obj).t().div_(sample_lr)).solution # use pseudoinverse
+        last_grad = last_delta_samples.t() @ last_grad
+        grad_norm = last_grad.norm()
+        last_grad.div_(last_grad.norm())
+        #TODO: line search for proper lr
+        lr *= grad_norm
+        self._add_grad(lr, last_grad.neg())
+
+
+        """
+        # the first row of last_delta_samples should be last_grad, so we should deal with the first row and first column of dist_matrix
+        if len(sample_idx) > 0:
+            last_delta_samples[1:1+len(sample_idx)] = last_delta_samples[sample_idx] - last_grad.view(1, -1)
+            distances[1:1+len(sample_idx)] = distances[sample_idx]
+            sample_obj[1:1+len(sample_idx)] = sample_obj[sample_idx]
+            tmp = last_delta_samples[1:1+len(sample_idx)] @ last_grad
+            dist_matrix[0, 1:1+len(sample_idx)] = -tmp + last_lr * last_lr
+            dist_matrix[1:1+len(sample_idx), 0] = dist_matrix[0, 1:1+len(sample_idx)].t()
+
+        if reuse_last:
+            dist_matrix[0,0] = last_grad.dot(last_grad)
+            last_delta_samples[0] = -last_grad
+            distances[0] = last_lr
+            sample_obj[0] = last_obj
+
+        if num_random > 0:
+            last_delta_samples[-num_random:] = new_delta_samples
+            distances[-num_random:] = new_delta_samples.norm(dim=-1) * sample_norm
 
         if len(sample_idx) > 0 and self.fast_alg:
             #TODO: fast algorithm to compute dist_matrix
-            self.dist_matrix[1:1+len(sample_idx),1:1+len(sample_idx)] = self.dist_matrix[sample_idx][:,sample_idx] - tmp.view(-1, 1) - tmp.t().view(1, -1) + self.last_lr*self.last_lr
+            dist_matrix[1:1+len(sample_idx),1:1+len(sample_idx)] = dist_matrix[sample_idx][:,sample_idx] - tmp.view(-1, 1) - tmp.t().view(1, -1) + last_lr*last_lr
             if num_random > 0:
                 if self.orthogonal_sample:
-                    self.dist_matrix[-num_random:] = 0
-                    self.dist_matrix[:, -num_random:] = 0
+                    dist_matrix[-num_random:] = 0
+                    dist_matrix[:, -num_random:] = 0
                     #TODO: only need the diagonal items
                     vector = (new_delta_samples * new_delta_samples).sum(dim=-1)
-                    self.dist_matrix.diagonal()[-num_random:] = vector
-    #                self.dist_matrix[-num_random:, -num_random:] = new_delta_samples @ new_delta_samples.t()
+                    dist_matrix.diagonal()[-num_random:] = vector
+    #                dist_matrix[-num_random:, -num_random:] = new_delta_samples @ new_delta_samples.t()
                 else:
-                    self.dist_matrix[-num_random:] = new_delta_samples[-num_random:] @ new_delta_samples.t()
-                    self.dist_matrix[:, -num_random:] = self.dist_matrix[-num_random:].t()
+                    dist_matrix[-num_random:] = new_delta_samples[-num_random:] @ new_delta_samples.t()
+                    dist_matrix[:, -num_random:] = dist_matrix[-num_random:].t()
 
         else:
-            self.dist_matrix = self.last_delta_samples @ self.last_delta_samples.t()
+            dist_matrix = last_delta_samples @ last_delta_samples.t()
 
-        self.last_grad = self.dist_matrix.inverse() @ self.last_obj.t()
-        self.last_grad = self.last_delta_samples.t() @ self.last_grad
-        self.last_lr = lr
+#        last_grad = dist_matrix.inverse() @ (sample_obj-current_obj).t()
+        last_grad = torch.linalg.solve(dist_matrix, (sample_obj-current_obj).t().div_(distances))
+        last_grad = last_delta_samples.t() @ last_grad
+        self._add_grad(lr, last_grad.neg())
+        """
 
-        self._add_grad(lr, self.last_grad.neg())
+        state['last_delta_samples'] = last_delta_samples
+        state['sample_obj'] = sample_obj
+        state['sample_lr'] = sample_lr
+        state['last_obj'] = current_obj
+        state['last_lr'] = lr
+        state['last_grad'] = last_grad
+        state['dist_matrix'] = dist_matrix
 
-        return loss
+        return current_obj
 
     
+if __name__ == '__main__':
+    from src.benchmark.object import Benchmark_func
+    num_var = 6
+    obj = Benchmark_func(function='rosenbrock', num_var=num_var, init_point=np.ones(num_var)*0)
+    lizo = LIZO(obj.parameters(), lr=1e-3, num_sample_per_step=num_var, reuse_distance_bound=2e-3, orthogonal_sample=False, fast_alg=True)
+    for step in range(20):
+        loss = obj()
+        print(loss.item(), lizo._params)
+        print('Compute gradient by backward')
+        loss.backward()
+        grad = torch.cat([p.grad.data.view(-1) for p in obj.parameters()], 0)
+        print('Compute gradient by difference')
+        diff_grad = torch.zeros_like(grad)
+        sample_norm = 1e-4
+        x_init = lizo._clone_param()
+        delta = torch.eye(num_var)
+        with torch.no_grad():
+            for idx in range(num_var):
+                sample_loss = lizo._directional_evaluate(obj, x_init, sample_norm, delta[idx])
+                diff_grad[idx] = (sample_loss - loss) / sample_norm
+        print('Compute gradient by LIZO')
+        lizo.step(closure=obj)
+        
+        print('Compare gradient')
+        lizo_grad = lizo.param_groups[0]['state']['last_grad']
+        print(grad, lizo_grad, diff_grad)
+        print(grad.div(grad.norm(dim=-1, keepdim=True)), lizo_grad.div(lizo_grad.norm(dim=-1, keepdim=True)), diff_grad.div(diff_grad.norm(dim=-1, keepdim=True)))
+
 
 
