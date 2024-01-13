@@ -54,7 +54,9 @@ class BenchmarkEngine(BaseEngine):
                     params_require_grad = []
                     for pg in self.optimizer.param_groups:
                         params_require_grad.extend(pg['params'])
-                    if not getattr(self.optimizer, 'ZO', False):
+                    if getattr(self.optimizer, 'ZO', False):
+                        self.closure = self.obj
+                    else:
                         self.info.results.obj.backward(inputs=params_require_grad)
                     # get best. it should be put to a hook in the future
                     if self.info.results.get('best', math.inf) > self.info.results.obj:

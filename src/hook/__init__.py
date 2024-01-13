@@ -1,6 +1,6 @@
 from .hook import HOOK
 from .hook import hooks_run, hooks_epoch, hooks_train_epoch, hooks_val_epoch, hooks_train_iter, hooks_val_iter, hooks_iter
-from .optimizer.opt_hook import OptHOOK
+from .optimizer.opt_hook import OptHOOK, ZOOptHOOK
 from .scheduler.scheduler_hook import LrScheduleHOOK
 from .evaluation.eval_hook import EvalAccHOOK
 from .evaluation.map_hook import EvalCOCOmAPHOOK

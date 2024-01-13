@@ -32,6 +32,16 @@ class LIZO(Optimizer):
 
         #TODO: add line search
 
+    def _reset_state(self, state):
+        device = self._params[0].device
+        state['last_delta_samples'] = torch.zeros(self.num_sample_per_step, self.numel_params, device=device)
+        state['sample_lr'] = torch.zeros(self.num_sample_per_step, device=device)
+        state['sample_obj'] = torch.zeros(self.num_sample_per_step, device=device)
+        state['last_obj'] = None
+        state['last_lr'] = None
+        state['last_grad'] = None
+        state['dist_matrix'] = torch.zeros(self.num_sample_per_step, self.num_sample_per_step, device=device)
+
 
     def _flat_param(self, params):
         views = []
@@ -72,10 +82,10 @@ class LIZO(Optimizer):
         else:
             # directly sample
             new_delta_samples = torch.randn(num_to_samples, sample_dim)
-            new_lr = new_delta_samples.norm(dim=-1)
+            new_lr = (new_delta_samples.norm(dim=-1)+1e-8)
             new_delta_samples.div_(new_lr.view(-1,1))
 #            new_delta_samples = torch.eye(num_to_samples, sample_dim)
-#            new_lr = torch.ones(num_to_samples)
+            new_lr = torch.ones(num_to_samples)
         return new_delta_samples, new_lr
 
     @torch.no_grad()
@@ -85,7 +95,7 @@ class LIZO(Optimizer):
         device = self._params[0].device
         current_obj = float(closure())
         group = self.param_groups[0]
-        sample_norm = 1e-4
+        sample_norm = 1e-5
         lr = group['lr']
         line_search_fn = group['line_search_fn']
 
@@ -110,7 +120,7 @@ class LIZO(Optimizer):
             distances = self.get_distance(last_delta_samples)
             # norm last_delta_samples, which is not necessary but can be good to compute inverse
             history_sample_lr = sample_lr
-            sample_lr = last_delta_samples.norm(dim=-1)
+            sample_lr = (last_delta_samples.norm(dim=-1) + 1e-8)
             last_delta_samples.div_(sample_lr.view(-1, 1))
             sample_idx = torch.where(distances < self.reuse_distance_bound)[0]
             # if all samples can be reused then remove the farthest, since last_sample is added to the reused samples 
@@ -154,7 +164,7 @@ class LIZO(Optimizer):
 
             tmp_lr = sample_lr[:len(sample_idx)]
             tmp.mul_(history_sample_lr).mul_(last_lr)
-            dist_matrix[:len(sample_idx),:len(sample_idx)] = (dist_matrix[sample_idx][:,sample_idx].mul(history_sample_lr.view(-1,1)@history_sample_lr.view(1,-1)) + tmp.view(-1, 1) + tmp.view(1, -1) + last_lr*last_lr).div(tmp_lr.view(-1,1)@tmp_lr.view(1,-1))
+            dist_matrix[:len(sample_idx),:len(sample_idx)] = (dist_matrix[sample_idx][:,sample_idx].mul(history_sample_lr.view(-1,1)@history_sample_lr.view(1,-1)) + tmp.view(-1, 1) + tmp.view(1, -1) + last_lr*last_lr).div(tmp_lr.view(-1,1)@tmp_lr.view(1,-1)+1e-16)
             dist_matrix = dist_matrix[:self.num_sample_per_step][:,:self.num_sample_per_step]
             if num_random > 0:
                 if self.orthogonal_sample:
@@ -180,7 +190,18 @@ class LIZO(Optimizer):
         last_grad.div_(last_grad.norm())
         #TODO: line search for proper lr
         lr *= grad_norm
-        self._add_grad(lr, last_grad.neg())
+        if lr < 10:
+            self._add_grad(lr, last_grad.neg())
+            state['last_delta_samples'] = last_delta_samples
+            state['sample_obj'] = sample_obj
+            state['sample_lr'] = sample_lr
+            state['last_obj'] = current_obj
+            state['last_lr'] = lr
+            state['last_grad'] = last_grad
+            state['dist_matrix'] = dist_matrix
+
+        else:
+            self._reset_state(state)
 
 
         """
@@ -227,14 +248,6 @@ class LIZO(Optimizer):
         self._add_grad(lr, last_grad.neg())
         """
 
-        state['last_delta_samples'] = last_delta_samples
-        state['sample_obj'] = sample_obj
-        state['sample_lr'] = sample_lr
-        state['last_obj'] = current_obj
-        state['last_lr'] = lr
-        state['last_grad'] = last_grad
-        state['dist_matrix'] = dist_matrix
-
         return current_obj
 
     
@@ -251,7 +264,7 @@ if __name__ == '__main__':
         grad = torch.cat([p.grad.data.view(-1) for p in obj.parameters()], 0)
         print('Compute gradient by difference')
         diff_grad = torch.zeros_like(grad)
-        sample_norm = 1e-4
+        sample_norm = 1e-5
         x_init = lizo._clone_param()
         delta = torch.eye(num_var)
         with torch.no_grad():
