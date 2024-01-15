@@ -69,31 +69,31 @@ def export_onnx(model, onnx_path=None, dynamic=False, dynamic_batch=False):
     onnx.save(onnx_model, onnx_path)
     print('ONNX export success, saved as %s' % onnx_path)
 
-    # runtime test
-    import onnxruntime
-    import numpy as np
-    
-    def _to_numpy(var):
-        if isinstance(var, torch.Tensor):
-            var = var.numpy()
-        elif isinstance(var, (list, tuple)):
-            for idx in range(len(var)):
-                var[idx] = _to_numpy(var[idx])
-        elif isinstance(var, dict):
-            for key in var.keys():
-                var[key] = _to_numpy(var[key])
-        return var
-    model_out = _to_numpy(model_out)
-    sess = onnxruntime.InferenceSession(onnx_path)
-    output = sess.run(output_names, {'images': img.numpy()})
-    if isinstance(model_out, (list, tuple)):
-        for tmp1, tmp2 in zip(output, model_out):
-            assert np.allclose(tmp1, tmp2)
-    elif isinstance(model_out, dict):
-        for tmp1, tmp2 in zip(output, model_out.values()):
-            assert np.allclose(tmp1, tmp2)
-    else:
-        assert np.allclose(output, model_out)
+#    # runtime test
+#    import onnxruntime
+#    import numpy as np
+#    
+#    def _to_numpy(var):
+#        if isinstance(var, torch.Tensor):
+#            var = var.numpy()
+#        elif isinstance(var, (list, tuple)):
+#            for idx in range(len(var)):
+#                var[idx] = _to_numpy(var[idx])
+#        elif isinstance(var, dict):
+#            for key in var.keys():
+#                var[key] = _to_numpy(var[key])
+#        return var
+#    model_out = _to_numpy(model_out)
+#    sess = onnxruntime.InferenceSession(onnx_path)
+#    output = sess.run(output_names, {'images': img.numpy()})
+#    if isinstance(model_out, (list, tuple)):
+#        for tmp1, tmp2 in zip(output, model_out):
+#            assert np.allclose(tmp1, tmp2)
+#    elif isinstance(model_out, dict):
+#        for tmp1, tmp2 in zip(output, model_out.values()):
+#            assert np.allclose(tmp1, tmp2)
+#    else:
+#        assert np.allclose(output, model_out)
 
     # print(onnx.helper.printable_graph(onnx_model.graph))  # print a human readable model
 

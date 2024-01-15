@@ -1,6 +1,23 @@
+from functools import partial
 import numpy as np
 import torch
 from torch.optim import Optimizer
+
+def _backtracking(obj_func, obj_init, x_init, d, init_step=1.0, shrink_rate=0.2, c1=0.1, max_ls=10):
+    ls_iter = 0
+    step = init_step
+    d_norm = d.norm()
+    done = False
+    while ls_iter < max_ls:
+        new_obj = obj_func(x_init, step, d)
+        if new_obj <= obj_init + c1*step*d_norm:
+            done = True
+            break
+        else: step *= shrink_rate
+        ls_iter += 1
+
+    return step
+
 
 class LIZO(Optimizer):
     ZO = True
@@ -10,6 +27,7 @@ class LIZO(Optimizer):
         groups (there can be only one).
     """
     def __init__(self, params, lr=1e-3, weight_decay=0, num_sample_per_step=8, reuse_distance_bound=0.01, orthogonal_sample=True, fast_alg=True, line_search_fn=None):
+
         defaults = dict(lr=lr,
                         weight_decay=weight_decay,
                         state={},
@@ -186,11 +204,24 @@ class LIZO(Optimizer):
 #        last_grad = torch.linalg.solve(dist_matrix, (sample_obj-current_obj).t().div_(sample_lr))
         last_grad = torch.linalg.torch.linalg.lstsq(dist_matrix, (sample_obj-current_obj).t().div_(sample_lr)).solution # use pseudoinverse
         last_grad = last_delta_samples.t() @ last_grad
+
+        #TODO: line search for proper lr
+        reset = False
         grad_norm = last_grad.norm()
         last_grad.div_(last_grad.norm())
-        #TODO: line search for proper lr
         lr *= grad_norm
-        if lr < 10:
+
+        if line_search_fn is not None:
+            x_init = self._clone_param()
+            def obj_func(x, t, d):
+                return self._directional_evaluate(closure, x, t, d)
+            lr = line_search_fn(obj_func, current_obj, x_init, last_grad.neg(), init_step=lr)
+        else:
+            if lr > 10: reset = True
+
+        if reset:
+            self._reset_state(state)
+        else:
             self._add_grad(lr, last_grad.neg())
             state['last_delta_samples'] = last_delta_samples
             state['sample_obj'] = sample_obj
@@ -199,9 +230,7 @@ class LIZO(Optimizer):
             state['last_lr'] = lr
             state['last_grad'] = last_grad
             state['dist_matrix'] = dist_matrix
-
-        else:
-            self._reset_state(state)
+    
 
 
         """
@@ -255,7 +284,8 @@ if __name__ == '__main__':
     from src.benchmark.object import Benchmark_func
     num_var = 6
     obj = Benchmark_func(function='rosenbrock', num_var=num_var, init_point=np.ones(num_var)*0)
-    lizo = LIZO(obj.parameters(), lr=1e-3, num_sample_per_step=num_var, reuse_distance_bound=2e-3, orthogonal_sample=False, fast_alg=True)
+    lizo = LIZO(obj.parameters(), lr=1e-3, num_sample_per_step=num_var, reuse_distance_bound=2e-3, orthogonal_sample=False, fast_alg=True, 
+            line_search_fn=partial(_backtracking))
     for step in range(20):
         loss = obj()
         print(loss.item(), lizo._params)
