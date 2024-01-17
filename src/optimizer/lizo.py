@@ -68,6 +68,8 @@ class LIZO(Optimizer):
         return torch.cat(views, 0)
 
     def _add_grad(self, step_size, update):
+        # print("step_size: ", step_size)
+        # print("update: ", update.norm())
         offset = 0
         for p in self._params:
             numel = p.numel()
@@ -153,6 +155,7 @@ class LIZO(Optimizer):
         if num_random > 0:
             new_delta_samples, new_lr = self.get_samples(last_delta_samples[sample_idx] if len(sample_idx)>0 else None, num_random, self.numel_params, orthogonal=self.orthogonal_sample)
             new_lr.mul_(sample_norm)
+            # print('new_lr', new_lr)
 
         if len(sample_idx) > 0:
             last_delta_samples[:len(sample_idx)] = last_delta_samples[sample_idx]
@@ -165,6 +168,8 @@ class LIZO(Optimizer):
             # get object of the new sampled points
             x_init = self._clone_param()
             for idx in range(num_random, 0, -1):
+                # print(new_lr[-idx])
+                # print(new_delta_samples[-idx].norm())
                 sample_obj[-idx-1] = self._directional_evaluate(closure, x_init, new_lr[-idx], new_delta_samples[-idx])
         last_delta_samples = last_delta_samples[:self.num_sample_per_step]
         sample_lr = sample_lr[:self.num_sample_per_step]
@@ -209,7 +214,11 @@ class LIZO(Optimizer):
         reset = False
         grad_norm = last_grad.norm()
         last_grad.div_(last_grad.norm())
+        # print("grad_norm: ", grad_norm)
+        # print("lr: ", lr)
         lr *= grad_norm
+        # print(lr)
+        # print(last_grad.norm())
 
         if line_search_fn is not None:
             x_init = self._clone_param()
@@ -222,6 +231,8 @@ class LIZO(Optimizer):
         if reset:
             self._reset_state(state)
         else:
+            # print("lr: ", lr)
+            # print("grad_norm: ", last_grad.norm())
             self._add_grad(lr, last_grad.neg())
             state['last_delta_samples'] = last_delta_samples
             state['sample_obj'] = sample_obj
