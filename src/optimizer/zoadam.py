@@ -2,25 +2,27 @@ import torch
 from torch.optim import Optimizer
 
 
-class ZO_SGD(Optimizer):
+class ZO_Adam(Optimizer):
     ZO = True
 
-    def __init__(self, params, lr=1e-3, mu =1e-3, weight_decay=0, num_sample_per_step=8, momentum=0, sign=False):
+    def __init__(self, params, lr=1e-2, weight_decay=0, num_sample_per_step=8, beta1=0.9, beta2=0.3):
         if lr < 0.0:
             raise ValueError("Invalid learning rate: (} - should be >= 0.0".format(lr))
 
         defaults = dict(lr=lr, 
-                        weight_decay=weight_decay,
-                        momentum=momentum,
-                        mu = mu)
+                        weight_decay=weight_decay)
         super().__init__(params, defaults)
         # Compute the size of the parameters vector
         self._params = self.param_groups[0]['params']
         self.numel_params = sum([p.numel() for p in self._params])
-        self.sign = sign
+        self.beta1 = beta1
+        self.beta2 = beta2
+        device = self._params[0].device
         self.num_sample_per_step = num_sample_per_step
-        self.mu = mu
-
+        eps = 1e-8
+        self.v = eps * torch.ones(self.numel_params, device=device)
+        self.m = torch.zeros(self.numel_params, device=device)
+        self.v_hat = self.v.clone()
     
     def _add_grad(self, step_size, update):
         offset = 0
@@ -54,7 +56,7 @@ class ZO_SGD(Optimizer):
             loss_i = self._directional_evaluate(closure, x, t, d_i)
             sum += (loss_i - loss) * d_i
         # print(x[0].numel())
-        return sum / (self.num_sample_per_step * t)
+        return self.numel_params * sum / (self.num_sample_per_step * t)
             
     @torch.no_grad()
     def step(self, closure):
@@ -65,22 +67,28 @@ class ZO_SGD(Optimizer):
         group = self.param_groups[0]
         sample_norm = 1e-5
         lr = group['lr']
+        eps = 1e-8
         # print(lr)
 
         # sample to estimate the gradient
         x_init = self._clone_param()
         grad_estimate = self.grad_estimate(closure, x_init, sample_norm)
-        grad_norm = grad_estimate.norm()
-        grad_estimate.div_(grad_norm)
-        lr *= grad_norm
-        # print(grad_estimate.norm())
-        # print(lr)
-        if (self.sign):
-            grad_estimate.sign_()
         # print(grad_estimate)
-        # print(grad_estimate.norm())
+        self.m = self.beta1 * self.m + (1 - self.beta1) * grad_estimate
+        self.v = self.beta2 * self.v + (1 - self.beta2) * grad_estimate.pow(2)
+        # # print("v: ", self.v)
+        # # print("v_hat: ", self.v_hat)
 
-        # update the parameters
-        # print("lr: ", lr)
-        self._add_grad(lr, grad_estimate.neg())
-        return current_obj
+        self.v_hat = torch.max(self.v_hat, self.v)
+        # # print("m: ", self.m)
+        # # print("v_hat: ", self.v_hat)
+        grad = self.m / (self.v.sqrt() + eps)
+        # print("grad: ", grad)
+        # grad_norm = grad_estimate.norm()
+        # print(grad)
+        # grad_estimate.div_(grad_norm)
+        # lr *= grad_norm
+        # print(lr)
+        self._add_grad(lr, grad.neg())
+
+        return current_obj  

@@ -4,8 +4,8 @@ obj: &obj
   submodule_name: src.benchmark.object.Benchmark_func
   args:
       function: rosenbrock
-      num_var: 20
-      init_point: [2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2.]
+      num_var: 6
+      init_point: [2., 2., 2., 2., 2., 2.]
 
 optimizer: &optimizer
   submodule_name: src.optimizer.zosgd.ZO_SGD
@@ -49,7 +49,7 @@ engine:
     lr_scheduler: *scheduler
     hooks: *hooks
   run_args: 
-    max_iter: 500
+    max_iter: 5000
 
 
 

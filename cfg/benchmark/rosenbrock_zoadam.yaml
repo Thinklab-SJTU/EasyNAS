@@ -1,4 +1,4 @@
-root_path: &root_path runs/benchmark/Rosenbrock_LIZO/
+root_path: &root_path runs/benchmark/Rosenbrock_ZOAdam/
 
 obj: &obj
   submodule_name: src.benchmark.object.Benchmark_func
@@ -8,14 +8,12 @@ obj: &obj
       init_point: [2., 2., 2., 2., 2., 2.]
 
 optimizer: &optimizer
-  submodule_name: src.optimizer.lizo.LIZO
+  submodule_name: src.optimizer.zoadam.ZO_Adam
   args:
     params: 
-    lr: 1.0e-3
-    num_sample_per_step: 6
-    reuse_distance_bound: 2.e-3
-    orthogonal_sample: False
-    fast_alg: True
+    lr: 2.0e-2
+    beta1: 0.9
+    beta2: 0.3
 
 lr_scheduler: &scheduler
   submodule_name: torch.optim.lr_scheduler.LambdaLR
@@ -52,7 +50,6 @@ engine:
     hooks: *hooks
   run_args: 
     max_iter: 5000
-
 
 
 
