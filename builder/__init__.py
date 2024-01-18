@@ -10,6 +10,7 @@ from .optimizer import create_optimizer
 from src.search_space.base import SearchSpace, _SearchSpace
 
 def create_criterion(cfg: dict, local_rank=-1):
+    cfg = deepcopy(cfg)
     cls = get_submodule_by_name(cfg.get('submodule_name'), search_path='torch.nn.criterion')
     if 'local_rank' in inspect.getfullargspec(cls.__init__).args:
         cfg.setdefault('args', {}).setdefault('local_rank', local_rank)
@@ -19,6 +20,7 @@ def create_scheduler(cfg: dict):
     return get_submodule_by_name(cfg.get('submodule_name'), search_path='torch.optim.lr_scheduler')(**cfg.get('args', {}))
 
 def create_model(cfg: dict, input_size=None, root_path=None, local_rank=-1):
+    cfg = deepcopy(cfg)
     if root_path and cfg['args'].get('log_path', None):
         cfg['args']['log_path'] = os.path.join(root_path, cfg['args']['log_path'])
     model = get_submodule_by_name(cfg.get('submodule_name'), search_path=['src.models'])

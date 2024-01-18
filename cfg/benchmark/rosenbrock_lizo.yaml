@@ -4,8 +4,8 @@ obj: &obj
   submodule_name: src.benchmark.object.Benchmark_func
   args:
       function: rosenbrock
-      num_var: 6
-      init_point: [2., 2., 2., 2., 2., 2.]
+      num_var: 20
+      init_point: [2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2.]
 
 optimizer: &optimizer
   submodule_name: src.optimizer.lizo.LIZO
@@ -16,6 +16,7 @@ optimizer: &optimizer
     reuse_distance_bound: 2.e-3
     orthogonal_sample: False
     fast_alg: True
+    line_search_fn: !get_module [src.optimizer.lizo._backtracking, {shrink_rate: 0.2, c1: 1.e-4, max_ls: 10}]
 
 lr_scheduler: &scheduler
   submodule_name: torch.optim.lr_scheduler.LambdaLR

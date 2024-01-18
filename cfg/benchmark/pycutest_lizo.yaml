@@ -1,19 +1,24 @@
-root_path: &root_path runs/benchmark/Rosenbrock_SGD/
+root_path: &root_path runs/benchmark/PyCUTEst_LIZO/
 
 obj: &obj
-  submodule_name: src.benchmark.object.Benchmark_func
+  submodule_name: src.benchmark.pycutest_object.PyCUTEst_benchmark
   args:
-      function: rosenbrock
-      num_var: 20
-      init_point: [2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2.]
+      constraints: unconstrained
+      num_problem: 5
+#  submodule_name: src.benchmark.pycutest_object.PyCUTEst_func
+#  args:
+#      problem_name: ROSENBR
 
 optimizer: &optimizer
-  submodule_name: torch.optim.SGD
+  submodule_name: src.optimizer.lizo.LIZO
   args:
     params: 
-    lr: 1.0e-4
-    momentum: 0.9
-    nesterov: True
+    lr: 1.0e-3
+    num_sample_per_step: 6
+    reuse_distance_bound: 2.e-3
+    orthogonal_sample: False
+    fast_alg: True
+    line_search_fn: !get_module [src.optimizer.lizo._backtracking, {shrink_rate: 0.2, c1: 1.e-4, max_ls: 10}]
 
 lr_scheduler: &scheduler
   submodule_name: torch.optim.lr_scheduler.LambdaLR
@@ -23,7 +28,7 @@ lr_scheduler: &scheduler
 
 hooks: &hooks
   opt_hook:
-    submodule_name: OptHOOK
+    submodule_name: ZOOptHOOK
     args:
       priority: 0
   
@@ -49,7 +54,9 @@ engine:
     lr_scheduler: *scheduler
     hooks: *hooks
   run_args: 
-    max_iter: 5000
+    max_iter: 500
+
+
 
 
 

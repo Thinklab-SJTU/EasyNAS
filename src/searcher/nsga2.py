@@ -124,3 +124,8 @@ class NSGA2(EvolutionAlgorithm):
         ckpt['current_survive'] = self.current_survive
         ckpt['pareto_front'] = self.pareto_front
         return ckpt
+
+    def load_state_dict(self, state_dict):
+        super(EvolutionAlgorithm, self).load_state_dict(state_dict)
+        for qr in self.pareto_front:
+            print(qr.reward)

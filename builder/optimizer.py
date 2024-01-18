@@ -1,3 +1,4 @@
+from copy import deepcopy
 import torch
 import torch.nn as nn
 from itertools import chain
@@ -56,6 +57,7 @@ func_map = {
         }
 
 def create_optimizer(model, cfg: dict, criterion=None):
+    cfg = deepcopy(cfg)
     if criterion:
         model = module_iters(model, criterion)
 

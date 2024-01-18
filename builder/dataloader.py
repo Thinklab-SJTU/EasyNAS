@@ -10,6 +10,8 @@ from app.distribute_utils import is_dist_avail_and_initialized, get_world_size, 
 
 
 def create_dataloader(cfg: dict) -> dict:
+    cfg = copy.deepcopy(cfg)
+
     dataset_cfg = cfg['dataset']
     dataloader_cfg = cfg['dataloader']
     # build dataset

@@ -48,8 +48,6 @@ class LIZO(Optimizer):
 
         #TODO: add momentum
 
-        #TODO: add line search
-
     def _reset_state(self, state):
         device = self._params[0].device
         state['last_delta_samples'] = torch.zeros(self.num_sample_per_step, self.numel_params, device=device)
@@ -98,14 +96,20 @@ class LIZO(Optimizer):
     #TODO: sample points
     def get_samples(self, last_delta_samples, num_to_samples, sample_dim, orthogonal=True):
         if orthogonal:
-            pass
+            num_all = last_delta_samples.shape[0] + num_to_samples
+            last_delta_samples = last_delta_samples.t()
+            _num = num_to_sample
+            while _num > 0:
+                new_delta_samples = torch.cat([last_delta_samples, torch.randn(sample_dim, _num)], dim=1)
+                last_delta_samples, _ = torch.linalg.qr(new_delta_samples)
+                _num = num_all - last_delta_samples.shape[1]
+            new_delta_samples = last_delta_samples[:,-num_to_samples:].t()
+            new_lr = torch.ones(num_to_samples)
         else:
             # directly sample
             new_delta_samples = torch.randn(num_to_samples, sample_dim)
             new_lr = (new_delta_samples.norm(dim=-1)+1e-8)
             new_delta_samples.div_(new_lr.view(-1,1))
-#            new_delta_samples = torch.eye(num_to_samples, sample_dim)
-            new_lr = torch.ones(num_to_samples)
         return new_delta_samples, new_lr
 
     @torch.no_grad()
@@ -118,6 +122,7 @@ class LIZO(Optimizer):
         sample_norm = 1e-5
         lr = group['lr']
         line_search_fn = group['line_search_fn']
+        x_init = self._clone_param()
 
         state = group['state']
         last_delta_samples = state.get('last_delta_samples', torch.zeros(self.num_sample_per_step, self.numel_params, device=device))
@@ -166,7 +171,6 @@ class LIZO(Optimizer):
             last_delta_samples[-num_random-1:-1] = new_delta_samples
             sample_lr[-num_random-1:-1] = new_lr
             # get object of the new sampled points
-            x_init = self._clone_param()
             for idx in range(num_random, 0, -1):
                 # print(new_lr[-idx])
                 # print(new_delta_samples[-idx].norm())
@@ -205,13 +209,17 @@ class LIZO(Optimizer):
         else:
             dist_matrix = last_delta_samples @ last_delta_samples.t()
 
-#        last_grad = dist_matrix.inverse() @ (sample_obj-current_obj).t()
-#        last_grad = torch.linalg.solve(dist_matrix, (sample_obj-current_obj).t().div_(sample_lr))
-        last_grad = torch.linalg.torch.linalg.lstsq(dist_matrix, (sample_obj-current_obj).t().div_(sample_lr)).solution # use pseudoinverse
-        last_grad = last_delta_samples.t() @ last_grad
+        reset = False
+        try:
+#            last_grad = dist_matrix.inverse() @ (sample_obj-current_obj).t()
+#            last_grad = torch.linalg.solve(dist_matrix, (sample_obj-current_obj).t().div_(sample_lr))
+            last_grad = torch.linalg.torch.linalg.lstsq(dist_matrix, (sample_obj-current_obj).t().div_(sample_lr)).solution # use pseudoinverse
+            last_grad = last_delta_samples.t() @ last_grad
+        except: 
+            self._reset_state(state)
+            return current_obj
 
         #TODO: line search for proper lr
-        reset = False
         grad_norm = last_grad.norm()
         last_grad.div_(last_grad.norm())
         # print("grad_norm: ", grad_norm)
@@ -221,12 +229,14 @@ class LIZO(Optimizer):
         # print(last_grad.norm())
 
         if line_search_fn is not None:
-            x_init = self._clone_param()
             def obj_func(x, t, d):
                 return self._directional_evaluate(closure, x, t, d)
             lr = line_search_fn(obj_func, current_obj, x_init, last_grad.neg(), init_step=lr)
-        else:
-            if lr > 10: reset = True
+#        else:
+#        if lr > 10: reset = True
+        new_obj = self._directional_evaluate(closure, x_init, lr, last_grad.neg())
+        if np.isnan(new_obj):
+            reset = True
 
         if reset:
             self._reset_state(state)

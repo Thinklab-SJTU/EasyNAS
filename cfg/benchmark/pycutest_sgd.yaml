@@ -1,17 +1,19 @@
-root_path: &root_path runs/benchmark/Rosenbrock_SGD/
+root_path: &root_path runs/benchmark/PyCUTEst_SGD/
 
 obj: &obj
-  submodule_name: src.benchmark.object.Benchmark_func
+  submodule_name: src.benchmark.pycutest_object.PyCUTEst_benchmark
   args:
-      function: rosenbrock
-      num_var: 20
-      init_point: [2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2., 2.]
+      constraints: unconstrained
+      num_problem: 5
+#  submodule_name: src.benchmark.pycutest_object.PyCUTEst_func
+#  args:
+#      problem_name: ROSENBR
 
 optimizer: &optimizer
   submodule_name: torch.optim.SGD
   args:
     params: 
-    lr: 1.0e-4
+    lr: 1.0e-3
     momentum: 0.9
     nesterov: True
 
@@ -19,7 +21,8 @@ lr_scheduler: &scheduler
   submodule_name: torch.optim.lr_scheduler.LambdaLR
   args:
     optimizer: 
-    lr_lambda: !get_module [src.scheduler.utils.multistep, {gamma: 0.2, milestones: [100]}]
+    lr_lambda: !get_module [src.scheduler.utils.step, {gamma: 0.2, step_size: 100}]
+    #    lr_lambda: !get_module [src.scheduler.utils.multistep, {gamma: 0.2, milestones: [100]}]
 
 hooks: &hooks
   opt_hook:
@@ -49,7 +52,8 @@ engine:
     lr_scheduler: *scheduler
     hooks: *hooks
   run_args: 
-    max_iter: 5000
+    max_iter: 500
+
 
 
 
