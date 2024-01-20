@@ -94,20 +94,20 @@ class LIZO(Optimizer):
         return delta_samples.norm(p='fro', dim=-1)
 
     #TODO: sample points
-    def get_samples(self, last_delta_samples, num_to_samples, sample_dim, orthogonal=True):
+    def get_samples(self, last_delta_samples, num_to_samples, sample_dim, orthogonal=True, device='cpu'):
         if orthogonal:
             num_all = last_delta_samples.shape[0] + num_to_samples
             last_delta_samples = last_delta_samples.t()
             _num = num_to_sample
             while _num > 0:
-                new_delta_samples = torch.cat([last_delta_samples, torch.randn(sample_dim, _num)], dim=1)
+                new_delta_samples = torch.cat([last_delta_samples, torch.randn(sample_dim, _num, device=device)], dim=1)
                 last_delta_samples, _ = torch.linalg.qr(new_delta_samples)
                 _num = num_all - last_delta_samples.shape[1]
             new_delta_samples = last_delta_samples[:,-num_to_samples:].t()
             new_lr = torch.ones(num_to_samples)
         else:
             # directly sample
-            new_delta_samples = torch.randn(num_to_samples, sample_dim)
+            new_delta_samples = torch.randn(num_to_samples, sample_dim, device=device)
             new_lr = (new_delta_samples.norm(dim=-1)+1e-8)
             new_delta_samples.div_(new_lr.view(-1,1))
         return new_delta_samples, new_lr
@@ -133,7 +133,7 @@ class LIZO(Optimizer):
         last_grad = state.get('last_grad', None)
         dist_matrix = state.get('dist_matrix', torch.zeros(self.num_sample_per_step, self.num_sample_per_step, device=device))
 
-        sample_obj = torch.cat([sample_obj, torch.tensor([last_obj]) if last_obj is not None else torch.tensor([0], device=device)], dim=0)
+        sample_obj = torch.cat([sample_obj, torch.tensor([last_obj], device=device) if last_obj is not None else torch.tensor([0], device=device)], dim=0)
         sample_lr = torch.cat([sample_lr, torch.tensor([0], device=device)], dim=0)
         last_delta_samples = torch.cat([last_delta_samples, torch.zeros(1, self.numel_params, device=device)], dim=0)
 
@@ -158,7 +158,7 @@ class LIZO(Optimizer):
         # random sample (orthogonal) points
         num_random = self.num_sample_per_step - len(sample_idx)
         if num_random > 0:
-            new_delta_samples, new_lr = self.get_samples(last_delta_samples[sample_idx] if len(sample_idx)>0 else None, num_random, self.numel_params, orthogonal=self.orthogonal_sample)
+            new_delta_samples, new_lr = self.get_samples(last_delta_samples[sample_idx] if len(sample_idx)>0 else None, num_random, self.numel_params, orthogonal=self.orthogonal_sample, device=device)
             new_lr.mul_(sample_norm)
             # print('new_lr', new_lr)
 
@@ -215,7 +215,8 @@ class LIZO(Optimizer):
 #            last_grad = torch.linalg.solve(dist_matrix, (sample_obj-current_obj).t().div_(sample_lr))
             last_grad = torch.linalg.torch.linalg.lstsq(dist_matrix, (sample_obj-current_obj).t().div_(sample_lr)).solution # use pseudoinverse
             last_grad = last_delta_samples.t() @ last_grad
-        except: 
+        except Exception as e: 
+            raise(e)
             self._reset_state(state)
             return current_obj
 
@@ -236,6 +237,7 @@ class LIZO(Optimizer):
 #        if lr > 10: reset = True
         new_obj = self._directional_evaluate(closure, x_init, lr, last_grad.neg())
         if np.isnan(new_obj):
+            print('Loss is NaN, so the parameters will not be updated in this iteration.')
             reset = True
 
         if reset:

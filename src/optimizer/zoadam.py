@@ -20,9 +20,6 @@ class ZO_Adam(Optimizer):
         device = self._params[0].device
         self.num_sample_per_step = num_sample_per_step
         eps = 1e-8
-        self.v = eps * torch.ones(self.numel_params, device=device)
-        self.m = torch.zeros(self.numel_params, device=device)
-        self.v_hat = self.v.clone()
     
     def _add_grad(self, step_size, update):
         offset = 0
@@ -50,7 +47,8 @@ class ZO_Adam(Optimizer):
         sum = 0
         loss = float(closure())
         for i in range(self.num_sample_per_step):
-            d_i = torch.randn_like(x[0])
+#            d_i = torch.randn_like(x[0])
+            d_i = torch.randn(self.numel_params, device=x[0].device)
             d_i = d_i / d_i.norm()
             # print(d_i.norm())
             loss_i = self._directional_evaluate(closure, x, t, d_i)
@@ -69,6 +67,11 @@ class ZO_Adam(Optimizer):
         lr = group['lr']
         eps = 1e-8
         # print(lr)
+
+        if not hasattr(self, 'v'):
+            self.v = eps * torch.ones(self.numel_params, device=device)
+            self.m = torch.zeros(self.numel_params, device=device)
+            self.v_hat = self.v.clone()
 
         # sample to estimate the gradient
         x_init = self._clone_param()
