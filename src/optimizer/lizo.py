@@ -83,9 +83,11 @@ class LIZO(Optimizer):
         for p, pdata in zip(self._params, params_data):
             p.copy_(pdata)
 
-    def _directional_evaluate(self, closure, x, t, d):
+    def _directional_evaluate(self, closure, x, t, d, weight_decay=0):
         self._add_grad(t, d)
         loss = float(closure())
+        if weight_decay > 0:
+            loss += weight_decay * float(self._flat_param(self._params).norm().pow(2))
         self._set_param(x)
         return loss
 
@@ -121,6 +123,7 @@ class LIZO(Optimizer):
         group = self.param_groups[0]
         sample_norm = 1e-5
         lr = group['lr']
+        weight_decay = group['weight_decay']
         line_search_fn = group['line_search_fn']
         x_init = self._clone_param()
 
@@ -174,7 +177,7 @@ class LIZO(Optimizer):
             for idx in range(num_random, 0, -1):
                 # print(new_lr[-idx])
                 # print(new_delta_samples[-idx].norm())
-                sample_obj[-idx-1] = self._directional_evaluate(closure, x_init, new_lr[-idx], new_delta_samples[-idx])
+                sample_obj[-idx-1] = self._directional_evaluate(closure, x_init, new_lr[-idx], new_delta_samples[-idx], weight_decay)
         last_delta_samples = last_delta_samples[:self.num_sample_per_step]
         sample_lr = sample_lr[:self.num_sample_per_step]
         sample_obj = sample_obj[:self.num_sample_per_step]
@@ -231,11 +234,11 @@ class LIZO(Optimizer):
 
         if line_search_fn is not None:
             def obj_func(x, t, d):
-                return self._directional_evaluate(closure, x, t, d)
+                return self._directional_evaluate(closure, x, t, d, weight_decay)
             lr = line_search_fn(obj_func, current_obj, x_init, last_grad.neg(), init_step=lr)
 #        else:
 #        if lr > 10: reset = True
-        new_obj = self._directional_evaluate(closure, x_init, lr, last_grad.neg())
+        new_obj = self._directional_evaluate(closure, x_init, lr, last_grad.neg(), weight_decay)
         if np.isnan(new_obj):
             print('Loss is NaN, so the parameters will not be updated in this iteration.')
             reset = True
