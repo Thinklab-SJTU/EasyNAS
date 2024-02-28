@@ -3,17 +3,31 @@ root_path: &root_path runs/benchmark/PyCUTEst_SGD/
 obj: &obj
   submodule_name: src.benchmark.pycutest_object.PyCUTEst_benchmark
   args:
+      fn_names: ['ARGTRIGLS', 'CHNROSNB', 'ROSENBR', 'COATING', 'GENHUMPS', 'MANCINO', 'BOXPOWER', 'CHAINWOO', 'MODBEALE', 'SROSENBR', 'BROYDNBDLS', 'DIXMAANC', 'NONDIA', 'POWELLSG', 'BROYDNBDLS']
+      sifParams:
+        - {N: 10}
+        - {N: 25}
+        - null
+        - null
+        - {N: 100}
+        - {N: 100}
+        - {N: 1000}
+        - {NS: 499}
+        - {N/2: 1000}
+        - {N/2: 250}
+        - {N: 5000}
+        - {M: 3000}
+        - {N: 5000}
+        - {N: 5000}
+        - {N: 50}
       constraints: unconstrained
-      num_problem: 5
-#  submodule_name: src.benchmark.pycutest_object.PyCUTEst_func
-#  args:
-#      problem_name: ROSENBR
+#      num_problem: 5
 
 optimizer: &optimizer
   submodule_name: torch.optim.SGD
   args:
     params: 
-    lr: 1.0e-3
+    lr: 1.0e-4
     momentum: 0.9
     nesterov: True
 
@@ -21,8 +35,8 @@ lr_scheduler: &scheduler
   submodule_name: torch.optim.lr_scheduler.LambdaLR
   args:
     optimizer: 
-    lr_lambda: !get_module [src.scheduler.utils.step, {gamma: 0.2, step_size: 100}]
-    #    lr_lambda: !get_module [src.scheduler.utils.multistep, {gamma: 0.2, milestones: [100]}]
+    lr_lambda: !get_module [src.scheduler.utils.multistep, {gamma: 0.2, milestones: [100]}]
+    #    lr_lambda: !get_module [src.scheduler.utils.step, {gamma: 0.2, step_size: 100}]
 
 hooks: &hooks
   opt_hook:

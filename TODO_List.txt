@@ -15,10 +15,11 @@
 
 4. Others
 4.1 We should define root_path in engine, and each save_root/root_path/save_path in hooks should be relative path w.r.t. the root_path in engine. Otherwise the multi-worker will mislead the saving of checkpoint.
+4.2 After searching, the cfg yaml should be checked and updated manually. How to make it easy for the user?
 
 
 TODO order:
-4.1 1.4 2.1 3.2 2.3
+4.1 4.2 1.4 2.1 3.2 2.3
 
 Done:
 3.1 2.2 2.4

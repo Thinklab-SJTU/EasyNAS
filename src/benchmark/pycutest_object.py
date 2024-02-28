@@ -59,35 +59,42 @@ def parse_availabel_sif_params(message):
     return all_sifParams
 
 
-def PyCUTEst_benchmark(objective=None, constraints=None, regular=None, degree=None, origin=None, internal=None, n=None, userN=None, m=None, userM=None, 
+def PyCUTEst_benchmark(fn_names=None, sifParams=None, objective=None, constraints=None, regular=None, degree=None, origin=None, internal=None, n=None, userN=None, m=None, userM=None, 
     with_sifParams=False,
     num_problem=None):
-    problems = pycutest.find_problems(
-        objective=objective, constraints=constraints,
-        regular=regular, degree=degree,
-        origin=origin, internal=internal,
-        n=n, userN=userN,
-        m=m, userM=userM
-        )
-    if num_problem is not None:
-        problems = sorted(problems)[:num_problem]
+    if fn_names is None:
+        problems = pycutest.find_problems(
+            objective=objective, constraints=constraints,
+            regular=regular, degree=degree,
+            origin=origin, internal=internal,
+            n=n, userN=userN,
+            m=m, userM=userM
+            )
+        if num_problem is not None:
+            problems = sorted(problems)[:num_problem]
 
-    #TODO
-    if with_sifParams:
-        assert 0
-        new_problems = []
-        old_stdout = sys.stdout
-        for p in problems:
-            sys.stdout = mystdout = io.StringIO()
-            pycutest.print_available_sif_params(p)
-            message = mystdout.getvalue()
-            all_sifParams = parse_availabel_sif_params(message)
-        sys.stdout = old_stdout
-
+        #TODO
+        if with_sifParams:
+            assert 0
+            new_problems = []
+            old_stdout = sys.stdout
+            for p in problems:
+                sys.stdout = mystdout = io.StringIO()
+                pycutest.print_available_sif_params(p)
+                message = mystdout.getvalue()
+                all_sifParams = parse_availabel_sif_params(message)
+            sys.stdout = old_stdout
+        else:
+            sifParams = [None for _ in range(len(problems))]
+    else:
+        problems = fn_names
+        if sifParams is None:
+            sifParams = [None for _ in range(len(problems))]
+        sifParams = sifParams
 
     fns = []
-    for p in problems:
-        fn = PyCUTEst_func(p)
+    for idx, p in enumerate(problems):
+        fn = PyCUTEst_func(p, sifParams[idx])
         fns.append(fn)
     return fns
 

@@ -65,7 +65,7 @@ class BenchmarkEngine(BaseEngine):
                         self.info.results.obj.backward(inputs=params_require_grad)
                     # get best. it should be put to a hook in the future
                     if self.info.results.get('best', math.inf) > self.info.results.obj:
-                        self.info.results.best = self.info.results.obj
+                        self.info.results.best = float(self.info.results.obj)
 #        print(self.info.results.ignore_obj_list[-1])
 
     def run(self, max_iter):
@@ -78,6 +78,7 @@ class BenchmarkEngine(BaseEngine):
             self.optimize_one_object(obj, max_iter)
             self.info.results.ignore_best.append(self.info.results.best)
             self.info.results.best = math.inf
+        print(self.info.results.ignore_best)
 #            for step in range(max_iter):
 #                self.info.current_iter = step
 #                with hooks_iter(self._hooks, self):

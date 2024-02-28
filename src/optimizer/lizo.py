@@ -43,6 +43,7 @@ class LIZO(Optimizer):
         else: self.reuse_distance_bound = reuse_distance_bound
         self.orthogonal_sample = orthogonal_sample
         self.fast_alg = fast_alg
+        self.num_reuse = []
 
         #TODO: switch one-point/two-point difference
 
@@ -140,7 +141,7 @@ class LIZO(Optimizer):
         sample_lr = torch.cat([sample_lr, torch.tensor([0], device=device)], dim=0)
         last_delta_samples = torch.cat([last_delta_samples, torch.zeros(1, self.numel_params, device=device)], dim=0)
 
-        reuse_last = last_grad is not None
+        reuse_last = last_grad is not None and self.reuse_distance_bound > 0
         # get reused samples from last samples
         if reuse_last:
             history_delta_samples = last_delta_samples
@@ -157,6 +158,7 @@ class LIZO(Optimizer):
         else: 
             sample_idx = []
 #        print('sample_idx', sample_idx)
+        self.num_reuse.append(len(sample_idx))
 
         # random sample (orthogonal) points
         num_random = self.num_sample_per_step - len(sample_idx)

@@ -1,4 +1,4 @@
-root_path: &root_path runs/coco_yolov7-tiny/225/
+root_path: &root_path runs/coco_yolov7-tiny/230/
 epoch: &epoch 300
 accumulate_gradient: &acc_grad 1
 

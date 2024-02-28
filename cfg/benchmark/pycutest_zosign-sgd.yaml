@@ -24,15 +24,12 @@ obj: &obj
 #      num_problem: 5
 
 optimizer: &optimizer
-  submodule_name: src.optimizer.lizo.LIZO
+  submodule_name: src.optimizer.zosgd.ZO_SGD
   args:
     params: 
-    lr: 1.0e-4
-    num_sample_per_step: 8
-    reuse_distance_bound: 2.e-4 #2.e-2
-    orthogonal_sample: False
-    fast_alg: True
-    line_search_fn: !get_module [src.optimizer.lizo._backtracking, {shrink_rate: 0.2, c1: 1.e-4, max_ls: 10}]
+    lr: 1.0e-1
+    mu: 1.0e-3
+    sign: True
 
 lr_scheduler: &scheduler
   submodule_name: torch.optim.lr_scheduler.LambdaLR
@@ -69,6 +66,8 @@ engine:
     hooks: *hooks
   run_args: 
     max_iter: 500
+
+
 
 
 
