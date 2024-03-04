@@ -1,4 +1,5 @@
 1. Search Space:
+1.1 Maybe we should keep `current_sample' in each sampler, and then we donot need `sample_from_node' methods. However, we should empty `current_sample' before each sampling.
 1.2 update FlattenSampledDiscreteSpace as FlattenView
 1.3 Build BN via SearchModule when bn_per_ch = True
 1.4 load_state_dict: state_dict_sampler_weights should be separately considered, which can differs from the sampler_weights in the current search space
