@@ -37,7 +37,7 @@ def create_search_space(cfg: dict):
 def create_searcher(cfg: dict):
     return get_submodule_by_name(cfg.get('submodule_name'), search_path='src.searcher')(**cfg.get('args', {}))
 
-def create_evaluater(cfg: dict):
+def create_contractor(cfg: dict):
     return get_submodule_by_name(cfg.get('submodule_name'), search_path='src.evaluater')(**cfg.get('args', {}))
 
 def create_module(cfg: dict, search_path=None):

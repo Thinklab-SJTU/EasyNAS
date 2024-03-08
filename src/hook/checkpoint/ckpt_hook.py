@@ -16,7 +16,8 @@ class CkptHOOK(HOOK):
             os.makedirs(self.save_root, exist_ok=True)
             setattr(self, 'after_epoch', self.save_model)
 
-    def get_pretrain_model(self, device, pretrain=None):
+    @classmethod
+    def get_pretrain_model(cls, device='cpu', pretrain=None):
         if pretrain is None: return None
         if not os.path.exists(pretrain): 
             raise(ValueError(f"{pretrain} is not an existed file or a directory."))

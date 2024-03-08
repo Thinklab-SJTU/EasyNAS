@@ -68,7 +68,7 @@ def fetch_info_rk3588(ssh, cmd):
 
         if latency == 0 or memory == 0:
             raise Exception('Failed to parse output: \n{}'.format(output))
-        return [latency, memory]
+        return {'latency': latency, 'memory': memory}
     info = fetch_info(ssh, cmd, end_identifier, output_parser)
     return info
 

@@ -31,15 +31,15 @@ class SearchModule(nn.Module):
     def __init__(self, *args, **kwargs):
         super(SearchModule, self).__init__()
 
-    def norm_arch_parameters(self, search_space, arch_param=None):
+    def norm_arch_parameters(self, search_space, arch_param=None, device='cuda'):
         if arch_param is not None: return arch_param
         if isinstance(search_space, DiscreteSpace):
             arch_param = list(search_space.sampler_weights())
             if len(arch_param) == 0:
-                return torch.tensor([1./search_space.size for _ in range(search_space.size)])
+                return torch.tensor([1./search_space.size for _ in range(search_space.size)], device=device)
             assert len(arch_param) == 1
             return search_space.sampler.norm_fn(arch_param[0])
-        else: return torch.tensor([1./len(search_space) for _ in range(len(search_space))])
+        else: return torch.tensor([1./len(search_space) for _ in range(len(search_space))], device=device)
 
     def get_norm_layer(self, ch_alphas, bn, bn_per_ch=True):
         return bn[ch_alphas.argmax()] if bn_per_ch and isinstance(bn, nn.ModuleList) else bn
@@ -222,10 +222,10 @@ class AtomSearchModule(SearchModule):
 
 
     def forward(self, xs, op_alphas=None, ch_alphas=None, edge_alphas=None):
-        edge_alphas = self.norm_arch_parameters(self.input_idx, edge_alphas)
-        ch_alphas = self.norm_arch_parameters(self.candidate_ch, ch_alphas)
+        edge_alphas = self.norm_arch_parameters(self.input_idx, edge_alphas, device=xs[0].device)
+        ch_alphas = self.norm_arch_parameters(self.candidate_ch, ch_alphas, device=xs[0].device)
         if op_alphas is None: op_alphas = [None for _ in range(len(self.input_idx))]
-        op_alphas = [self.norm_arch_parameters(cand_op, op_alpha) for cand_op, op_alpha in zip(self.candidate_op, op_alphas)]
+        op_alphas = [self.norm_arch_parameters(cand_op, op_alpha, device=xs[0].device) for cand_op, op_alpha in zip(self.candidate_op, op_alphas)]
 
         out = sum(self.forward_edge(x, m, edge_op_alphas, edge_op_space, ch_alphas) * edge_alpha 
                 for x, m, edge_alpha, edge_op_alphas, edge_op_space in zip(xs, self.m, edge_alphas, op_alphas, self.candidate_op))
@@ -365,8 +365,8 @@ class ConvBNAct_search(SearchModule):
 
         Cin = x.size(1)
         bias = self.bias
-        ch_alphas = self.norm_arch_parameters(self.candidate_ch, ch_alphas)
-        op_alphas = self.norm_arch_parameters(self.kd, op_alphas)
+        ch_alphas = self.norm_arch_parameters(self.candidate_ch, ch_alphas, device=x.device)
+        op_alphas = self.norm_arch_parameters(self.kd, op_alphas, device=x.device)
         bn = self.get_norm_layer(ch_alphas, self.bn, self.bn_per_ch)
                                    
         merge_kernel = self.get_merge_kernel(self.weight, op_alphas, merge=self.merge_kernel) if len(self.kd)>1 else (self.weight if self.merge_kernel else self.weight[0])
@@ -402,7 +402,7 @@ class ConvBNAct_search(SearchModule):
             end = int(weight.shape[-1] - start)
             cout, cin, _, _ = self.weight.shape
             with torch.no_grad():
-                state_dict_op_alphas = self.norm_arch_parameters(search_space['kd'])
+                state_dict_op_alphas = self.norm_arch_parameters(search_space['kd'], device=weight.device)
             state_dict_op_alphas = torch.gather(state_dict_op_alphas, dim=-1, index=torch.tensor(op_idx, device=state_dict_op_alphas.device))
             weight = self.get_merge_kernel(weight[:cout,:cin,start:end, start:end], state_dict_op_alphas, self.merge_kernel)
             state_dict[weight_name] = weight[:cout,:cin,:, :]
@@ -458,8 +458,8 @@ class SepConvBNAct_search(ConvBNAct_search):
 
         Cin = x.size(1)
         bias = self.bias
-        ch_alphas = self.norm_arch_parameters(self.candidate_ch, ch_alphas)
-        op_alphas = self.norm_arch_parameters(self.kd, op_alphas)
+        ch_alphas = self.norm_arch_parameters(self.candidate_ch, ch_alphas, device=x.device)
+        op_alphas = self.norm_arch_parameters(self.kd, op_alphas, device=x.device)
         bn = self.get_norm_layer(ch_alphas, self.bn, self.bn_per_ch)
 
         if self.merge_kernel:
@@ -513,8 +513,8 @@ class SepConvBNAct_search(ConvBNAct_search):
             end = int(depth_weight.shape[-1] - start)
             cout, cin, _, _ = self.weight['point_weight'].shape
             with torch.no_grad():
-                state_dict_op_alphas = self.norm_arch_parameters(search_space['kd'])
-            state_dict_op_alphas = torch.gather(state_dict_op_alphas, dim=-1, index=torch.tensor(op_idx))
+                state_dict_op_alphas = self.norm_arch_parameters(search_space['kd'], device=depth_weight.device)
+            state_dict_op_alphas = torch.gather(state_dict_op_alphas, dim=-1, index=torch.tensor(op_idx, device=state_dict_op_alphas.device))
             depth_weight = self.get_merge_kernel(depth_weight[:cin,:,start:end,start:end], state_dict_op_alphas, self.merge_kernel)
             state_dict[weight_name+'.depth_weight'] = depth_weight[:cin,:,:,:]
             state_dict[weight_name+'.point_weight'] = state_dict[weight_name+'.point_weight'][:cout,:cin,:,:]

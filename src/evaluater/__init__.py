@@ -1,2 +1,2 @@
-from .base import Evaluater
+from .base import Contractor, Evaluater
 

@@ -40,9 +40,12 @@ class BaseEngine(object):
         idx = bisect.bisect_right([h.priority for h in self._hooks], hook.priority)
         self._hooks.insert(idx, hook)
 
+    def update(self, sample):
+        raise(NotImplementedError("No implementation"))
+
     def run(self, epochs=None):
         raise(NotImplementedError("No implementation"))
 
-    def extract_performance(self):
+    def extract_performance(self, eval_names):
         raise(NotImplementedError("No implementation"))
 

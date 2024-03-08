@@ -28,7 +28,8 @@ def main(args):
     # read the config file
     cfg = parse_cfg(args.cfg)
     for k, v in cfg.items():
-        print("\n", k, v)
+        if k == 'engine':
+            print("\n", k, v)
     if cfg.get('root_path', None):
         os.makedirs(cfg.get('root_path'), exist_ok=True)
 

@@ -2,18 +2,18 @@ import os
 from easydict import EasyDict
 from collections import OrderedDict, namedtuple
 import time
-from multiprocessing import Process, JoinableQueue, Manager
+import multiprocessing as mp
 
 from .base import BaseEngine
-from builder import create_hook, create_search_space, create_searcher, create_evaluater
+from builder import create_hook, create_search_space, create_searcher, create_contractor
 from src.hook import hooks_run, hooks_epoch
 #from src.search_space.base import _SearchSpace
 
 QueryReward = namedtuple('QueryReward', ['query', 'reward'])
 
 class SearchEngine(BaseEngine):
-    def __init__(self, search_space, searcher, evaluater, hooks, num_eval_workers=1):
-        self.search_space, self.searcher, self.evaluater = self.build_from_cfg(search_space, searcher, evaluater, hooks)
+    def __init__(self, search_space, searcher, contractor, hooks, num_eval_workers=1):
+        self.search_space, self.searcher, self.contractor= self.build_from_cfg(search_space, searcher, contractor, hooks)
 
         print(f"The size of Search space is {self.search_space.size}")
 #        tmp = []
@@ -30,7 +30,7 @@ class SearchEngine(BaseEngine):
             'results': EasyDict(),
             })
 
-    def build_from_cfg(self, search_space_cfg, searcher_cfg, evaluater_cfg, hooks_cfg):
+    def build_from_cfg(self, search_space_cfg, searcher_cfg, contractor_cfg, hooks_cfg):
         # build search_space
         print("Building search space")
 #        if isinstance(search_space_cfg, _SearchSpace):
@@ -44,8 +44,8 @@ class SearchEngine(BaseEngine):
         searcher = create_searcher(searcher_cfg)
 
         # build evaluater
-        print("Building evaluater")
-        evaluater = create_evaluater(evaluater_cfg)
+        print("Building contractor")
+        contractor = create_contractor(contractor_cfg)
 
         # build other hooks
         print("Building hooks")
@@ -54,14 +54,15 @@ class SearchEngine(BaseEngine):
         for v in gen:
             print(v)
             self.register_hook(create_hook(v))
-        return search_space, searcher, evaluater
+        return search_space, searcher, contractor
 
     def run(self):
         with hooks_run(self._hooks, self):
-            sample_queue = JoinableQueue()
-            reward_queue = JoinableQueue()
+#            ctx = multiprocessing.get_context('spawn')
+            sample_queue = mp.JoinableQueue()
+            reward_queue = mp.JoinableQueue()
 
-            eval_ps = [Process(target=self.evaluater.run, args=(sample_queue, reward_queue, i)) for i in range(self.num_eval_workers)]
+            eval_ps = [mp.Process(target=self.contractor.dispatch, args=(sample_queue, reward_queue, i)) for i in range(self.num_eval_workers)]
             for p in eval_ps:
                 p.start()
 

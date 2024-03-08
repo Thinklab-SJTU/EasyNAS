@@ -58,6 +58,8 @@ def export_onnx(model, onnx_path=None, dynamic=False, dynamic_batch=False):
             if isinstance(child_m, nn.SiLU):
                 setattr(m, child_k, SiLU())
 
+    model.to('cpu')
+    img = img.to('cpu')
 
     torch.onnx.export(model, img, onnx_path, verbose=False, opset_version=12, input_names=['images'],
                       output_names=output_names,

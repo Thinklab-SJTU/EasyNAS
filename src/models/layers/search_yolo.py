@@ -92,8 +92,8 @@ class YOLODetect_search(YOLODetect, SearchModule):
     def _initialize_biases(self, cf=None):  # initialize biases into Detect(), cf is class frequency
         # https://arxiv.org/abs/1708.02002 section 3.3
         # cf = torch.bincount(torch.tensor(np.concatenate(dataset.labels, 0)[:, 0]).long(), minlength=nc) + 1.
-#        self.bias = torch.nn.Parameter(torch.zeros(len(self.strides), self.na, self.no), requires_grad=True)
-        self.bias = torch.zeros(len(self.strides), self.na, self.no)
+        self.bias = torch.nn.Parameter(torch.zeros(len(self.strides), self.na, self.no), requires_grad=True)
+#        self.bias = torch.zeros(len(self.strides), self.na, self.no)
         for i, s in enumerate(self.strides):  # from
             fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.m[i].weight)
             if fan_in != 0:
