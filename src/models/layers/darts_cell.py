@@ -7,21 +7,122 @@ from torch.autograd import Variable
 
 from .base import SearchModule
 from src.search_space.cell_space import get_search_space, darts
-from .common import ConvBNAct, FactorizedReduce
-from .search_common import AFF
+from .common import ConvBNAct, SepConvBNAct, FactorizedReduce
+from .search_common import AtomSearchModule
 from .utils import get_act, get_layer
 
-def darts_identity(in_channel, out_channel, stride, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)), act=True):
+###################
+# operation
+###################
+
+class Zero(nn.Module):
+  def __init__(self, stride):
+    super(Zero, self).__init__()
+    self.stride = stride
+
+  def forward(self, x):
+    if self.stride == 1:
+      return x.mul(0.)
+    return x[:,:,::self.stride,::self.stride].mul(0.)
+
+class darts_identity(nn.Module):
+  def __init__(self, in_channel, out_channel, stride, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=False)), act=dict(submodule_name='torch.nn.ReLU', args=dict(inplace=False))):
+    super(darts_identity, self).__init__()
     if stride == 1:
-        return nn.Identity()
+        self.act = None
+        self.op = nn.Identity()
     else: 
-        if act:
-            return nn.Sequential(
-                    get_act(act),
-                    FactorizedReduce(in_channel, out_channel, stride, bn, False)
+        self.act = get_act(act)
+        self.op = FactorizedReduce(in_channel, out_channel, stride, bn, False)
+  def forward(self, x):
+    if self.act: x = self.act(x)
+    return self.op(x)
+
+class darts_conv(nn.Module):
+  def __init__(self, in_channel, out_channel, kernel_dilation, stride=1, affine=False, num_repeat=2, separable=True):
+    super(darts_conv, self).__init__()
+    if separable: my_conv = SepConvBNAct
+    else: my_conv = ConvBNAct
+    kernel, dilation = kernel_dilation
+    self.op1 = nn.Sequential()
+    out_channels = [in_channel] * (num_repeat-1) + [out_channel]
+    for i in range(num_repeat):
+        self.op1.add_module('relu%d'%i, nn.ReLU(inplace=False))
+        self.op1.add_module('conv%d'%i, my_conv(in_channel, out_channels[i], kernel, dilation, stride=stride if i==0 else 1, pad=None, group=1, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=affine)), act=False, bias=False))
+
+  def forward(self, x):
+    return self.op1(x)
+
+class mergenas_conv(nn.Module):
+  def __init__(self, in_channel, out_channel, candidate_op=[(3,1),(5,1),(3,2),(5,2)], stride=1, affine=False, num_repeat=1, separable=True):
+    super(mergenas_conv, self).__init__()
+    if separable: my_conv = SepConvBNAct_search
+    else: my_conv = ConvBNAct_search
+    self.op1 = nn.Sequential()
+    for i in range(num_repeat):
+        self.op1.add_module('relu%d'%i, nn.ReLU(inplace=False))
+        self.op1.add_module('conv%d'%i, my_conv(in_channel, out_channel, candidate_op=candidate_op, stride=stride if i==0 else 1, pad=None, group=1, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=affine)), act=False), merge_kernel=True)
+
+  def forward(self, x):
+    return self.op1(x)
+
+
+###################
+# Cell
+###################
+class Cell_search(SearchModule):
+    def __init__(self, in_channel, out_channel, strides, candidate_edge, candidate_op,  
+                 multiplier=4,
+                 bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)), 
+                 gumbel_edge=False,
+                 label=None
+                ):
+
+        super(Cell_search, self).__init__()
+        self._multiplier = multiplier
+        C = out_channel // multiplier
+
+        reduction = True
+        for s in strides:
+            if s==1: 
+                reduction = False
+                break
+        self.preprocess = nn.ModuleList([])
+        for cin, s in zip(in_channel, strides):
+            pre_op = nn.Sequential(
+                    nn.ReLU(inplace=False),
+                    FactorizedReduce(cin, C, stride=2, act=False, bn=bn) if not reduction and s==2 else ConvBNAct(cin, C, kernel=1, stride=1, act=False, bn=bn),
                     )
-        else:
-            return FactorizedReduce(in_channel, out_channel, stride, bn, False)
+            self.preprocess.append(pre_op)
+#            self.preprocess.append(FactorizedReduce(cin, C, stride=2, act=act, bn=bn) if not reduction and s==2 else ConvBNAct(cin, C, kernel=1, stride=1, act=act, bn=bn))
+
+        self._ops = nn.ModuleList()
+        tmp_cins, tmp_strides = [C for _ in range(len(in_channel))], strides.copy() if reduction else [1 for _ in range(len(strides))]
+        self.candidate_edge = candidate_edge
+        for edge, op in zip(candidate_edge, candidate_op):
+            _cins = [tmp_cins[e] for e in edge]
+            _strides = [tmp_strides[e] for e in edge]
+            self._ops.append(AtomSearchModule(in_channel=_cins,
+                                 out_channel=C,
+                                 strides=_strides,
+                                 input_idx=edge,
+                                 candidate_op=op,
+                                 act=False, bn=False,
+                                 ))
+            tmp_cins.append(C)
+            tmp_strides.append(1)
+
+    def forward(self, inputs):
+        xs = []
+        for x, pre_op in zip(inputs, self.preprocess):
+            xs.append(pre_op(x))
+
+        for edge, op in zip(self.candidate_edge, self._ops):
+            tmp_xs = [xs[e] for e in edge]
+            xs.append(op(tmp_xs))
+        return torch.cat(xs[-self._multiplier:], dim=1)
+
+
 
 
 class Cell(nn.Module):
@@ -74,16 +175,15 @@ class Cell(nn.Module):
           xs.append(op([xs[e] for e in edge]))
       return torch.cat(xs[-self._multiplier:], dim=1)
 
-
-
-class Cell_search(SearchModule):
-    def __init__(self, in_channel, out_channel, strides, 
+class Cell_search_bk(SearchModule):
+    def __init__(self, in_channel, out_channel, strides, candidate_op, input_idx,  
                  steps=4, multiplier=4,
-                 candidate_op=darts, gumbel_op=False, gumbel_edge=False, 
-                 act=nn.ReLU(), bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)),
-                 independent_ch_arch_param=True, independent_op_arch_param=True, independent_edge_arch_param=True):
+                 act=nn.ReLU(), bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)), 
+                 gumbel_edge=False,
+                 label=None
+                ):
 
-        super(Cell_search, self).__init__()
+        super(Cell_search_bk, self).__init__()
         self._steps = steps
         self._multiplier = multiplier
         C = out_channel // multiplier
@@ -102,20 +202,25 @@ class Cell_search(SearchModule):
             self.preprocess.append(pre_op)
 #            self.preprocess.append(FactorizedReduce(cin, C, stride=2, act=act, bn=bn) if not reduction and s==2 else ConvBNAct(cin, C, kernel=1, stride=1, act=act, bn=bn))
 
-        candidate_op = get_search_space(candidate_op)
         self._ops = nn.ModuleList()
         tmp_cins, tmp_strides = [C for _ in range(len(in_channel))], strides.copy() if reduction else [1 for _ in range(len(strides))]
         for i in range(self._steps):
-            self._ops.append(AFF(in_channel=tmp_cins,
+            space = list(range(len(tmp_cins)))
+            norm_fn = 'gumbel_softmax' if gumbel_op else 'softmax'
+            sampler_cfg = {'submodule_name': 'WeightedSampler', 'args': {'norm_fn': norm_fn}}
+            e_label = 'edge%d'%i if label is None else label + 'edge%d'%i
+            input_idx = SearchSpace(space=space, sampler_cfg=sampler_cfg, label=e_label, num_reserve=2, reserve_replace=False)
+            e_op_label = 'edge%d_op'%i if label is None else label + 'edge%d_op'%i
+            e_candidate_op = []
+            for j in range(len(tmp_cins)):
+                e_candidate_op.append(candidate_op.new_space(label=e_op_label+'%d'%j))
+            e_candidate_op = SearchSpace(space=e_candidate_op, label=e_label, num_reserve=2, reserve_replace=False)
+            self._ops.append(AtomSearchModule(in_channel=tmp_cins,
                                  out_channel=C,
                                  strides=tmp_strides,
-                                 candidate_op=candidate_op,
-                                 gumbel_op=gumbel_op,
-                                 gumbel_edge=gumbel_edge,
+                                 input_idx=input_idx,
+                                 candidate_op=e_candidate_op,
                                  act=False, bn=False,
-                                 independent_edge_arch_param=independent_edge_arch_param,
-                                 independent_op_arch_param=independent_op_arch_param,
-                                 independent_ch_arch_param=independent_ch_arch_param,
                                  ))
             tmp_cins.append(C)
             tmp_strides.append(1)

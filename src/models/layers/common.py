@@ -19,7 +19,7 @@ def DWConvBNAct(in_channel, out_channel, kernel=1, dilation=1, stride=1, group=1
 
 
 class PoolBNAct(nn.Module):
-    def __init__(self, kernel, out_channel=None, stride=1, pool='max', pad=None, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=True)), act=nn.ReLU(), **kwargs): 
+    def __init__(self, kernel, out_channel=None, stride=1, pool='max', pad=None, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True)), act=nn.ReLU(), **kwargs): 
         super(PoolBNAct, self).__init__()
         if bn: assert out_channel is not None
 

@@ -137,6 +137,7 @@ class AtomSearchModule(SearchModule):
         if len(self.candidate_op) == 1:
             self.candidate_op = [self.candidate_op[0]] * len(self.cin)
         assert len(self.candidate_op) == len(self.cin)
+        #TODO: Note that cfg file has to make sure that the outlayer of self.candidate_op should has the same sampling property as self.input_idx
 
         # candidate_ch
         self.candidate_ch = check_nesting(out_channel, 1)
@@ -150,10 +151,12 @@ class AtomSearchModule(SearchModule):
             elif isinstance(op_cfg, (dict, IIDSpace)):
                 arg_names = inspect.getfullargspec(get_layer(op_cfg['submodule_name']).__init__).args
                 if 'out_channel' in arg_names:
-#                    if isinstance(self.candidate_ch, _SearchSpace): 
+                    if isinstance(self.candidate_ch, _SearchSpace): 
 #                        assert(op_cfg, IIDSpace)
-                    op_cfg['args']['out_channel'] = self.candidate_ch.space if isinstance(self.candidate_ch, _SearchSpace) else self.candidate_ch
-                    op_cfg['args']['bn_per_ch'] = bn_per_ch
+                        op_cfg['args']['out_channel'] = self.candidate_ch.space
+                        op_cfg['args']['bn_per_ch'] = bn_per_ch
+                    else:
+                        op_cfg['args']['out_channel'] = self.candidate_ch
                     return True
                 return False
         # build operations
@@ -187,6 +190,7 @@ class AtomSearchModule(SearchModule):
 
         out, ptr = 0., 0
         for idx, (op, op_in_space) in enumerate(zip(edge_module, op_space)):
+#            print(op)
             if isinstance(op, nn.Sequential):
                 tmp, end_ptr = x, ptr
                 for sub_op in op:

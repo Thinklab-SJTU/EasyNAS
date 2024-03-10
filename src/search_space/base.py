@@ -295,15 +295,17 @@ class _SearchSpace(ABC):
     def discretize(self, **replace_settings):
         pass
 
-    def show_info(self, prefix=''):
-        if self.sampler is not None:
+    def show_info(self, prefix='', showed_label=None):
+        if showed_label is None: showed_label = set()
+        if self.label not in showed_label and self.sampler is not None:
             name = '.'.join([tmp.split('::')[-1] for tmp in prefix.split('.')])
             string = f"name={name}, label={self.label}, space={self.__class__.__name__}, sampler={self.sampler.__class__.__name__}: "
             for name, weight in self.sampler.named_weights():
                 string += f"\n\t{name}={weight.data}; normed={self.sampler.norm_fn(weight).data}"
             print(string)
+            showed_label.add(self.label)
         for child_prefix, child_space in self._child_spaces.items():
-            child_space.show_info(prefix='.'.join([prefix, child_prefix]))
+            child_space.show_info(prefix='.'.join([prefix, child_prefix]), showed_label=showed_label)
 
 #        for prefix, child_space in self._child_spaces.items():
 #            name = '.'.join([tmp.split('::')[-1] for tmp in prefix.split('.')])
@@ -457,16 +459,17 @@ class IIDSpace(_SearchSpace):
         return self.build_config(replace_settings)
 
 class RepeatSpace(IIDSpace):
-    def __init__(self, space, num_repeat, independent=True):
+    def __init__(self, space, num_repeat, independent=True, label=None):
         assert isinstance(space, _SearchSpace)
         self.num_repeat = num_repeat
         self.independent = independent
         space = {0: space}
         if independent:
             for i in range(1, num_repeat):
-                space[i] = space[0].new_space(label=None)
+                repeat_label = None if label is None else label+'repeat_%d'%i
+                space[i] = space[0].new_space(label=repeat_label)
 #        space = {i: space.new_space(label=None) if i>0 and independent else space for i in range(num_repeat)}
-        super(IIDSpace, self).__init__(space, sampler_cfg=None, embed_fn=None, label=None)
+        super(IIDSpace, self).__init__(space, sampler_cfg=None, embed_fn=None, label=label)
 
     def __len__(self):
         return self.num_repeat
@@ -482,7 +485,7 @@ class RepeatSpace(IIDSpace):
         return config
 
     def discretize(self, **replace_settings):
-        return [self.space[i].discretize() for i in range(self.num_repeat)]
+        return [self.space[i].discretize(**replace_settings) for i in range(self.num_repeat)]
 
 ###########################################
 class DiscreteSpace(_SearchSpace):

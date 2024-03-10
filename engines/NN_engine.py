@@ -16,7 +16,7 @@ class NNEngine(BaseEngine):
         self.local_rank = local_rank
         self.sync_bn = sync_bn
         self.device = torch.device('cuda', max(local_rank, 0))
-#        self.search_space = create_search_space(model) # an instance of _Searchspace
+        self.search_space = create_search_space(model) # an instance of _Searchspace
         self.default_cfg = {}
         self.build_all(data, model, criterion, optimizer, lr_scheduler, hooks)
 

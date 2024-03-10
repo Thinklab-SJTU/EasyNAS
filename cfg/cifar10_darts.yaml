@@ -1,4 +1,5 @@
-root_path: &root_path runs/cifar10_noPermutation_darts_noEdgeAlpha_noCutout_noActEachOp_SepConvInterReLU_alphaInit1e-3_actBeforeOp_gradClip5_noInitW_updateFreq1_withZeroOp/
+#root_path: &root_path runs/cifar10_noPermutation_darts_noEdgeAlpha_noCutout_noActEachOp_SepConvInterReLU_alphaInit1e-3_actBeforeOp_gradClip5_noInitW_updateFreq1_withZeroOp/
+root_path: &root_path runs/cifar10_darts/
 epoch: &epoch 50
 accumulate_gradient: &acc_grad 1
 
@@ -53,8 +54,9 @@ hooks: &hooks
       accumulate_gradient: *acc_grad
       priority: 30
       save_root: !join [*root_path, arch/]
-      discretize_width: 2.25
-      discretize_depth: 5
+      replace_settings:
+        args.width_multiple: 2.25
+        args.depth_multiple: 5
   
   eval_hook:
     submodule_name: EvalAccHOOK
@@ -94,4 +96,6 @@ engine:
     lr_scheduler: *scheduler
     hooks: *hooks
     amp: False
+  run_args:
+    epochs: *epoch 
 

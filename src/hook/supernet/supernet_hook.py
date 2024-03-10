@@ -9,17 +9,7 @@ from builder import get_submodule_by_name, create_criterion, CfgDumper
 from ..hook import HOOK, execute_period, only_master, hooks_train_iter
 from .. import OptHOOK
 
-def set_temperature(space, temp):
-    if hasattr(space, 'sampler') and hasattr(space.sampler, 'norm_fn'):
-        norm_fn = space.sampler.norm_fn
-        if isinstance(norm_fn, partial):
-            norm_fn = norm_fn.func
-        if 'temperature' in inspect.getfullargspec(space.sampler.norm_fn).args:
-            space.sampler.norm_fn = partial(norm_fn, temperature=temp)
-
-def to_device(x, device):
-    with torch.no_grad():
-        return x.to(device).requires_grad_(x.requires_grad)
+from src.searcher.first_order_opt import set_temperature, to_device
 
 class DARTSHOOK(HOOK):
     def __init__(self, optimizer_cfg, dataloader_name, criterion_cfg=None, grad_clip=None,  update_freq=1, accumulate_gradient=1, priority=0, save_root=None,             temperature_start=1.,
