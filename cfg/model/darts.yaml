@@ -13,7 +13,7 @@ op_space: &op_space
     args: {kernel: 3, pool: 'avg', bn: {submodule_name: 'torch.nn.BatchNorm2d', args: {affine: False}}, act: False}
   - submodule_name: darts_identity
     args: {bn: {submodule_name: 'torch.nn.BatchNorm2d', args: {affine: False}}}
-  - submodule_name: Zero
+#  - submodule_name: Zero
 
 op_sampler: &op_sampler
   submodule_name: WeightedSampler

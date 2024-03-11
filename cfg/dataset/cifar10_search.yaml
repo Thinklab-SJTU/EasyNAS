@@ -34,6 +34,13 @@ dataloader:
       batch_size: *bs
       pin_memory: True
       num_workers: 4
+  train_weight:
+    dataset_name: train
+    portion: 0.5
+    dataloader_args:
+      batch_size: *bs
+      pin_memory: True
+      num_workers: 4
   val:
     dataset_name: val
     use_dist: False

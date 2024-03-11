@@ -159,6 +159,8 @@ class LIZO(Optimizer):
             sample_idx = []
 #        print('sample_idx', sample_idx)
         self.num_reuse.append(len(sample_idx))
+        if len(sample_idx) > 0: 
+            print(f"Reuse {len(sample_idx)} samples")
 
         # random sample (orthogonal) points
         num_random = self.num_sample_per_step - len(sample_idx)
