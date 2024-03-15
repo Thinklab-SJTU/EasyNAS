@@ -1,4 +1,4 @@
-base_path: &base_path runs/cifar10_darts/
+base_path: &base_path runs/cifar10_zarts/replicate_1/
 root_path: &root_path !join [*base_path, retrain/]
 epoch: &epoch 600
 accumulate_gradient: &acc_grad 1
@@ -126,3 +126,4 @@ engine:
     amp: False
   run_args:
     epochs: *epoch
+

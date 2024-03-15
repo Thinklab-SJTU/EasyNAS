@@ -75,7 +75,8 @@ class Cell_search(SearchModule):
                  multiplier=4,
                  bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)), 
                  gumbel_edge=False,
-                 label=None
+                 label=None,
+                 drop_path_prob=0.
                 ):
 
         super(Cell_search, self).__init__()
@@ -108,6 +109,7 @@ class Cell_search(SearchModule):
                                  input_idx=edge,
                                  candidate_op=op,
                                  act=False, bn=False,
+                                 drop_path_prob=drop_path_prob
                                  ))
             tmp_cins.append(C)
             tmp_strides.append(1)

@@ -183,6 +183,7 @@ args:
         candidate_op: *normal_op
         bn: !get_module [torch.nn.BatchNorm2d, {affine: False}]
         label: normal
+        drop_path_prob: 0
     - input_idx: [-2, -1] # 2
       submodule_name: Cell_search
       arch_idx: -1
@@ -194,6 +195,7 @@ args:
         candidate_op: *normal_op
         bn: !get_module [torch.nn.BatchNorm2d, {affine: False}]
         label: normal
+        drop_path_prob: 0
 
 # reduce cell * 1  
     - input_idx: [-2, -1] # 3
@@ -206,6 +208,7 @@ args:
         candidate_op: *reduce_op
         bn: !get_module [torch.nn.BatchNorm2d, {affine: False}]
         label: reduce
+        drop_path_prob: 0
 
 # normal cell * 2
     - input_idx: [-2, -1] # 4
@@ -218,6 +221,7 @@ args:
         candidate_op: *normal_op
         bn: !get_module [torch.nn.BatchNorm2d, {affine: False}]
         label: normal
+        drop_path_prob: 0
     - input_idx: [-2, -1] # 5
       submodule_name: Cell_search
       arch_idx: -1
@@ -229,6 +233,7 @@ args:
         candidate_op: *normal_op
         bn: !get_module [torch.nn.BatchNorm2d, {affine: False}]
         label: normal
+        drop_path_prob: 0
 
 # reduce cell * 1  
     - input_idx: [-2, -1] # 6
@@ -242,6 +247,7 @@ args:
         candidate_op: *reduce_op
         bn: !get_module [torch.nn.BatchNorm2d, {affine: False}]
         label: reduce
+        drop_path_prob: 0
 
 # normal cell * 2
     - input_idx: [-2, -1] # 7
@@ -254,6 +260,7 @@ args:
         candidate_op: *normal_op
         bn: !get_module [torch.nn.BatchNorm2d, {affine: False}]
         label: normal
+        drop_path_prob: 0
     - input_idx: [-2, -1] # 8
       submodule_name: Cell_search
       arch_idx: -1
@@ -265,6 +272,7 @@ args:
         candidate_op: *normal_op
         bn: !get_module [torch.nn.BatchNorm2d, {affine: False}]
         label: normal
+        drop_path_prob: 0
 
     - input_idx: -1
       submodule_name: GlobalPoolBNAct

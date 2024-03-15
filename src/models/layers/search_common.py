@@ -13,6 +13,7 @@ import torch.nn.functional as F
 from .utils import autopad, gumbel_softmax, get_layer, get_act, get_norm, get_layer
 from .base import  OpBuilder
 from src.search_space.base import DiscreteSpace, IIDSpace, _SearchSpace, RepeatSpace
+from .common import DropPath
 
 __all__ = ["ConvBNAct_search", "SepConvBNAct_search", "AFF", "SPP_search"]
 
@@ -121,7 +122,7 @@ class AtomSearchModule(SearchModule):
         input_idx, # candidate_edge
         candidate_op,
         auto_refine=False, adjust_ch_op=None, upsample_op=None, 
-        act=nn.ReLU(), bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True)), bn_per_ch=True): 
+        act=nn.ReLU(), bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True)), bn_per_ch=True, drop_path_prob=0.): 
         """
         strides: a list indicating the scale for each edge. Whether to up-sampling or down-sampling, and how much the degree is
         """
@@ -179,6 +180,9 @@ class AtomSearchModule(SearchModule):
         if self.bn_per_ch:
             self.bn = nn.ModuleList([get_norm(bn, int(ch)) for ch in self.candidate_ch]) 
         else: self.bn = get_norm(bn, self.cout)
+        if drop_path_prob > 0:
+            self.drop_path = DropPath(drop_path_prob)
+        else: self.drop_path = None
 
     def forward_edge(self, x, edge_module, op_alphas, op_space, ch_alphas):
         def _forward_op(x, op, op_in_space, ptr):
@@ -203,6 +207,7 @@ class AtomSearchModule(SearchModule):
             else:
                 out = out + tmp
                 ptr = end_ptr
+        if self.drop_path and (len(edge_module)>1 or not torch.equal(x, out)): out = self.drop_path(out)
         return out
 
 #        out, ptr = 0., 0

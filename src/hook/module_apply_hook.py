@@ -31,6 +31,7 @@ class DropPathProbHOOK(ModuleApplyHOOK):
 
     def apply(self, runner):
         eta = runner.info.current_epoch / runner.info.epochs
+        print(f"Set drop_path as {eta}")
         runner.model.apply(partial(self.set_drop_prob, eta=eta))
 
 

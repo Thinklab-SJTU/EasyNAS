@@ -1,4 +1,4 @@
-root_path: &root_path runs/cifar10_zarts/
+root_path: &root_path runs/cifar10_zarts/ReLIZO-bound5e-4/
 epoch: &epoch 50
 accumulate_gradient: &acc_grad 1
 
@@ -47,7 +47,7 @@ hooks: &hooks
           lr: 3.e-4
           weight_decay: 1.e-3
           num_sample_per_step: 6
-          reuse_distance_bound: 1.e-3
+          reuse_distance_bound: 5.e-4
           orthogonal_sample: False
           fast_alg: True
           line_search_fn: !get_module [src.optimizer.lizo._backtracking, {shrink_rate: 0.2, c1: 1.e-4, max_ls: 5}]
