@@ -79,38 +79,38 @@ normal_op: &normal_op
     num_reserve: 2
     reserve_replace: False
     space:
-      - !search_space {sampler_cfg: *op_sampler, space: *op_space, label: normal_node0_op0}
-      - !search_space {sampler_cfg: *op_sampler, space: *op_space, label: normal_node0_op1}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: normal_node0_op0}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: normal_node0_op1}
   - !search_space # node 1
     sampler_cfg: *edge_sampler
     label: normal_node1
     num_reserve: 2
     reserve_replace: False
     space:
-      - !search_space {sampler_cfg: *op_sampler, space: *op_space, label: normal_node1_op0}
-      - !search_space {sampler_cfg: *op_sampler, space: *op_space, label: normal_node1_op1}
-      - !search_space {sampler_cfg: *op_sampler, space: *op_space, label: normal_node1_op2}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: normal_node1_op0}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: normal_node1_op1}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: normal_node1_op2}
   - !search_space # node 2
     sampler_cfg: *edge_sampler
     label: normal_node2
     num_reserve: 2
     reserve_replace: False
     space:
-      - !search_space {sampler_cfg: *op_sampler, space: *op_space, label: normal_node2_op0}
-      - !search_space {sampler_cfg: *op_sampler, space: *op_space, label: normal_node2_op1}
-      - !search_space {sampler_cfg: *op_sampler, space: *op_space, label: normal_node2_op2}
-      - !search_space {sampler_cfg: *op_sampler, space: *op_space, label: normal_node2_op3}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: normal_node2_op0}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: normal_node2_op1}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: normal_node2_op2}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: normal_node2_op3}
   - !search_space # node 3
     sampler_cfg: *edge_sampler
     label: normal_node3
     num_reserve: 2
     reserve_replace: False
     space:
-      - !search_space {sampler_cfg: *op_sampler, space: *op_space, label: normal_node3_op0}
-      - !search_space {sampler_cfg: *op_sampler, space: *op_space, label: normal_node3_op1}
-      - !search_space {sampler_cfg: *op_sampler, space: *op_space, label: normal_node3_op2}
-      - !search_space {sampler_cfg: *op_sampler, space: *op_space, label: normal_node3_op3}
-      - !search_space {sampler_cfg: *op_sampler, space: *op_space, label: normal_node3_op4}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: normal_node3_op0}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: normal_node3_op1}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: normal_node3_op2}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: normal_node3_op3}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: normal_node3_op4}
 
 reduce_op: &reduce_op
   - !search_space # node 0
@@ -119,38 +119,38 @@ reduce_op: &reduce_op
     num_reserve: 2
     reserve_replace: False
     space:
-      - !search_space {sampler_cfg: *op_sampler, space: *op_space, label: reduce_node0_op0}
-      - !search_space {sampler_cfg: *op_sampler, space: *op_space, label: reduce_node0_op1}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: reduce_node0_op0}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: reduce_node0_op1}
   - !search_space # node 1
     sampler_cfg: *edge_sampler
     label: reduce_node1
     num_reserve: 2
     reserve_replace: False
     space:
-      - !search_space {sampler_cfg: *op_sampler, space: *op_space, label: reduce_node1_op0}
-      - !search_space {sampler_cfg: *op_sampler, space: *op_space, label: reduce_node1_op1}
-      - !search_space {sampler_cfg: *op_sampler, space: *op_space, label: reduce_node1_op2}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: reduce_node1_op0}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: reduce_node1_op1}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: reduce_node1_op2}
   - !search_space # node 2
     sampler_cfg: *edge_sampler
     label: reduce_node2
     num_reserve: 2
     reserve_replace: False
     space:
-      - !search_space {sampler_cfg: *op_sampler, space: *op_space, label: reduce_node2_op0}
-      - !search_space {sampler_cfg: *op_sampler, space: *op_space, label: reduce_node2_op1}
-      - !search_space {sampler_cfg: *op_sampler, space: *op_space, label: reduce_node2_op2}
-      - !search_space {sampler_cfg: *op_sampler, space: *op_space, label: reduce_node2_op3}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: reduce_node2_op0}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: reduce_node2_op1}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: reduce_node2_op2}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: reduce_node2_op3}
   - !search_space # node 3
     sampler_cfg: *edge_sampler
     label: reduce_node3
     num_reserve: 2
     reserve_replace: False
     space:
-      - !search_space {sampler_cfg: *op_sampler, space: *op_space, label: reduce_node3_op0}
-      - !search_space {sampler_cfg: *op_sampler, space: *op_space, label: reduce_node3_op1}
-      - !search_space {sampler_cfg: *op_sampler, space: *op_space, label: reduce_node3_op2}
-      - !search_space {sampler_cfg: *op_sampler, space: *op_space, label: reduce_node3_op3}
-      - !search_space {sampler_cfg: *op_sampler, space: *op_space, label: reduce_node3_op4}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: reduce_node3_op0}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: reduce_node3_op1}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: reduce_node3_op2}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: reduce_node3_op3}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: reduce_node3_op4}
 
 submodule_name: src.models.BaseModel
 args:

@@ -12,9 +12,6 @@ class CkptHOOK(HOOK):
         self.pretrain = pretrain
         self.resume = resume
         self.load_strict = load_strict
-        if self.save_root: 
-            os.makedirs(self.save_root, exist_ok=True)
-            setattr(self, 'after_epoch', self.save_model)
 
     @classmethod
     def get_pretrain_model(cls, device='cpu', pretrain=None):
@@ -79,6 +76,13 @@ class CkptHOOK(HOOK):
         """
         load resume or pretrain model
         """
+        runner_root_path = getattr(runner, 'root_path', None)
+        if self.save_root and not self.save_root.startswith('/') and runner_root_path: 
+            self.save_root = os.path.join(runner_root_path, self.save_root)
+        if self.save_root:
+            os.makedirs(self.save_root, exist_ok=True)
+            setattr(self, 'after_epoch', self.save_model)
+
         checkpoint = self.get_pretrain_model(device=runner.device, pretrain=self.resume)
         if checkpoint is not None:
             self.load_ckpt(runner, checkpoint, 

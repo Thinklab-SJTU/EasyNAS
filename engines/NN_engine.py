@@ -11,7 +11,7 @@ from src.hook import HOOK, OptHOOK, hooks_run, hooks_epoch, hooks_train_epoch, h
 from .base import BaseEngine
 
 class NNEngine(BaseEngine):
-    def __init__(self, data, model, criterion=None, optimizer=None, lr_scheduler=None, hooks=tuple(), local_rank=-1, sync_bn=False, amp=False, amp_val=False):
+    def __init__(self, data, model, criterion=None, optimizer=None, lr_scheduler=None, hooks=tuple(), local_rank=-1, sync_bn=False, amp=False, amp_val=False, root_path=None):
 
         self.local_rank = local_rank
         self.sync_bn = sync_bn
@@ -29,6 +29,8 @@ class NNEngine(BaseEngine):
             'current_iter': 0,
             'current_epoch': 0,
             })
+
+        self.root_path = root_path
 
     def _build_dataset(self, data):
         if data is None:

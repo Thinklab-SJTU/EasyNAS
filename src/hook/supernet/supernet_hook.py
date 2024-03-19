@@ -27,8 +27,6 @@ class DARTSHOOK(HOOK):
         self.accumulate_gradient = accumulate_gradient
         self.warmup = warmup
         self.save_root = save_root
-        if self.save_root: 
-            os.makedirs(self.save_root, exist_ok=True)
         self.temperature_start = temperature_start
         self.temperature_end = temperature_end
         self.replace_settings = replace_settings
@@ -48,10 +46,17 @@ class DARTSHOOK(HOOK):
         self.dataloader = runner.dataloaders[self.dataloader_name]
         self.dataiter = self.data_generator(self.dataloader)
 
+        runner_root_path = getattr(runner, 'root_path', None)
+        if self.save_root and not self.save_root.startswith('/') and runner_root_path: 
+            self.save_root = os.path.join(runner_root_path, self.save_root)
+        if self.save_root:
+            os.makedirs(self.save_root, exist_ok=True)
+
         self.scaler = None
 #        self.scaler = torch.cuda.amp.GradScaler(enabled=True) if runner.amp else None
         runner.search_space.apply(partial(set_temperature, temp=self.temperature_start))
         self.after_train_epoch(runner)
+        assert 0
 
     def after_run(self, runner):
         self.after_train_epoch(runner)
@@ -180,6 +185,12 @@ class ZARTSHOOK(DARTSHOOK):
         self.train_w_optimizer = get_submodule_by_name(self.train_w_optimizer_cfg.get('submodule_name'), search_path=('torch.optim',))(**self.train_w_optimizer_cfg['args'])
         self.train_w_optimizer.zero_grad()
         self.train_w_optimizer_hook = OptHOOK(self.train_w_optimizer, self.accumulate_gradient, grad_clip=self.train_w_grad_clip)
+        
+        runner_root_path = getattr(runner, 'root_path', None)
+        if self.save_root and not self.save_root.startswith('/') and runner_root_path: 
+            self.save_root = os.path.join(runner_root_path, self.save_root)
+        if self.save_root:
+            os.makedirs(self.save_root, exist_ok=True)
 
         self.scaler = None
 #        self.scaler = torch.cuda.amp.GradScaler(enabled=True) if runner.amp else None

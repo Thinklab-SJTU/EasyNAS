@@ -2,26 +2,15 @@ import inspect
 from functools import partial
 import torch
 from .base import Searcher
-from src.hook import OptHOOK, hooks_train_iter
 
-def set_temperature(space, temp):
-    if hasattr(space, 'sampler') and hasattr(space.sampler, 'norm_fn'):
-        norm_fn = space.sampler.norm_fn
-        if isinstance(norm_fn, partial):
-            norm_fn = norm_fn.func
-        if 'temperature' in inspect.getfullargspec(space.sampler.norm_fn).args:
-            space.sampler.norm_fn = partial(norm_fn, temperature=temp)
+from .first_order_opt import set_temperature, to_device
 
-def to_device(x, device):
-    with torch.no_grad():
-        return x.to(device).requires_grad_(x.requires_grad)
-
-class FirstOrderOpt(Searcher):
+class ZeroOrderOpt(Searcher):
     def __init__(self, search_space, num_initial, optimizer_cfg, grad_clip=None, accumulate_gradient=1, num_iters=1000, device='cuda',
            save_root=None, temperature_start=1.,
            temperature_end=1.,
             ):
-        super(FirstOrderOpt, self).__init__(search_space, num_initial, num_reward_one_deal=1)
+        super(ZeroOrderOpt, self).__init__(search_space, num_initial, num_reward_one_deal=1)
         self.optimizer_cfg = optimizer_cfg
         self.grad_clip = grad_clip
         self.accumulate_gradient = accumulate_gradient
@@ -45,11 +34,12 @@ class FirstOrderOpt(Searcher):
 
             self.optimizer_cfg['args']['params'] = runner.search_space.sampler_weights()
             optimizer = get_submodule_by_name(self.optimizer_cfg.get('submodule_name'), search_path=('torch.optim',))(**self.optimizer_cfg['args'])
+            assert getattr(optimizer, 'ZO', False):
             optimizer.zero_grad()
             optimizer_hook = OptHOOK(optimizer, self.accumulate_gradient, grad_clip=self.grad_clip)
             space.apply(partial(set_temperature, temp=self.temperature_start))
-            assert not hasattr(space, f'__FirstOrderOpt__')
-            setattr(space, f'__FirstOrderOpt__', i)
+            assert not hasattr(space, f'__ZeroOrderOpt__')
+            setattr(space, f'__ZeroOrderOpt__', i)
             self.optimizer_hooks.append(optimizer)
             self.search_spaces.append(space)
         self.current_iter = 0

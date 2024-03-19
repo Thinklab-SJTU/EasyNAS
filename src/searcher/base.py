@@ -28,8 +28,8 @@ class Searcher(object):
         raise(NotImplementedError("No Implementation."))
 
     def preprocess_cfg(self, q):
-        if q.config.get('root_path', None):
-            q.config['root_path'] = os.path.join(q.config['root_path'], 'hash%d'%(hash(q)))
+#        if hasattr(q, 'config') and q.config.get('root_path', None):
+#            q.config['root_path'] = os.path.join(q.config['root_path'], 'hash%d'%(hash(q)))
         return q
 
     def state_dict(self):

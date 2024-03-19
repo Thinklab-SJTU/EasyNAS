@@ -207,7 +207,8 @@ class AtomSearchModule(SearchModule):
             else:
                 out = out + tmp
                 ptr = end_ptr
-        if self.drop_path and (len(edge_module)>1 or not torch.equal(x, out)): out = self.drop_path(out)
+        if self.drop_path and (len(edge_module)>1 or not torch.equal(x, out)): 
+            out = self.drop_path(out)
         return out
 
 #        out, ptr = 0., 0

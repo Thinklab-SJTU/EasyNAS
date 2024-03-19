@@ -25,9 +25,9 @@ class Contractor(object):
         if self.log_dir is not None:
             os.makedirs(self.log_dir, exist_ok=True)
 
-    def create_worker(self, Worker, resource=None, log_dir=None, worker_id=None):
+    def _recruit_worker(self, worker_type, resource=None, log_dir=None, worker_id=None):
         if worker_id is None: worker_id = len(self.worker_id)
-        worker = Worker(self.eval_engines, resource=resource, log_dir=log_dir)
+        worker = worker_type(self.eval_engines, resource=resource, log_dir=log_dir, worker_id=worker_id)
         self.worker_id[worker_id] = worker
         worker._ID = worker_id
         if worker.log_dir is not None:
@@ -37,13 +37,13 @@ class Contractor(object):
             __builtin__.print = worker.logger.info
         return worker 
 
-    def dismiss_worker(self, worker):
+    def _dismiss_worker(self, worker):
         if worker.log_dir is not None:
             __builtin__.print = builtin_print
         del self.worker_id[worker._ID]
 
-    def dispatch(self, sample_queue, reward_queue, worker_id=None):
-        evaluater = self.create_worker(Evaluater, log_dir=self.log_dir, worker_id=worker_id)
+    def dispatch(self, sample_queue, reward_queue, worker_type=None, worker_id=None):
+        evaluater = self._recruit_worker(Evaluater, log_dir=self.log_dir, worker_id=worker_id)
         while True:
             task = sample_queue.get()
             if task is None:
@@ -51,16 +51,19 @@ class Contractor(object):
                 break
             rewards = evaluater.do_one_task(task)
             reward_queue.put((task, rewards))
-        self.dismiss_worker(evaluater)
+        self._dismiss_worker(evaluater)
 
 class Evaluater(object):
-    def __init__(self, eval_engines, resource=None, log_dir=None):
+    def __init__(self, eval_engines, resource=None, log_dir=None, worker_id=None):
         self.resource = resource
+        self.worker_id = worker_id
         self.task_id = 0
         self.eval_engines = self.get_eval_engines(eval_engines)
         self.log_dir = log_dir
         if self.log_dir is not None:
             os.makedirs(self.log_dir, exist_ok=True)
+        if self.log_dir is not None and worker_id is not None:
+            self.config_logger(f'EVALUATER#{worker_id}', os.path.join(self.log_dir, f'evaluater-{worker_id}'))
 
     def config_logger(self, logger_name, log_path=None):
         log_format = '[%(asctime)s] [%(name)s] [%(levelname)s]: %(message)s'
@@ -87,6 +90,8 @@ class Evaluater(object):
                 _eval_engines.append(_engine)
             elif isinstance(engine, BaseEngine):
                 _eval_engines.append(engine)
+            if getattr(_eval_engines[-1], 'root_path', None):
+                _eval_engines[-1].root_path = os.path.join(_eval_engines[-1].root_path, f'{self.worker_id}')
         return _eval_engines
 
     def do_one_task(self, task):

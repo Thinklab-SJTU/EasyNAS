@@ -10,9 +10,17 @@ class LogHOOK(HOOK):
         self.priority = priority
         self.only_master = only_master
         self.print_freq = print_freq
-        if log_path and not os.path.exists(os.path.dirname(log_path)):
-            os.makedirs(os.path.dirname(log_path))
-        self.config_logger(logger_name, log_path)
+        self.log_path = log_path
+        self.logger_name = logger_name
+
+    def before_run(self, runner):
+        runner_root_path = getattr(runner, 'root_path', None)
+        if self.log_path and not self.log_path.startswith('/') and runner_root_path:
+            self.log_path = os.path.join(runner_root_path, self.log_path)
+
+        if self.log_path and not os.path.exists(os.path.dirname(self.log_path)):
+            os.makedirs(os.path.dirname(self.log_path))
+        self.config_logger(self.logger_name, self.log_path)
 
     def config_logger(self, logger_name, log_path=None):
         log_format = '[%(asctime)s] [%(name)s] [%(levelname)s]: %(message)s'

@@ -1,4 +1,4 @@
-root_path: &root_path runs/cifar10_zarts/ReLIZO-bound5e-4/
+root_path: &root_path runs/cifar10_zarts/ReLIZO-N8-bound3e-4_replicate1/
 epoch: &epoch 50
 accumulate_gradient: &acc_grad 1
 
@@ -46,8 +46,8 @@ hooks: &hooks
         args:
           lr: 3.e-4
           weight_decay: 1.e-3
-          num_sample_per_step: 6
-          reuse_distance_bound: 5.e-4
+          num_sample_per_step: 8
+          reuse_distance_bound: 3.e-4
           orthogonal_sample: False
           fast_alg: True
           line_search_fn: !get_module [src.optimizer.lizo._backtracking, {shrink_rate: 0.2, c1: 1.e-4, max_ls: 5}]
@@ -61,6 +61,14 @@ hooks: &hooks
       replace_settings:
         args.width_multiple: 2.25
         args.depth_multiple: 5
+        args.architecture.1.args.drop_path_prob: 0.2
+        args.architecture.2.args.drop_path_prob: 0.2
+        args.architecture.3.args.drop_path_prob: 0.2
+        args.architecture.4.args.drop_path_prob: 0.2
+        args.architecture.5.args.drop_path_prob: 0.2
+        args.architecture.6.args.drop_path_prob: 0.2
+        args.architecture.7.args.drop_path_prob: 0.2
+        args.architecture.8.args.drop_path_prob: 0.2
       train_w_iter: 10
       train_w_dataloader_name: train_weight
       val_w_iter: 1
