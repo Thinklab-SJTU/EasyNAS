@@ -1,0 +1,55 @@
+root_path: &root_path runs/benchmark/Rosenbrock_PRGF/
+
+obj: &obj
+  submodule_name: src.benchmark.object.Benchmark_func
+  args:
+      function: rosenbrock
+      num_var: 6
+      init_point: [2., 2., 2., 2., 2., 2.]
+
+optimizer: &optimizer
+  submodule_name: src.optimizer.PRGF.PRGF
+  args:
+    params: 
+    lr: 1.0e-3
+    num_sample_per_step: 6
+
+lr_scheduler: &scheduler
+  submodule_name: torch.optim.lr_scheduler.LambdaLR
+  args:
+    optimizer: 
+    lr_lambda: !get_module [src.scheduler.utils.multistep, {gamma: 0.2, milestones: [100]}]
+
+hooks: &hooks
+  opt_hook:
+    submodule_name: ZOOptHOOK
+    args:
+      priority: 0
+  
+  lr_scheduler_hook:
+    submodule_name: LrScheduleHOOK
+    args: 
+      priority: 5
+      mode: iter
+  
+  log_hook:
+    submodule_name: src.hook.logger.log_hook.LogHOOK
+    args:
+      logger_name: BenchmarkEngine
+      log_path: !join [*root_path, train.log]
+      print_freq: 10
+      priority: 30
+
+engine:
+  submodule_name: engines.BenchmarkEngine
+  args:
+    obj: *obj
+    optimizer: *optimizer
+    lr_scheduler: *scheduler
+    hooks: *hooks
+  run_args: 
+    max_iter: 5000
+
+
+
+
