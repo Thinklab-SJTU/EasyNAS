@@ -212,42 +212,60 @@ def ablation_lr(cfg, save_path, file_name):
     Setting = namedtuple('Setting', ['fn', 'sifParams'])
     
     settings = [
-            Setting('ARGTRIGLS', {'N':200}),
-            Setting('CHNROSNB', {'N':50}),
-            Setting('COATING', None),
-            Setting('MANCINO', {'N':100}),
-            Setting('BOXPOWER', {'N':1000}),
-            Setting('SROSENBR', {'N/2':250}),
+#            Setting('ARGTRIGLS', {'N':200}),
+#            Setting('CHNROSNB', {'N':50}),
+#            Setting('COATING', None),
+#            Setting('MANCINO', {'N':100}),
+#            Setting('BOXPOWER', {'N':1000}),
+#            Setting('BOXPOWER', {'N':10000}),
+#            Setting('BOXPOWER', {'N':20000}),
+#            Setting('SROSENBR', {'N/2':250}),
+#            Setting('SROSENBR', {'N/2':500}),
+#            Setting('SROSENBR', {'N/2':2500}),
+#            Setting('SROSENBR', {'N/2':5000}),
             Setting('BROYDNBDLS', {'N':50}),
+            Setting('BROYDNBDLS', {'N':100}),
+            Setting('BROYDNBDLS', {'N':500}),
+            Setting('BROYDNBDLS', {'N':1000}),
+            Setting('BROYDNBDLS', {'N':5000}),
+            Setting('BROYDNBDLS', {'N':10000}),
             ]
     
     os.makedirs(save_path, exist_ok=True)
-    lrs = [1e-4, 2e-4, 5e-4, 1e-3, 2e-3, 5e-3, 1e-2, 2e-2, 5e-2, 1e-1, 2e-1, 5e-1]
+    lrs = [1e-2, 2e-2, 3e-2, 4e-2, 5e-2, 6e-2, 7e-2, 8e-2, 9e-2, 1e-3]
+#    lrs = [1e-4, 2e-4, 5e-4, 1e-3, 2e-3, 5e-3, 1e-2, 2e-2, 5e-2, 1e-1 , 2e-1, 5e-1]
     data = {}
     for setting in settings:
-        data[setting.fn] = {}
+#        fn_name = setting.fn
+        fn_name = f'{setting.fn}-{list(setting.sifParams.values())[0]}'
+        data[fn_name] = {}
         cfg['obj']['args']['fn_names'] = [setting.fn]
         cfg['obj']['args']['sifParams'] = [setting.sifParams]
         for lr in lrs:
             print(f"setting={setting}, lr={lr}")
             cfg['optimizer']['args']['lr'] = lr
             if 'reuse_distance_bound' in cfg['optimizer']['args']:
-                cfg['optimizer']['args']['reuse_distance_bound'] = 2 * lr
+                cfg['optimizer']['args']['reuse_distance_bound'] = 0 * lr
+#            if 'line_search_fn' in cfg['optimizer']['args']:
+#                cfg['optimizer']['args']['line_search_fn'] = None
     
-            results, _ = run_engine(cfg)
-            data[setting.fn][lr] = {
+            results, engine = run_engine(cfg)
+            data[fn_name][lr] = {
                     'obj': results.ignore_obj_list,
                     'best': results.ignore_best,
                     'fn': setting.fn,
                     'sifParams': setting.sifParams,
+                    'num_reuse': getattr(engine.optimizer, 'num_reuse', []),
+                    'num_sample': cfg['optimizer']['args']['num_sample_per_step'],
                     }
         print(f"setting = {setting}")
         bests = []
-        for key, v in data[setting.fn].items():
+        for key, v in data[fn_name].items():
             bests.append((key, v['best']))
-        print(bests)
+        print('Best: ', bests)
     yaml_file = os.path.join(save_path, file_name)
     save_yaml(yaml_file, data)
+    return data
 
 args.seed = args.seed if args.seed >= 0 else random.randint(0, 1e4)
 seed = args.seed
@@ -256,13 +274,22 @@ np.random.seed(seed)
 
 cfg = parse_cfg(args.cfg)
 
-save_path = 'runs/pycutest/'
+save_path = 'runs/pycutest_Param/'
 
-ablation_bound(cfg, save_path)
+#ablation_bound(cfg, save_path)
 #for i in range(4,8):
 #    ablation_num_sample(cfg, save_path, f'ablation_num_sample_test{i}.yaml')
 #for i in range(0,3):
 #    ablation_lr(cfg, save_path, f'ablation_lr_test{i}.yaml')
 #ablation_bound_numsample(cfg, save_path, f'ablation_bound_numsample_test{i}.yaml')
 
+bests = {}
+for i in range(3,6):
+    data = ablation_lr(cfg, save_path, f'ablation_lr_test{i}.yaml')
+    for fn_name, fn_data in data.items():
+        _best = min([v['best'] for v in fn_data.values()])
+        bests.setdefault(fn_name, []).append(_best)
+for fn_name, _bests in bests.items():
+    _bests = np.array(_bests)
+    print(fn_name, _bests, _bests.mean(), _bests.std())
 

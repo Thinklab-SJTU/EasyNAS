@@ -54,9 +54,17 @@ hooks: &hooks
       accumulate_gradient: *acc_grad
       priority: 30
       save_root: !join [*root_path, arch/]
-      replace_settings:
+      replace_settings: # TODO: 1. affine should be True (both in Cell_search and darts_conv); 2. No BN after Pooling
         args.width_multiple: 2.25
         args.depth_multiple: 5
+        args.architecture.1.args.drop_path_prob: 0.2
+        args.architecture.2.args.drop_path_prob: 0.2
+        args.architecture.3.args.drop_path_prob: 0.2
+        args.architecture.4.args.drop_path_prob: 0.2
+        args.architecture.5.args.drop_path_prob: 0.2
+        args.architecture.6.args.drop_path_prob: 0.2
+        args.architecture.7.args.drop_path_prob: 0.2
+        args.architecture.8.args.drop_path_prob: 0.2
   
   eval_hook:
     submodule_name: EvalAccHOOK

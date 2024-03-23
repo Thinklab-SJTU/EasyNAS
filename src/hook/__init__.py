@@ -3,7 +3,7 @@ from .hook import hooks_run, hooks_epoch, hooks_train_epoch, hooks_val_epoch, ho
 from .optimizer.opt_hook import OptHOOK, ZOOptHOOK
 from .scheduler.scheduler_hook import LrScheduleHOOK
 from .evaluation.eval_hook import EvalAccHOOK
-from .evaluation.map_hook import EvalCOCOmAPHOOK
+#from .evaluation.map_hook import EvalCOCOmAPHOOK
 from .checkpoint.ckpt_hook import CkptHOOK
 from .checkpoint.search_ckpt_hook import SearchCkptHOOK
 from .logger.log_hook import LogHOOK

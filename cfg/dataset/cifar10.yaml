@@ -31,3 +31,4 @@ dataloader:
       batch_size: 96
       pin_memory: True
       num_workers: 4
+      shuffle: False

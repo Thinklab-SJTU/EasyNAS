@@ -1,4 +1,4 @@
-root_path: &root_path runs/cifar10_zarts/ReLIZO-N8-bound3e-4_replicate1/
+root_path: &root_path runs/cifar10_zarts/ReLIZO-N8-bound3e-4_replicate2/
 epoch: &epoch 50
 accumulate_gradient: &acc_grad 1
 
@@ -58,7 +58,7 @@ hooks: &hooks
       priority: 30
       save_root: !join [*root_path, arch/]
       warmup: 10
-      replace_settings:
+      replace_settings: # TODO: 1. affine should be True (both in Cell_search and darts_conv); 2. No BN after Pooling
         args.width_multiple: 2.25
         args.depth_multiple: 5
         args.architecture.1.args.drop_path_prob: 0.2

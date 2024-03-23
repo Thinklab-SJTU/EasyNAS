@@ -10,7 +10,7 @@ class ZeroOrderOpt(Searcher):
            save_root=None, temperature_start=1.,
            temperature_end=1.,
             ):
-        super(ZeroOrderOpt, self).__init__(search_space, num_initial, num_reward_one_deal=1)
+        super(ZeroOrderOpt, self).__init__(search_space, num_initial, num_reward_one_deal=-1)
         self.optimizer_cfg = optimizer_cfg
         self.grad_clip = grad_clip
         self.accumulate_gradient = accumulate_gradient
@@ -38,8 +38,8 @@ class ZeroOrderOpt(Searcher):
             optimizer.zero_grad()
             optimizer_hook = OptHOOK(optimizer, self.accumulate_gradient, grad_clip=self.grad_clip)
             space.apply(partial(set_temperature, temp=self.temperature_start))
-            assert not hasattr(space, f'__ZeroOrderOpt__')
-            setattr(space, f'__ZeroOrderOpt__', i)
+            assert not hasattr(space, f'__OrderOpt__')
+            setattr(space, f'__OrderOpt__', i)
             self.optimizer_hooks.append(optimizer)
             self.search_spaces.append(space)
         self.current_iter = 0
@@ -53,9 +53,9 @@ class ZeroOrderOpt(Searcher):
         QRs = self.history_reward[-1]
         next_queries = []
         for qr in QRs:
-            idx = qr.query.__FirstOrderOpt__
+            idx = qr.query.__OrderOpt__
             with hooks_train_iter([self.optimizer_hooks[idx]], self):
-                qr.reward[0].backward(inputs=qr.query.sampler_weights())
+                pass
             next_queries.append(qr.reward[1])
         return next_queries
 

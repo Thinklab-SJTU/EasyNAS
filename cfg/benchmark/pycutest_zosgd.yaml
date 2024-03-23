@@ -30,6 +30,7 @@ optimizer: &optimizer
     lr: 1.0e-1
     mu: 1.0e-3
     sign: False
+    num_sample_per_step: 8
 
 lr_scheduler: &scheduler
   submodule_name: torch.optim.lr_scheduler.LambdaLR

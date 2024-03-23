@@ -8,7 +8,6 @@ import torch
 import torch.nn as nn
 from torch.utils.mobile_optimizer import optimize_for_mobile
 
-import onnx
 
 # SiLU https://arxiv.org/pdf/1606.08415.pdf ----------------------------------------------------------------------------
 class SiLU(nn.Module):  # export-friendly version of nn.SiLU()
@@ -17,6 +16,7 @@ class SiLU(nn.Module):  # export-friendly version of nn.SiLU()
         return x * torch.sigmoid(x)
 
 def export_onnx(model, onnx_path=None, dynamic=False, dynamic_batch=False):
+    import onnx
     print('\nStarting ONNX export with onnx %s...' % onnx.__version__)
     input_size = model.input_size
     if input_size is None:

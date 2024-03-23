@@ -48,8 +48,8 @@ class FirstOrderOpt(Searcher):
             optimizer.zero_grad()
             optimizer_hook = OptHOOK(optimizer, self.accumulate_gradient, grad_clip=self.grad_clip)
             space.apply(partial(set_temperature, temp=self.temperature_start))
-            assert not hasattr(space, f'__FirstOrderOpt__')
-            setattr(space, f'__FirstOrderOpt__', i)
+            assert not hasattr(space, f'__OrderOpt__')
+            setattr(space, f'__OrderOpt__', i)
             self.optimizer_hooks.append(optimizer)
             self.search_spaces.append(space)
         self.current_iter = 0
@@ -63,7 +63,7 @@ class FirstOrderOpt(Searcher):
         QRs = self.history_reward[-1]
         next_queries = []
         for qr in QRs:
-            idx = qr.query.__FirstOrderOpt__
+            idx = qr.query.__OrderOpt__
             with hooks_train_iter([self.optimizer_hooks[idx]], self):
                 qr.reward[0].backward(inputs=qr.query.sampler_weights())
             next_queries.append(qr.reward[1])
