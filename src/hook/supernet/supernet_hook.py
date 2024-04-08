@@ -56,7 +56,6 @@ class DARTSHOOK(HOOK):
 #        self.scaler = torch.cuda.amp.GradScaler(enabled=True) if runner.amp else None
         runner.search_space.apply(partial(set_temperature, temp=self.temperature_start))
         self.after_train_epoch(runner)
-        assert 0
 
     def after_run(self, runner):
         self.after_train_epoch(runner)

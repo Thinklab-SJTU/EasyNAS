@@ -3,7 +3,7 @@ import numpy as np
 import torch
 from torch.optim import Optimizer
 
-def _backtracking(obj_func, obj_init, x_init, d, init_step=1.0, shrink_rate=0.2, c1=0.1, max_ls=10):
+def _backtracking(obj_func, obj_init, x_init, d, init_step=1.0, shrink_rate=0.2, c1=0.1, max_ls=10, record_num=None):
     ls_iter = 0
     step = init_step
     d_norm = d.norm()
@@ -15,6 +15,7 @@ def _backtracking(obj_func, obj_init, x_init, d, init_step=1.0, shrink_rate=0.2,
             break
         else: step *= shrink_rate
         ls_iter += 1
+    if record_num is not None: record_num.append(ls_iter)
 
     return step
 
@@ -44,6 +45,7 @@ class LIZO(Optimizer):
         self.orthogonal_sample = orthogonal_sample
         self.fast_alg = fast_alg
         self.num_reuse = []
+        self.num_line_search_query = []
 
         #TODO: switch one-point/two-point difference
 
@@ -238,7 +240,7 @@ class LIZO(Optimizer):
         if line_search_fn is not None:
             def obj_func(x, t, d):
                 return self._directional_evaluate(closure, x, t, d, weight_decay)
-            lr = line_search_fn(obj_func, current_obj, x_init, last_grad.neg(), init_step=lr)
+            lr = line_search_fn(obj_func, current_obj, x_init, last_grad.neg(), init_step=lr, record_num=self.num_line_search_query)
 #        else:
 #        if lr > 10: reset = True
         new_obj = self._directional_evaluate(closure, x_init, lr, last_grad.neg(), weight_decay)
@@ -386,7 +388,7 @@ class LIZO(Optimizer):
         if line_search_fn is not None:
             def obj_func(x, t, d):
                 return self._directional_evaluate(closure, x, t, d, weight_decay)
-            lr = line_search_fn(obj_func, current_obj, x_init, last_grad.neg(), init_step=lr)
+            lr = line_search_fn(obj_func, current_obj, x_init, last_grad.neg(), init_step=lr, record_num=self.num_line_search_query)
 #        else:
 #        if lr > 10: reset = True
         new_obj = self._directional_evaluate(closure, x_init, lr, last_grad.neg(), weight_decay)

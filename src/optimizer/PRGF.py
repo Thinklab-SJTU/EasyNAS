@@ -89,4 +89,5 @@ class PRGF(Optimizer):
         # print(loss.size())
         grad_estimate = samples.T @ loss / sample_norm
         self._add_grad(lr, grad_estimate.neg())
+        state['last_grad'] = grad_estimate
         return current_obj  

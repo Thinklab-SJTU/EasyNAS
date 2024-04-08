@@ -1,12 +1,12 @@
 op_space: &op_space
   - submodule_name: darts_conv
-    args: {kernel_dilation: [3,1]}
+    args: {kernel_dilation: [3,1], affine: False}
   - submodule_name: darts_conv
-    args: {kernel_dilation: [5,1]}
+    args: {kernel_dilation: [5,1], affine: False}
   - submodule_name: darts_conv
-    args: {kernel_dilation: [3,2], num_repeat: 1}
+    args: {kernel_dilation: [3,2], num_repeat: 1, affine: False}
   - submodule_name: darts_conv
-    args: {kernel_dilation: [5,2], num_repeat: 1}
+    args: {kernel_dilation: [5,2], num_repeat: 1, affine: False}
   - submodule_name: PoolBNAct
     args: {kernel: 3, pool: 'max', bn: {submodule_name: 'torch.nn.BatchNorm2d', args: {affine: False}}, act: False}
   - submodule_name: PoolBNAct
