@@ -1,4 +1,4 @@
-root_path: &root_path runs/cifar10_zarts/ReLIZO-N8-bound3e-4_replicate2/
+root_path: &root_path runs/cifar10_zarts/ReLIZO-N8-bound2.5e-2-trainLossAvg-strictLR2.5e-2/
 epoch: &epoch 50
 accumulate_gradient: &acc_grad 1
 
@@ -44,13 +44,14 @@ hooks: &hooks
       optimizer_cfg:
         submodule_name: src.optimizer.lizo.LIZO
         args:
-          lr: 3.e-4
+          lr: 2.5e-2
           weight_decay: 1.e-3
           num_sample_per_step: 8
-          reuse_distance_bound: 3.e-4
+          reuse_distance_bound: 2.5e-2
           orthogonal_sample: False
           fast_alg: True
           line_search_fn: !get_module [src.optimizer.lizo._backtracking, {shrink_rate: 0.2, c1: 1.e-4, max_ls: 5}]
+          strict_lr: True
       dataloader_name: search_val
       criterion_cfg: *criterion
       update_freq: 10

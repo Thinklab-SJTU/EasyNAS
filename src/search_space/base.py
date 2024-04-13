@@ -5,6 +5,7 @@ import inspect
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from copy import deepcopy
+import math
 
 import torch
 import numpy as np
@@ -717,7 +718,7 @@ class ContinuousSpace(_SearchSpace):
         """
         super(ContinuousSpace, self).__init__(space, sampler_cfg, embed_fn, label)
         self.start, self.end = [float(tmp) for tmp in space.split(':')]
-        self.sampler.set_param(space)
+#        self.sampler.set_param(space)
         self.return_list = num_reserve is not None
         self.num_reserve = 1 if num_reserve is None else num_reserve
 
@@ -726,14 +727,18 @@ class ContinuousSpace(_SearchSpace):
         if self.label in label_computed: 
             return 1
         label_computed.add(self.label)
-        return self.end - self.start
+        if math.isinf(self.end) or math.isinf(self.start):
+            return 1
+        else:
+            return self.end - self.start
 
     def _sample_once(self, label_samples=None):
         if label_samples is None: label_samples = {}
         if self.label in label_samples:
             return self.sample_from_node(label_samples[self.label], label_samples)
         sample = tuple(self.sampler.sample(self.num_reserve))
-        sample = SampleNode(self, {(s-self.start)/self.size: s for s in sample})
+        sample = SampleNode(self, {s: s*self.size+self.start for s in sample})
+#        sample = SampleNode(self, {(s-self.start)/self.size: s for s in sample})
         if not self.label.startswith('_SearchSpace#'): label_samples[self.label] = sample
         return sample
 

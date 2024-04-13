@@ -9,7 +9,19 @@ from builder import get_submodule_by_name, create_criterion, CfgDumper
 from ..hook import HOOK, execute_period, only_master, hooks_train_iter
 from .. import OptHOOK, ZOOptHOOK
 
-from src.searcher.first_order_opt import set_temperature, to_device
+#from src.searcher.first_order_opt import set_temperature, to_device
+
+def set_temperature(space, temp):
+    if hasattr(space, 'sampler') and hasattr(space.sampler, 'norm_fn'):
+        norm_fn = space.sampler.norm_fn
+        if isinstance(norm_fn, partial):
+            norm_fn = norm_fn.func
+        if 'temperature' in inspect.getfullargspec(space.sampler.norm_fn).args:
+            space.sampler.norm_fn = partial(norm_fn, temperature=temp)
+
+def to_device(x, device):
+    with torch.no_grad():
+        return x.to(device).requires_grad_(x.requires_grad)
 
 class DARTSHOOK(HOOK):
     def __init__(self, optimizer_cfg, dataloader_name, criterion_cfg=None, grad_clip=None,  update_freq=1, accumulate_gradient=1, priority=0, save_root=None,
@@ -198,6 +210,7 @@ class ZARTSHOOK(DARTSHOOK):
 
     def _closure(self, val_queue, train_queue, model, criterion, optimizer_hook, amp=False):
         # train
+        train_loss = 0.
         ps = [p.clone(memory_format=torch.contiguous_format) for p in model.parameters()]
         with torch.enable_grad():
           model.train()
@@ -209,21 +222,23 @@ class ZARTSHOOK(DARTSHOOK):
               loss_items = criterion(logits, target)
               loss, loss_items = self.postprocess_loss(loss_items)
               loss.backward()
-        # val
-        val_loss = 0.
-        model.eval()
-        with torch.no_grad():
-          for step, (val_input, val_target) in enumerate(val_queue):
-            with torch.cuda.amp.autocast(enabled=amp):
-              logits = model(val_input)
-            loss_items = criterion(logits, val_target)
-            loss, loss_items = self.postprocess_loss(loss_items)
-            val_loss += loss
-          val_loss /= (step+1)
+              train_loss += loss
+          train_loss /= (step+1)
+#        # val
+#        val_loss = 0.
+#        model.eval()
+#        with torch.no_grad():
+#          for step, (val_input, val_target) in enumerate(val_queue):
+#            with torch.cuda.amp.autocast(enabled=amp):
+#              logits = model(val_input)
+#            loss_items = criterion(logits, val_target)
+#            loss, loss_items = self.postprocess_loss(loss_items)
+#            val_loss += loss
+#          val_loss /= (step+1)
         for p, pdata in zip(model.parameters(), ps):
             p.copy_(pdata)
-        model.train()
-        return val_loss
+#        model.train()
+        return train_loss
 
 
     def backward_arch_param(self, runner):

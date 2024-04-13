@@ -27,7 +27,7 @@ class LIZO(Optimizer):
         This optimizer doesn't support per-parameter options and parameter
         groups (there can be only one).
     """
-    def __init__(self, params, lr=1e-3, weight_decay=0, num_sample_per_step=8, reuse_distance_bound=0.01, orthogonal_sample=True, fast_alg=True, line_search_fn=None):
+    def __init__(self, params, lr=1e-3, weight_decay=0, num_sample_per_step=8, reuse_distance_bound=0.01, orthogonal_sample=True, fast_alg=True, line_search_fn=None, strict_lr=False):
 
         defaults = dict(lr=lr,
                         weight_decay=weight_decay,
@@ -46,6 +46,7 @@ class LIZO(Optimizer):
         self.fast_alg = fast_alg
         self.num_reuse = []
         self.num_line_search_query = []
+        self.strict_lr = strict_lr
 
         #TODO: switch one-point/two-point difference
 
@@ -99,7 +100,7 @@ class LIZO(Optimizer):
         return delta_samples.norm(p='fro', dim=-1)
 
     #TODO: sample points
-    def get_samples(self, last_delta_samples, num_to_samples, sample_dim, orthogonal=True, device='cpu'):
+    def sample(self, last_delta_samples, num_to_samples, sample_dim, orthogonal=True, device='cpu'):
         if orthogonal:
             num_all = last_delta_samples.shape[0] + num_to_samples
             last_delta_samples = last_delta_samples.t()
@@ -157,7 +158,7 @@ class LIZO(Optimizer):
         # random sample (orthogonal) points
         num_random = self.num_sample_per_step - len(sample_idx)
         if num_random > 0:
-            new_delta_samples, new_lr = self.get_samples(last_delta_samples[sample_idx] if len(sample_idx)>0 else None, num_random, self.numel_params, orthogonal=self.orthogonal_sample, device=device)
+            new_delta_samples, new_lr = self.sample(last_delta_samples[sample_idx] if len(sample_idx)>0 else None, num_random, self.numel_params, orthogonal=self.orthogonal_sample, device=device)
             new_lr.mul_(sample_norm)
             # print('new_lr', new_lr)
 
@@ -314,7 +315,7 @@ class LIZO(Optimizer):
         # random sample (orthogonal) points
         num_random = self.num_sample_per_step - len(sample_idx)
         if num_random > 0:
-            new_delta_samples, new_lr = self.get_samples(last_delta_samples[sample_idx] if len(sample_idx)>0 else None, num_random, self.numel_params, orthogonal=self.orthogonal_sample, device=device)
+            new_delta_samples, new_lr = self.sample(last_delta_samples[sample_idx] if len(sample_idx)>0 else None, num_random, self.numel_params, orthogonal=self.orthogonal_sample, device=device)
             new_lr.mul_(sample_norm)
             # print('new_lr', new_lr)
 
@@ -381,7 +382,8 @@ class LIZO(Optimizer):
         last_grad.div_(last_grad.norm())
         # print("grad_norm: ", grad_norm)
         # print("lr: ", lr)
-        lr *= grad_norm
+        if not self.strict_lr:
+            lr *= grad_norm
         # print(lr)
         # print(last_grad.norm())
 
