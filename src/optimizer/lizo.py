@@ -307,6 +307,7 @@ class LIZO(Optimizer):
                 sample_idx = torch.argsort(distances, dim=0, descending=False)[:self.num_sample_per_step]
         else: 
             sample_idx = []
+#        print('distance', distances)
 #        print('sample_idx', sample_idx)
         self.num_reuse.append(len(sample_idx))
         if len(sample_idx) > 0: 

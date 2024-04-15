@@ -15,13 +15,13 @@ from src.evaluater.export import export_onnx
 from src.hook import CkptHOOK
 
 class EdgeDeviceEngine(BaseEngine):
-    def __init__(self, input_size, ckpt_root, remote_onnx_path, remote_cmd, host, username, password, port=22, fetch_info_fn=fetch_info_rk3588, eval_names=('neg-latency',)):
+    def __init__(self, input_size, ckpt_root, remote_onnx_path, remote_cmd, host, username, password=None, pkey=None, port=22, fetch_info_fn=fetch_info_rk3588, eval_names=('neg-latency',)):
         self.input_size = input_size
         self.eval_names = eval_names
         self.fetch_info_fn = fetch_info_fn 
         self.ckpt_root = ckpt_root
         self.onnx_path = os.path.join(ckpt_root, 'model.onnx')
-        self.ssh = build_sshclient(host, username, password, port)
+        self.ssh = build_sshclient(host, username, password, pkey, port)
         self.sftp = self.ssh.open_sftp()
         self.remote_onnx_path = remote_onnx_path
         self.cmd = remote_cmd.format(onnx_path=remote_onnx_path)

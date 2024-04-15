@@ -142,7 +142,7 @@ evaluater: &evaluater
   args:
     eval_fns: 
       - !get_module src.evaluater.performance.get_performance
-      - !get_module [src.evaluater.performance.get_edgeDevice_latency, {remote_path: '/home/wangxiaoxing/', remote_cmd: "docker run -t -i --privileged -v /dev/bus/usb:/dev/bus/usb -v /home/wangxiaoxing:/home/wangxiaoxing rknn-toolkit2:ubuntu20.04-cp38 sh -c 'adb devices && cd /home/wangxiaoxing/rknn_model_zoo/examples/yolov7/python && python test_onnx.py --onnx_path {onnx_path} --target rk3588 --quant i8'", host: 202.120.39.51, username: wangxiaoxing, password: "1353559118Wxx!", port: 30022}]
+      - !get_module [src.evaluater.performance.get_edgeDevice_latency, {remote_path: '/home/wangxiaoxing/', remote_cmd: "docker run -t -i --privileged -v /dev/bus/usb:/dev/bus/usb -v /home/wangxiaoxing:/home/wangxiaoxing rknn-toolkit2:ubuntu20.04-cp38 sh -c 'adb devices && cd /home/wangxiaoxing/rknn_model_zoo/examples/yolov7/python && python test_onnx.py --onnx_path {onnx_path} --target rk3588 --quant i8'", host: 202.120.39.51, username: wangxiaoxing, pkey: '~/.ssh/id_rsa', port: 30022}]
 #      - !get_module src.evaluater.performance.get_num_parameters
 #    log_dir: !join [*root_path, eval_worker/]
 
