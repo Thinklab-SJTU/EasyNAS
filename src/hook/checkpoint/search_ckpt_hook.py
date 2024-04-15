@@ -6,7 +6,7 @@ import yaml
 
 from builder import CfgDumper
 from ..hook import HOOK, execute_period
-from engines.search_engine import QueryReward
+from src.util_type import QueryReward
 
 class SearchCkptHOOK(HOOK):
     def __init__(self, priority=0, save_root: Union[None, str]=None, presearch: Union[None, str]=None, only_master=True):

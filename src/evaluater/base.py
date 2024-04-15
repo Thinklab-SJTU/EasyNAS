@@ -3,9 +3,11 @@ import sys
 from copy import deepcopy
 import time
 from collections import UserList
+import multiprocessing as mp
 from multiprocessing import Process, JoinableQueue, Queue
 import logging
 from functools import partial
+from contextlib import contextmanager
 
 from builder import parse_cfg, get_submodule_by_name
 from engines.base import BaseEngine
@@ -25,9 +27,9 @@ class Contractor(object):
         if self.log_dir is not None:
             os.makedirs(self.log_dir, exist_ok=True)
 
-    def _recruit_worker(self, worker_type, resource=None, log_dir=None, worker_id=None):
+    def _recruit_worker(self, worker_cls, resource=None, log_dir=None, worker_id=None):
         if worker_id is None: worker_id = len(self.worker_id)
-        worker = worker_type(self.eval_engines, resource=resource, log_dir=log_dir, worker_id=worker_id)
+        worker = worker_cls(self.eval_engines, resource=resource, log_dir=log_dir, worker_id=worker_id)
         self.worker_id[worker_id] = worker
         worker._ID = worker_id
         if worker.log_dir is not None:
@@ -42,8 +44,9 @@ class Contractor(object):
             __builtin__.print = builtin_print
         del self.worker_id[worker._ID]
 
-    def dispatch(self, sample_queue, reward_queue, worker_type=None, worker_id=None):
-        evaluater = self._recruit_worker(Evaluater, log_dir=self.log_dir, worker_id=worker_id)
+    def dispatch(self, sample_queue, reward_queue, worker_id=None, worker_cls=None):
+        if worker_cls is None: worker_cls = Evaluater
+        evaluater = self._recruit_worker(worker_cls, log_dir=self.log_dir, worker_id=worker_id)
         while True:
             task = sample_queue.get()
             if task is None:
@@ -52,6 +55,18 @@ class Contractor(object):
             rewards = evaluater.do_one_task(task)
             reward_queue.put((task, rewards))
         self._dismiss_worker(evaluater)
+
+    @contextmanager
+    def build(self, sample_queue, reward_queue): 
+        eval_ps = [mp.Process(target=self.dispatch, args=(sample_queue, reward_queue, i)) for i in range(self.num_workers)]
+        for p in eval_ps:
+            p.start()
+        yield eval_ps
+        # dispatch: break out from the while
+        for _ in range(self.num_workers):
+            sample_queue.put(None)
+        for p in eval_ps:
+            p.join()
 
 class Evaluater(object):
     def __init__(self, eval_engines, resource=None, log_dir=None, worker_id=None):
@@ -83,7 +98,7 @@ class Evaluater(object):
         for engine in eval_engines:
             if isinstance(engine, dict) and 'submodule_name' in engine:
                 _engine = get_submodule_by_name(engine['submodule_name'], search_path='src.evaluater')(
-                              **engine['args'],
+                              **engine.get('args', {}),
                               )
                 if engine.get('run_args', False):
                     _engine.run = partial(_engine.run, **engine['run_args'])
@@ -95,7 +110,7 @@ class Evaluater(object):
         return _eval_engines
 
     def do_one_task(self, task):
-        print('='*20+f"Task-{self.task_id} Begin"+'='*20)
+        print('='*20+f"Worker-{self.worker_id}:Task-{self.task_id} Begin"+'='*20)
         rewards = Reward()
         for _idx, engine in enumerate(self.eval_engines):
             print(f"Running {_idx}-th evaluation engine as {engine}")
@@ -107,7 +122,7 @@ class Evaluater(object):
             if isinstance(reward, (list, tuple)): rewards.extend(list(reward))
             else: rewards.append(reward)
         print(f'Get reward = {rewards}')
-        print('='*20+f"Task-{self.task_id} End"+'='*20)
+        print('='*20+f"Worker-{self.worker_id}:Task-{self.task_id} End"+'='*20)
         self.task_id += 1
         return rewards
 

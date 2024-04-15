@@ -26,6 +26,10 @@ class EdgeDeviceEngine(BaseEngine):
         self.remote_onnx_path = remote_onnx_path
         self.cmd = remote_cmd.format(onnx_path=remote_onnx_path)
 
+        self.info = EasyDict({
+            'results': {},
+            })
+
     def _build_model(self, model, input_size=None):
         if isinstance(model, dict):
             print("Building model")
@@ -43,20 +47,21 @@ class EdgeDeviceEngine(BaseEngine):
         print(f"Transport onnx model from {self.onnx_path} to the host computer {self.remote_onnx_path}")
         self.sftp.put(self.onnx_path, self.remote_onnx_path)
         print("Fetch information from the host computer")
-        self.info = self.fetch_info_fn(self.ssh, self.cmd)
+        self.info.results = self.fetch_info_fn(self.ssh, self.cmd)
 
     def update(self, sample):
         data = sample.get('data', None)
         input_size = data.get('input_size', None) if isinstance(data, dict) else self.input_size
         self._build_model(sample['model'], input_size)
 
-    def extract_performance(self):
+    def extract_performance(self, eval_names=None):
+        if eval_names is None: eval_names = self.eval_names
         performance = []
-        for i, eval_name in enumerate(self.eval_names):
+        for i, eval_name in enumerate(eval_names):
             eval_name = eval_name.split('-')
             sign = 1 if len(eval_name) == 1 else -1
             eval_name = eval_name[-1]
-            performance = sign * self.info[eval_name]
+            performance = sign * self.info.results[eval_name]
         return performance
         
 

@@ -11,7 +11,7 @@ from src.hook import HOOK, OptHOOK, hooks_run, hooks_epoch, hooks_train_epoch, h
 from .base import BaseEngine
 
 class NNEngine(BaseEngine):
-    def __init__(self, data, model, criterion=None, optimizer=None, lr_scheduler=None, hooks=tuple(), local_rank=-1, sync_bn=False, amp=False, amp_val=False, root_path=None):
+    def __init__(self, data, model, criterion=None, optimizer=None, lr_scheduler=None, hooks=tuple(), local_rank=-1, sync_bn=False, amp=False, amp_val=False, root_path=None, eval_names=('val.best')):
 
         self.local_rank = local_rank
         self.sync_bn = sync_bn
@@ -24,6 +24,7 @@ class NNEngine(BaseEngine):
         self.scaler = torch.cuda.amp.GradScaler(enabled=True) if amp else None
 
         self.start_epoch = 0
+        self.eval_names = eval_names
         self.info = EasyDict({
             'results': {'train': {'best': 0}, 'val': {'best': 0}},
             'current_iter': 0,
@@ -260,6 +261,8 @@ class NNEngine(BaseEngine):
             'current_epoch': 0,
             })
 
-    def extract_performance(self):
-        return self.info.results.val.best
+    def extract_performance(self, eval_names=None):
+        super(NNEngine, self).extract_performance(eval_names)
+#        return self.info.results.val.best
+
         

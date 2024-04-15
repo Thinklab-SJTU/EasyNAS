@@ -1,6 +1,6 @@
 import bisect
 
-from src.hook import HOOK, OptHOOK, hooks_run, hooks_epoch, hooks_train_epoch, hooks_val_epoch, hooks_train_iter, hooks_val_iter
+from src.hook.hook import HOOK 
 
 class BaseEngine(object):
     def __init__(self, *args, **kwargs):
@@ -46,6 +46,17 @@ class BaseEngine(object):
     def run(self, epochs=None):
         raise(NotImplementedError("No implementation"))
 
-    def extract_performance(self, eval_names):
-        raise(NotImplementedError("No implementation"))
+    def extract_performance(self, eval_names=None):
+        if eval_names is None: eval_names = self.eval_names
+        performance = []
+        for i, eval_name in enumerate(eval_names):
+            eval_name = eval_name.split('-')
+            sign = 1 if len(eval_name) == 1 else -1
+            eval_name = eval_name[-1].split('.')
+            tmp = self.info.results
+            for _n in eval_name:
+                tmp = tmp.get(_n)
+            performance.append(sign * tmp)
+#            performance = sign * self.info.results[eval_name]
+        return performance if len(performance)>1 else performance[0]
 

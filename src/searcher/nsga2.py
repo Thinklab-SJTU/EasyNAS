@@ -15,8 +15,8 @@ class NSGA2(EvolutionAlgorithm):
     def domiates(self, cand1, cand2):
         ''' Whether cand1 dominates cand2
         Input:
-            cand1[engines/search_engine:QueryReward]: candidate solution 1
-            cand2[engines/search_engine:QueryReward]: candidate solution 2
+            cand1[src/util_type:QueryReward]: candidate solution 1
+            cand2[src/util_type:QueryReward]: candidate solution 2
         '''
         out_ = True
 #        equal_flag = True

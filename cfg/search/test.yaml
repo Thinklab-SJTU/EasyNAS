@@ -97,13 +97,21 @@ searcher: &searcher
     num_population: 10
     prob_mutation: 0.1
 
-evaluater: &evaluater
-  submodule_name: src.evaluater.Evaluater
+contractor: &contractor
+  submodule_name: src.evaluater.Contractor
   args:
-    eval_fns: 
-      - !get_module src.evaluater.performance.get_random
-      - !get_module src.evaluater.performance.get_random
-      - !get_module src.evaluater.performance.get_random
+    eval_engines: 
+      - submodule_name: engines.SimulateEngine
+      - submodule_name: engines.SimulateEngine
+    num_workers: 3
+
+#evaluater: &evaluater
+#  submodule_name: src.evaluater.Evaluater
+#  args:
+#    eval_fns: 
+#      - !get_module src.evaluater.performance.get_random
+#      - !get_module src.evaluater.performance.get_random
+#      - !get_module src.evaluater.performance.get_random
 
 hooks: &hooks
   ckpt_hook:
@@ -118,8 +126,7 @@ engine:
   args:
     search_space: *search_space
     searcher: *searcher
-    evaluater: *evaluater
+    contractor: *contractor
     hooks: *hooks
-    num_eval_workers: 1
 
 

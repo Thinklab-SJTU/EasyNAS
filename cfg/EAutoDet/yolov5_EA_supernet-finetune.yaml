@@ -145,6 +145,7 @@ contractor: &contractor
   submodule_name: src.evaluater.Contractor
   args:
     eval_engines: *eval_engine
+    num_workers: 1
 #    log_dir: !join [*root_path, eval_worker/]
 
 search_hooks: &search_hooks
@@ -162,7 +163,6 @@ engine:
     searcher: *searcher
     contractor: *contractor
     hooks: *search_hooks
-    num_eval_workers: 1
 
 
 
