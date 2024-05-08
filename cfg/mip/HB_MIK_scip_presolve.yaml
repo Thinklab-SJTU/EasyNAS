@@ -97,7 +97,7 @@ search_space: &space
         print_freq: 1
         priority: 30
   
-  engine:
+  engine: &engine
     submodule_name: engines.MIPEngine
     args:
       instance: *instance
@@ -112,10 +112,11 @@ searcher: &searcher
     max_resource_inner_loop: {solver.args.solver_params.limits/time: 600}
     min_resource_per_query: {solver.args.solver_params.limits/time: 180}
 
-evaluater: &evaluater
-  submodule_name: src.evaluater.Evaluater
+contractor: &evaluater
+  submodule_name: src.evaluater.Contractor
   args:
-    eval_fns: !get_module src.evaluater.performance.get_performance
+    eval_engines: [*engine]
+    num_workers: 8
     log_dir: !join [*root_path, eval_worker/]
 
 search_hooks: &search_hooks
