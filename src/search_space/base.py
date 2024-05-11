@@ -302,7 +302,7 @@ class _SearchSpace(ABC):
             name = '.'.join([tmp.split('::')[-1] for tmp in prefix.split('.')])
             string = f"name={name}, label={self.label}, space={self.__class__.__name__}, sampler={self.sampler.__class__.__name__}: "
             for name, weight in self.sampler.named_weights():
-                string += f"\n\t{name}={weight.data}; normed={self.sampler.norm_fn(weight).data}"
+                string += f"\n\t{name}={weight.data};\nnormed={self.sampler.norm_fn(weight).data}"
             print(string)
             showed_label.add(self.label)
         for child_prefix, child_space in self._child_spaces.items():

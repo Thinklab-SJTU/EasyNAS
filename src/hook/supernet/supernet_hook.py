@@ -8,6 +8,7 @@ import yaml
 from builder import get_submodule_by_name, create_criterion, CfgDumper
 from ..hook import HOOK, execute_period, only_master, hooks_train_iter
 from .. import OptHOOK, ZOOptHOOK
+from src.scheduler.utils import one_cycle
 
 #from src.searcher.first_order_opt import set_temperature, to_device
 
@@ -178,6 +179,10 @@ class ZARTSHOOK(DARTSHOOK):
         assert hasattr(self.optimizer, 'ZO')
         self.optimizer.zero_grad()
         self.optimizer_hook = ZOOptHOOK(self.optimizer, self.accumulate_gradient, grad_clip=self.train_w_grad_clip)
+
+        self.opt_sample_norm_decay = partial(one_cycle, start=self.optimizer.sample_norm, end=1e-5, steps=runner.info.epochs-self.warmup)
+        self.lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer=self.optimizer, T_max=runner.info.epochs-self.warmup, eta_min=1e-5)
+
         if self.criterion_cfg is not None:
             self.criterion = create_criterion(self.criterion_cfg).to(runner.device)
         else:
@@ -187,15 +192,16 @@ class ZARTSHOOK(DARTSHOOK):
         # train_weight
         self.train_w_dataloader = runner.dataloaders[self.train_w_dataloader_name]
         self.train_w_dataiter = self.data_generator(self.train_w_dataloader)
-        if self.train_w_optimizer_cfg is None:
-            self.train_w_optimizer_cfg = {
-                    'submodule_name': 'torch.optim.SGD',
-                    'args': {'lr':0.001, 'momentum':0.9, 'weight_decay':3e-4}
-                    }
-        self.train_w_optimizer_cfg['args']['params'] = self.model.parameters()
-        self.train_w_optimizer = get_submodule_by_name(self.train_w_optimizer_cfg.get('submodule_name'), search_path=('torch.optim',))(**self.train_w_optimizer_cfg['args'])
-        self.train_w_optimizer.zero_grad()
-        self.train_w_optimizer_hook = OptHOOK(self.train_w_optimizer, self.accumulate_gradient, grad_clip=self.train_w_grad_clip)
+#        if self.train_w_optimizer_cfg is None:
+#            self.train_w_optimizer_cfg = {
+#                    'submodule_name': 'torch.optim.SGD',
+#                    'args': {'lr':0.001, 'momentum':0., 'weight_decay':3e-4}
+#                    }
+#        self.train_w_optimizer_cfg['args']['params'] = self.model.parameters()
+#        self.train_w_optimizer = get_submodule_by_name(self.train_w_optimizer_cfg.get('submodule_name'), search_path=('torch.optim',))(**self.train_w_optimizer_cfg['args'])
+#        self.train_w_optimizer.zero_grad()
+#        self.train_w_optimizer_hook = OptHOOK(self.train_w_optimizer, self.accumulate_gradient, grad_clip=self.train_w_grad_clip)
+        self.train_w_optimizer_hook = OptHOOK(runner.optimizer, self.accumulate_gradient, grad_clip=self.train_w_grad_clip)
         
         runner_root_path = getattr(runner, 'root_path', None)
         if self.save_root and not self.save_root.startswith('/') and runner_root_path: 
@@ -208,10 +214,19 @@ class ZARTSHOOK(DARTSHOOK):
         runner.search_space.apply(partial(set_temperature, temp=self.temperature_start))
         self.after_train_epoch(runner)
 
+    def before_train_epoch(self, runner):
+        if runner.info.current_epoch >= self.warmup:
+            self.optimizer.sample_norm = self.opt_sample_norm_decay(runner.info.current_epoch-self.warmup)
+            print(f'Sample Norm decay to: {self.optimizer.sample_norm}')
+            self.lr_scheduler.step()
+            print(f'LR decay to: {self.lr_scheduler.get_lr()}')
+        super(ZARTSHOOK, self).before_train_epoch(runner)
+
     def _closure(self, val_queue, train_queue, model, criterion, optimizer_hook, amp=False):
         # train
         train_loss = 0.
-        ps = [p.clone(memory_format=torch.contiguous_format) for p in model.parameters()]
+#        ps = [p.clone(memory_format=torch.contiguous_format) for p in model.parameters()]
+        state_dict = {k: v.clone().detach() for k, v in model.state_dict().items() if isinstance(v, torch.Tensor)}
         with torch.enable_grad():
           model.train()
           for step, (input, target) in enumerate(train_queue):
@@ -224,21 +239,23 @@ class ZARTSHOOK(DARTSHOOK):
               loss.backward()
               train_loss += loss
           train_loss /= (step+1)
-#        # val
-#        val_loss = 0.
-#        model.eval()
-#        with torch.no_grad():
-#          for step, (val_input, val_target) in enumerate(val_queue):
-#            with torch.cuda.amp.autocast(enabled=amp):
-#              logits = model(val_input)
-#            loss_items = criterion(logits, val_target)
-#            loss, loss_items = self.postprocess_loss(loss_items)
-#            val_loss += loss
-#          val_loss /= (step+1)
-        for p, pdata in zip(model.parameters(), ps):
-            p.copy_(pdata)
-#        model.train()
-        return train_loss
+        # val
+        val_loss = 0.
+        model.eval()
+        with torch.no_grad():
+          for step, (val_input, val_target) in enumerate(val_queue):
+            with torch.cuda.amp.autocast(enabled=amp):
+              logits = model(val_input)
+            loss_items = criterion(logits, val_target)
+            loss, loss_items = self.postprocess_loss(loss_items)
+            val_loss += loss
+          val_loss /= (step+1)
+        model.train()
+
+#        for p, pdata in zip(model.parameters(), ps):
+#            p.copy_(pdata)
+        model.load_state_dict(state_dict)
+        return val_loss #train_loss
 
 
     def backward_arch_param(self, runner):

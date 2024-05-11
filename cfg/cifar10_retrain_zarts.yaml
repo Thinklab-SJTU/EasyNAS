@@ -1,4 +1,4 @@
-base_path: &base_path runs/cifar10_zarts/ReLIZO-N8-bound1e-3-trainLossAvg-strictLR1e-3/
+base_path: &base_path runs/cifar10_zarts/ReLIZO-N8-bound3e-4-valLossAvg-loadStateDict-wdRefineGrad-sampleNorm1e-4-sameOptimizer/
 root_path: &root_path !join [*base_path, retrain/]
 epoch: &epoch 600
 accumulate_gradient: &acc_grad 1

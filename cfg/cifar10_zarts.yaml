@@ -1,4 +1,4 @@
-root_path: &root_path runs/cifar10_zarts/ReLIZO-N8-bound0.01-trainLossAvg-strictLR0.01/
+root_path: &root_path runs/cifar10_zarts/ReLIZO-N4-bound3e-4-valLossAvg-loadStateDict-wdRefineGrad-sampleNorm0.025Decay-lr0.025Decay-sameOptimizer/
 epoch: &epoch 50
 accumulate_gradient: &acc_grad 1
 
@@ -44,21 +44,24 @@ hooks: &hooks
       optimizer_cfg:
         submodule_name: src.optimizer.lizo.LIZO
         args:
-          lr: 0.01
+          lr: 0.025
           weight_decay: 1.e-3
-          num_sample_per_step: 8
-          reuse_distance_bound: 0.01
+          num_sample_per_step: 4
+          reuse_distance_bound: 0 #3.e-4
+          max_reuse_rate: 0.5
+          sample_norm: 0.025
+          sample_momentum: 0
           orthogonal_sample: False
           fast_alg: True
           line_search_fn: !get_module [src.optimizer.lizo._backtracking, {shrink_rate: 0.2, c1: 1.e-4, max_ls: 5}]
-          strict_lr: True
+          strict_lr: False
       dataloader_name: search_val
       criterion_cfg: *criterion
       update_freq: 10
       accumulate_gradient: *acc_grad
       priority: 30
       save_root: !join [*root_path, arch/]
-      warmup: 10
+      warmup: 20
       replace_settings: # TODO: 1. affine should be True (both in Cell_search and darts_conv); 2. No BN after Pooling
         args.width_multiple: 2.25
         args.depth_multiple: 5
@@ -72,7 +75,7 @@ hooks: &hooks
         args.architecture.8.args.drop_path_prob: 0.2
       train_w_iter: 10
       train_w_dataloader_name: train_weight
-      val_w_iter: 1
+      val_w_iter: 8
   
   eval_hook:
     submodule_name: EvalAccHOOK
