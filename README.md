@@ -1,5 +1,7 @@
 # EasyML
 
+**We will update the codes in our new [repo](https://github.com/Thinklab-SJTU/Opt4Sci)**
+
 EasyML is an AutoML tool based on PyTorch platform, supporting various AutoML tasks including Hyper-parameter Optimization (HPO) and Neural Architecture Search (NAS). EasyML is developed based on the following three aspects of AutoML:
 
 - **Flexible Definition of Search Spaces** that can suit various tasks and applications, supporting continuous and discrete spaces and nested spaces.
