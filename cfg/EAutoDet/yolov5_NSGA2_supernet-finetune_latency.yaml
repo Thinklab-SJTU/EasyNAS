@@ -136,12 +136,12 @@ eval_cfg:
     args:
       input_size: !cross_ref [!join [*data, ':input_size']]
       ckpt_root: *ckpt_root
-      remote_onnx_path: /home/wangxiaoxing/model.onnx
-      remote_cmd: "docker run -t -i --privileged -v /dev/bus/usb:/dev/bus/usb -v /home/wangxiaoxing:/home/wangxiaoxing rknn-toolkit2:ubuntu20.04-cp38 sh -c 'adb devices && cd /home/wangxiaoxing/rknn_model_zoo/examples/yolov7/python && python test_onnx.py --onnx_path {onnx_path} --target rk3588 --quant i8'"
-      host: 202.120.39.51
-      username: wangxiaoxing
+      remote_onnx_path: /home/model.onnx
+      remote_cmd: "docker run -t -i --privileged -v /dev/bus/usb:/dev/bus/usb -v /home/:/home/ rknn-toolkit2:ubuntu20.04-cp38 sh -c 'adb devices && cd /home/rknn_model_zoo/examples/yolov7/python && python test_onnx.py --onnx_path {onnx_path} --target rk3588 --quant i8'"
+      host: xxx.xxx.xxx.xxx
+      username: username
       pkey: '~/.ssh/id_rsa'
-      port: 30022
+      port: port
       eval_names: [neg-latency]
 
 searcher: &searcher
