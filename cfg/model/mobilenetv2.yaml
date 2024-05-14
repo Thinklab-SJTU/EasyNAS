@@ -1,0 +1,150 @@
+submodule_name: src.models.BaseModel
+args:
+  log_path: model.log
+  depth_multiple: 1.0
+  width_multiple: 1.0
+  output_ch: &output_ch 1000
+  architecture:
+    - input_idx: -1
+      submodule_name: ConvBNAct
+      args: 
+        out_channel: 32
+        kernel: 3
+        dilation: 1
+        stride: 2
+        bias: False
+        act: torch.nn.ReLU6
+        bn: True
+  
+    - input_idx: -1
+      submodule_name: InvertedResidual
+      num_repeat: 1
+      args:
+        out_channel: 16
+        kernel: 3
+        stride: 1
+        expand_ratio: 1
+  
+    - input_idx: -1
+      submodule_name: InvertedResidual
+      num_repeat: 1
+      args:
+        out_channel: 24
+        kernel: 3
+        stride: 2
+        expand_ratio: 6
+    - input_idx: -1
+      submodule_name: InvertedResidual
+      num_repeat: 1
+      args:
+        out_channel: 24
+        kernel: 3
+        stride: 1
+        expand_ratio: 6
+  
+    - input_idx: -1
+      submodule_name: InvertedResidual
+      num_repeat: 1
+      args:
+        out_channel: 32
+        kernel: 3
+        stride: 2
+        expand_ratio: 6
+    - input_idx: -1
+      submodule_name: InvertedResidual
+      num_repeat: 2
+      args:
+        out_channel: 32
+        kernel: 3
+        stride: 1
+        expand_ratio: 6
+        
+    - input_idx: -1
+      submodule_name: InvertedResidual
+      num_repeat: 1
+      args:
+        out_channel: 64
+        kernel: 3
+        stride: 2
+        expand_ratio: 6
+    - input_idx: -1
+      submodule_name: InvertedResidual
+      num_repeat: 3
+      args:
+        out_channel: 64
+        kernel: 3
+        stride: 1
+        expand_ratio: 6
+  
+    - input_idx: -1
+      submodule_name: InvertedResidual
+      num_repeat: 3
+      args:
+        out_channel: 96
+        kernel: 3
+        stride: 1
+        expand_ratio: 6
+        
+    - input_idx: -1
+      submodule_name: InvertedResidual
+      num_repeat: 3
+      args:
+        out_channel: 160
+        kernel: 3
+        stride: 1
+        expand_ratio: 6
+  
+    - input_idx: -1
+      submodule_name: InvertedResidual
+      num_repeat: 1
+      args:
+        out_channel: 160
+        kernel: 3
+        stride: 2
+        expand_ratio: 6
+    - input_idx: -1
+      submodule_name: InvertedResidual
+      num_repeat: 2
+      args:
+        out_channel: 160
+        kernel: 3
+        stride: 1
+        expand_ratio: 6
+  
+    - input_idx: -1
+      submodule_name: InvertedResidual
+      num_repeat: 1
+      args:
+        out_channel: 320
+        kernel: 3
+        stride: 1
+        expand_ratio: 6
+  
+    - input_idx: -1
+      submodule_name: ConvBNAct
+      args: 
+        out_channel: 1280
+        kernel: 1
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.ReLU6
+        bn: True
+    - input_idx: -1
+      submodule_name: GlobalPoolBNAct
+      args:
+        pool: avg
+        bn: False
+        act: False
+    - input_idx: -1
+      submodule_name: torch.nn.Dropout
+      args:
+        p: 0.2
+    - input_idx: -1
+      submodule_name: torch.nn.Linear
+      is_outlayer: True
+      freeze_ch: true
+      args:
+        in_features: 1280
+        out_features: *output_ch
+

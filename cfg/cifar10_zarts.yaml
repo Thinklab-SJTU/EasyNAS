@@ -1,0 +1,121 @@
+root_path: &root_path runs/cifar10_zarts/ReLIZO-N4-bound3e-4-valLossAvg-loadStateDict-wdRefineGrad-sampleNorm0.025Decay-lr0.025Decay-sameOptimizer/
+epoch: &epoch 50
+accumulate_gradient: &acc_grad 1
+
+criterion: &criterion
+  submodule_name: src.criterions.CriterionWithAux
+  args:
+    criterion_or_cfg:
+      submodule_name: torch.nn.CrossEntropyLoss
+    auxiliary_or_cfg: null
+
+optimizer: &optimizer
+  submodule_name: torch.optim.SGD
+  args:
+    params:
+    lr: 0.025
+    momentum: 0.9
+    weight_decay: 3.e-4
+
+lr_scheduler: &scheduler
+  submodule_name: torch.optim.lr_scheduler.CosineAnnealingLR
+  args:
+    optimizer: 
+    T_max: *epoch
+    eta_min: 0.001
+
+hooks: &hooks
+  opt_hook:
+    submodule_name: OptHOOK
+    args:
+      priority: 0
+      grad_clip: 5
+      accumulate_gradient: *acc_grad
+  
+  lr_scheduler_hook:
+    submodule_name: LrScheduleHOOK
+    args: 
+      priority: 5
+      mode: epoch
+
+  zarts_hook:
+    submodule_name: ZARTSHOOK
+    args:
+      optimizer_cfg:
+        submodule_name: src.optimizer.lizo.LIZO
+        args:
+          lr: 0.025
+          weight_decay: 1.e-3
+          num_sample_per_step: 4
+          reuse_distance_bound: 0 #3.e-4
+          max_reuse_rate: 0.5
+          sample_norm: 0.025
+          sample_momentum: 0
+          orthogonal_sample: False
+          fast_alg: True
+          line_search_fn: !get_module [src.optimizer.lizo._backtracking, {shrink_rate: 0.2, c1: 1.e-4, max_ls: 5}]
+          strict_lr: False
+      dataloader_name: search_val
+      criterion_cfg: *criterion
+      update_freq: 10
+      accumulate_gradient: *acc_grad
+      priority: 30
+      save_root: !join [*root_path, arch/]
+      warmup: 20
+      replace_settings: # TODO: 1. affine should be True (both in Cell_search and darts_conv); 2. No BN after Pooling
+        args.width_multiple: 2.25
+        args.depth_multiple: 5
+        args.architecture.1.args.drop_path_prob: 0.2
+        args.architecture.2.args.drop_path_prob: 0.2
+        args.architecture.3.args.drop_path_prob: 0.2
+        args.architecture.4.args.drop_path_prob: 0.2
+        args.architecture.5.args.drop_path_prob: 0.2
+        args.architecture.6.args.drop_path_prob: 0.2
+        args.architecture.7.args.drop_path_prob: 0.2
+        args.architecture.8.args.drop_path_prob: 0.2
+      train_w_iter: 10
+      train_w_dataloader_name: train_weight
+      val_w_iter: 8
+  
+  eval_hook:
+    submodule_name: EvalAccHOOK
+    args: 
+      priority: 5
+  
+  ddp_hook:
+    submodule_name: DDPHOOK
+    args:
+      priority: 10
+  
+  
+  log_hook:
+    submodule_name: LogHOOK
+    args:
+      logger_name: TrainPip
+      log_path: !join [*root_path, test.log]
+      print_freq: 100
+      only_master: True
+      priority: 20
+  
+  ckpt_hook:
+    submodule_name: CkptHOOK
+    args:
+      save_root: !join [*root_path, ckpt/]
+      pretrain: 
+      only_master: True
+      priority: 20
+  
+engine:
+  submodule_name: engines.NNEngine
+  args:
+    data: !cross_ref [cfg/dataset/cifar10_search.yaml]
+    model: !cross_ref [cfg/model/darts.yaml]
+    criterion: *criterion
+    optimizer: *optimizer
+    lr_scheduler: *scheduler
+    hooks: *hooks
+    amp: False
+  run_args:
+    epochs: *epoch 
+
+

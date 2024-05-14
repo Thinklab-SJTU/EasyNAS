@@ -1,0 +1,11 @@
+numpy
+#torch==1.12.1+cu113
+#torchvision==0.13.1+cu113
+#torchaudio==0.12.1
+tqdm
+pyyaml
+easydict
+opencv-python
+thop
+pycocotools>=2.0
+paramiko

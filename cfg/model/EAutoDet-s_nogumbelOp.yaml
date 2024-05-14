@@ -1,0 +1,623 @@
+op_edge_sampler: &op_edge_sampler
+  submodule_name: WeightedSampler
+  args:
+    norm_fn: softmax
+ch_sampler: &ch_sampler
+  submodule_name: WeightedSampler
+  args:
+    norm_fn: pseudo_gumbel_softmax
+
+num_classes: &num_classes 80  # number of classes
+#
+# anchors
+anchors: &anchors
+  - [10,13, 16,30, 33,23]  # P3/8
+  - [30,61, 62,45, 59,119]  # P4/16
+  - [116,90, 156,198, 373,326]  # P5/32
+
+strides: &strides [8, 16, 32]
+
+submodule_name: src.models.BaseModel
+args:
+  log_path: model.log
+  depth_multiple: 1.0  # model depth multiple
+  width_multiple: 0.50  # layer channel multiple
+  output_ch: &output_ch 255
+  init_func: !get_module [src.models.utils.yolov5_init_weights]
+  architecture:
+# YOLOv5 backbone
+    - input_idx: -1 # 0-P1/2
+      submodule_name: Focus 
+      args: 
+        out_channel: 64
+        kernel: 3
+        act: torch.nn.SiLU
+    - input_idx: -1 # 1-P2/4
+      submodule_name: ConvBNAct_search
+      args: 
+        out_channel: !search_space {space: [64, 96, 128], sampler_cfg: *ch_sampler}
+        candidate_op: !search_space {space: [[1,1],[3,1],[5,1],[3,2]], sampler_cfg: *op_edge_sampler}
+        stride: 2
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: -1
+      submodule_name: YOLOC3_search
+      args: 
+        out_channel: !search_space {space: [96,128], sampler_cfg: *ch_sampler}
+        num_repeat: 1
+        candidate_op: !search_space {space: [[3,1],[5,1],[3,2]], sampler_cfg: *op_edge_sampler}
+        e_bottleneck: !search_space {space: [0.5,0.75,1.0], sampler_cfg: *ch_sampler}
+        merge_kernel: True
+        separable: False
+    - input_idx: -1 # 3-P3/8
+      submodule_name: ConvBNAct_search
+      args: 
+        out_channel: !search_space {space: [128,192,256], sampler_cfg: *ch_sampler}
+        candidate_op: !search_space {space: [[1,1],[3,1],[5,1],[3,2]], sampler_cfg: *op_edge_sampler}
+        stride: 2
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: -1
+      submodule_name: YOLOC3_search 
+      args: 
+        out_channel: !search_space {space: [192,256], sampler_cfg: *ch_sampler}
+        num_repeat: 3
+        candidate_op: !search_space {space: [[3,1],[5,1],[3,2]], sampler_cfg: *op_edge_sampler, num_reserve: 1, num_repeat: 3}
+        e_bottleneck: !search_space {space: [0.5,0.75,1.0], sampler_cfg: *ch_sampler, num_reserve: 1, num_repeat: 3}
+        merge_kernel: True
+        separable: False
+    - input_idx: -1 # 5-P4/16
+      submodule_name: ConvBNAct_search 
+      args: 
+        out_channel: !search_space {space: [256,384,512], sampler_cfg: *ch_sampler}
+        candidate_op: !search_space {space: [[1,1],[3,1],[5,1],[3,2]], sampler_cfg: *op_edge_sampler}
+        stride: 2
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: -1
+      submodule_name: YOLOC3_search 
+      args: 
+        out_channel: !search_space {space: [384,512], sampler_cfg: *ch_sampler}
+        num_repeat: 3
+        candidate_op: !search_space {space: [[3,1],[5,1],[3,2]], sampler_cfg: *op_edge_sampler, num_reserve: 1, num_repeat: 3}
+        e_bottleneck: !search_space {space: [0.5,0.75,1.0], sampler_cfg: *ch_sampler, num_reserve: 1, num_repeat: 3}
+        merge_kernel: True
+        separable: False
+    - input_idx: -1 # 7-P5/32
+      submodule_name: ConvBNAct_search 
+      args: 
+        out_channel: !search_space {space: [512,768,1024], sampler_cfg: *ch_sampler}
+        candidate_op: !search_space {space: [[1,1],[3,1],[5,1],[3,2]], sampler_cfg: *op_edge_sampler}
+        stride: 2
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: -1
+      submodule_name: SPP_search
+      args: 
+        out_channel: 1024
+        kernels: [5, 9, 13]
+        
+# head
+    - input_idx: !search_space
+        space: [-1, 6, 4]
+        sampler_cfg: *op_edge_sampler 
+        num_reserve: 2
+        reserve_replace: False
+        label: aff0_edge
+      submodule_name: AtomSearchModule
+      args: 
+        out_channel: !search_space {space: [512,768,1024], sampler_cfg: *ch_sampler}
+        strides: !search_space
+          space: [1, 2, 4]
+          num_reserve: 2
+          reserve_replace: False
+          label: aff0_edge
+        candidate_op: !search_space
+          space:
+            - !search_space 
+              num_reserve: 1
+              flatten: True
+              sampler_cfg: *op_edge_sampler
+              space:
+                - !search_space
+                  submodule_name: SepConvBNAct_search
+                  args: !edict
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
+                    out_channel:  #[0.5,0.75,1.0]
+                    act: torch.nn.SiLU
+                    bn: torch.nn.BatchNorm2d
+            - !search_space 
+              num_reserve: 1
+              flatten: True
+              sampler_cfg: *op_edge_sampler
+              space:
+                - !search_space
+                  submodule_name: SepConvBNAct_search
+                  args: !edict
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
+                    out_channel:  #[0.5,0.75,1.0]
+                    act: torch.nn.SiLU
+                    bn: torch.nn.BatchNorm2d
+            - !search_space 
+              num_reserve: 1
+              flatten: True
+              sampler_cfg: *op_edge_sampler
+              space:
+                - !search_space
+                  submodule_name: SepConvBNAct_search
+                  args: !edict
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
+                    out_channel:  #[0.5,0.75,1.0]
+                    act: torch.nn.SiLU
+                    bn: torch.nn.BatchNorm2d
+          num_reserve: 2
+          reserve_replace: False
+          label: aff0_edge
+        upsample_op: 
+          submodule_name: torch.nn.Upsample
+          args:
+            mode: nearest
+        auto_refine: False
+        act: False
+        bn: False
+    - input_idx: -1 # 10 (/32)
+      submodule_name: YOLOC3_search 
+      args: 
+        out_channel: !search_space {space: [768,1024], sampler_cfg: *ch_sampler}
+        num_repeat: 1
+        shortcut: False
+        candidate_op: !search_space {space: [[3,1],[5,1],[3,2]], sampler_cfg: *op_edge_sampler}
+        e_bottleneck: !search_space {space: [0.5,0.75,1.0], sampler_cfg: *ch_sampler}
+        merge_kernel: True
+        separable: False
+  
+    - input_idx: !search_space
+        sampler_cfg: *op_edge_sampler
+        space: [-1, 8, 6, 4]
+        label: aff1_edge
+        num_reserve: 2
+        reserve_replace: False
+      submodule_name: AtomSearchModule
+      args: 
+        out_channel: !search_space {space: [256,384,512], sampler_cfg: *ch_sampler}
+        strides: !search_space
+          space: [0.5, 0.5, 1, 2]
+          num_reserve: 2
+          reserve_replace: False
+          label: aff1_edge
+        candidate_op: !search_space
+          space: 
+            - !search_space 
+              num_reserve: 1
+              flatten: True
+              sampler_cfg: *op_edge_sampler
+              space:
+                - !search_space
+                  submodule_name: SepConvBNAct_search
+                  args: !edict
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
+                    out_channel:  #[0.5,0.75,1.0]
+                    act: torch.nn.SiLU
+                    bn: torch.nn.BatchNorm2d
+            - !search_space 
+              num_reserve: 1
+              flatten: True
+              sampler_cfg: *op_edge_sampler
+              space:
+                - !search_space
+                  submodule_name: SepConvBNAct_search
+                  args: !edict
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
+                    out_channel:  #[0.5,0.75,1.0]
+                    act: torch.nn.SiLU
+                    bn: torch.nn.BatchNorm2d
+            - !search_space 
+              num_reserve: 1
+              flatten: True
+              sampler_cfg: *op_edge_sampler
+              space:
+                - !search_space
+                  submodule_name: SepConvBNAct_search
+                  args: !edict
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
+                    out_channel:  #[0.5,0.75,1.0]
+                    act: torch.nn.SiLU
+                    bn: torch.nn.BatchNorm2d
+            - !search_space 
+              num_reserve: 1
+              flatten: True
+              sampler_cfg: *op_edge_sampler
+              space:
+                - !search_space
+                  submodule_name: SepConvBNAct_search
+                  args: !edict
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
+                    out_channel:  #[0.5,0.75,1.0]
+                    act: torch.nn.SiLU
+                    bn: torch.nn.BatchNorm2d
+          num_reserve: 2
+          reserve_replace: False
+          label: aff1_edge
+        upsample_op: 
+          submodule_name: torch.nn.Upsample
+          args:
+            mode: nearest
+        auto_refine: False
+        act: False
+        bn: False
+    - input_idx: -1 # 12 (/16)
+      submodule_name: YOLOC3_search
+      args: 
+        out_channel: !search_space {space: [384,512], sampler_cfg: *ch_sampler}
+        num_repeat: 1
+        shortcut: False 
+        candidate_op: !search_space {space: [[3,1],[5,1],[3,2]], sampler_cfg: *op_edge_sampler}
+        e_bottleneck: !search_space {space: [0.5,0.75,1.0], sampler_cfg: *ch_sampler}
+        merge_kernel: True
+        separable: False
+  
+    - input_idx: !search_space
+        sampler_cfg: *op_edge_sampler
+        space: [-1, 10, 8, 6, 4]
+        label: aff2_edge
+        num_reserve: 2
+        reserve_replace: False
+      submodule_name: AtomSearchModule
+      args: 
+        out_channel: !search_space {space: [128,192,256], sampler_cfg: *ch_sampler}
+        strides: !search_space
+          space: [0.5, 0.25, 0.25, 0.5, 1]
+          num_reserve: 2
+          reserve_replace: False
+          label: aff2_edge
+        candidate_op: !search_space
+          space: 
+            - !search_space 
+              num_reserve: 1
+              flatten: True
+              sampler_cfg: *op_edge_sampler
+              space:
+                - !search_space
+                  submodule_name: SepConvBNAct_search
+                  args: !edict
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
+                    out_channel:  #[0.5,0.75,1.0]
+                    act: torch.nn.SiLU
+                    bn: torch.nn.BatchNorm2d
+            - !search_space 
+              num_reserve: 1
+              flatten: True
+              sampler_cfg: *op_edge_sampler
+              space:
+                - !search_space
+                  submodule_name: SepConvBNAct_search
+                  args: !edict
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
+                    out_channel:  #[0.5,0.75,1.0]
+                    act: torch.nn.SiLU
+                    bn: torch.nn.BatchNorm2d
+            - !search_space 
+              num_reserve: 1
+              flatten: True
+              sampler_cfg: *op_edge_sampler
+              space:
+                - !search_space
+                  submodule_name: SepConvBNAct_search
+                  args: !edict
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
+                    out_channel:  #[0.5,0.75,1.0]
+                    act: torch.nn.SiLU
+                    bn: torch.nn.BatchNorm2d
+            - !search_space 
+              num_reserve: 1
+              flatten: True
+              sampler_cfg: *op_edge_sampler
+              space:
+                - !search_space
+                  submodule_name: SepConvBNAct_search
+                  args: !edict
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
+                    out_channel:  #[0.5,0.75,1.0]
+                    act: torch.nn.SiLU
+                    bn: torch.nn.BatchNorm2d
+            - !search_space 
+              num_reserve: 1
+              flatten: True
+              sampler_cfg: *op_edge_sampler
+              space:
+                - !search_space
+                  submodule_name: SepConvBNAct_search
+                  args: !edict
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
+                    out_channel:  #[0.5,0.75,1.0]
+                    act: torch.nn.SiLU
+                    bn: torch.nn.BatchNorm2d
+          num_reserve: 2
+          reserve_replace: False
+          label: aff2_edge
+        upsample_op: 
+          submodule_name: torch.nn.Upsample
+          args:
+            mode: nearest
+        auto_refine: False
+        act: False
+        bn: False
+    - input_idx: -1 # 14 (/8)
+      submodule_name: YOLOC3_search 
+      args: 
+        out_channel: !search_space {space: [192,256], sampler_cfg: *ch_sampler}
+        num_repeat: 1
+        shortcut: False 
+        candidate_op: !search_space {space: [[3,1],[5,1],[3,2]], sampler_cfg: *op_edge_sampler}
+        e_bottleneck: !search_space {space: [0.5,0.75,1.0], sampler_cfg: *ch_sampler}
+        merge_kernel: True
+        separable: False
+  
+    - input_idx: !search_space
+        sampler_cfg: *op_edge_sampler
+        space: [-1, 12, 10]
+        label: aff3_edge
+        num_reserve: 2
+        reserve_replace: False
+      submodule_name: AtomSearchModule
+      args: 
+        out_channel: !search_space {space: [128,192,256], sampler_cfg: *ch_sampler}
+        strides: !search_space
+          space: [1, 0.5, 0.25]
+          num_reserve: 2
+          reserve_replace: False
+          label: aff3_edge
+        candidate_op: !search_space
+          space: 
+            - !search_space 
+              num_reserve: 1
+              flatten: True
+              sampler_cfg: *op_edge_sampler
+              space:
+                - !search_space
+                  submodule_name: SepConvBNAct_search
+                  args: !edict
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
+                    out_channel:  #[0.5,0.75,1.0]
+                    act: torch.nn.SiLU
+                    bn: torch.nn.BatchNorm2d
+            - !search_space 
+              num_reserve: 1
+              flatten: True
+              sampler_cfg: *op_edge_sampler
+              space:
+                - !search_space
+                  submodule_name: SepConvBNAct_search
+                  args: !edict
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
+                    out_channel:  #[0.5,0.75,1.0]
+                    act: torch.nn.SiLU
+                    bn: torch.nn.BatchNorm2d
+            - !search_space 
+              num_reserve: 1
+              flatten: True
+              sampler_cfg: *op_edge_sampler
+              space:
+                - !search_space
+                  submodule_name: SepConvBNAct_search
+                  args: !edict
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
+                    out_channel:  #[0.5,0.75,1.0]
+                    act: torch.nn.SiLU
+                    bn: torch.nn.BatchNorm2d
+          num_reserve: 2
+          reserve_replace: False
+          label: aff3_edge
+        upsample_op: 
+          submodule_name: torch.nn.Upsample
+          args:
+            mode: nearest
+        auto_refine: False
+        act: False
+        bn: False
+    - input_idx: -1 # 16 (/8)
+      submodule_name: YOLOC3_search
+      args: 
+        out_channel: !search_space {space: [192,256], sampler_cfg: *ch_sampler}
+        num_repeat: 1
+        shortcut: False 
+        candidate_op: !search_space {space: [[3,1],[5,1],[3,2]], sampler_cfg: *op_edge_sampler}
+        e_bottleneck: !search_space {space: [0.5,0.75,1.0], sampler_cfg: *ch_sampler}
+        merge_kernel: True
+        separable: False
+
+    - input_idx: !search_space 
+        sampler_cfg: *op_edge_sampler
+        space: [-1, 14, 12, 10]
+        label: aff4_edge
+        num_reserve: 2
+        reserve_replace: False
+      submodule_name: AtomSearchModule
+      args: 
+        out_channel: !search_space {space: [256,384,512], sampler_cfg: *ch_sampler}
+        strides: !search_space 
+          space: [2, 2, 1, 0.5]
+          num_reserve: 2
+          reserve_replace: False
+          label: aff4_edge
+        candidate_op: !search_space
+          space: 
+            - !search_space 
+              num_reserve: 1
+              flatten: True
+              sampler_cfg: *op_edge_sampler
+              space:
+                - !search_space
+                  submodule_name: SepConvBNAct_search
+                  args: !edict
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
+                    out_channel:  #[0.5,0.75,1.0]
+                    act: torch.nn.SiLU
+                    bn: torch.nn.BatchNorm2d
+            - !search_space 
+              num_reserve: 1
+              flatten: True
+              sampler_cfg: *op_edge_sampler
+              space:
+                - !search_space
+                  submodule_name: SepConvBNAct_search
+                  args: !edict
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
+                    out_channel:  #[0.5,0.75,1.0]
+                    act: torch.nn.SiLU
+                    bn: torch.nn.BatchNorm2d
+            - !search_space 
+              num_reserve: 1
+              flatten: True
+              sampler_cfg: *op_edge_sampler
+              space:
+                - !search_space
+                  submodule_name: SepConvBNAct_search
+                  args: !edict
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
+                    out_channel:  #[0.5,0.75,1.0]
+                    act: torch.nn.SiLU
+                    bn: torch.nn.BatchNorm2d
+            - !search_space 
+              num_reserve: 1
+              flatten: True
+              sampler_cfg: *op_edge_sampler
+              space:
+                - !search_space
+                  submodule_name: SepConvBNAct_search
+                  args: !edict
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
+                    out_channel:  #[0.5,0.75,1.0]
+                    act: torch.nn.SiLU
+                    bn: torch.nn.BatchNorm2d
+          num_reserve: 2
+          reserve_replace: False
+          label: aff4_edge
+        upsample_op: 
+          submodule_name: torch.nn.Upsample
+          args:
+            mode: nearest
+        auto_refine: False
+        act: False
+        bn: False
+    - input_idx: -1 # 18 (/16)
+      submodule_name: YOLOC3_search
+      args: 
+        out_channel: !search_space {space: [384,512], sampler_cfg: *ch_sampler}
+        num_repeat: 1
+        shortcut: False 
+        candidate_op: !search_space {space: [[3,1],[5,1],[3,2]], sampler_cfg: *op_edge_sampler}
+        e_bottleneck: !search_space {space: [0.5,0.75,1.0], sampler_cfg: *ch_sampler}
+        merge_kernel: True
+        separable: False
+  
+    - input_idx: !search_space
+        sampler_cfg: *op_edge_sampler
+        space: [-1, 16, 14, 12, 10]
+        label: aff5_edge
+        num_reserve: 2
+        reserve_replace: False
+      submodule_name: AtomSearchModule
+      args: 
+        out_channel: !search_space {space: [512,768,1024], sampler_cfg: *ch_sampler}
+        strides: !search_space
+          space: [2, 4, 4, 2, 1]
+          num_reserve: 2
+          reserve_replace: False
+          label: aff5_edge
+        candidate_op: !search_space
+          space: 
+            - !search_space 
+              num_reserve: 1
+              flatten: True
+              sampler_cfg: *op_edge_sampler
+              space:
+                - !search_space
+                  submodule_name: SepConvBNAct_search
+                  args: !edict
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
+                    out_channel:  #[0.5,0.75,1.0]
+                    act: torch.nn.SiLU
+                    bn: torch.nn.BatchNorm2d
+            - !search_space 
+              num_reserve: 1
+              flatten: True
+              sampler_cfg: *op_edge_sampler
+              space:
+                - !search_space
+                  submodule_name: SepConvBNAct_search
+                  args: !edict
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
+                    out_channel:  #[0.5,0.75,1.0]
+                    act: torch.nn.SiLU
+                    bn: torch.nn.BatchNorm2d
+            - !search_space 
+              num_reserve: 1
+              flatten: True
+              sampler_cfg: *op_edge_sampler
+              space:
+                - !search_space
+                  submodule_name: SepConvBNAct_search
+                  args: !edict
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
+                    out_channel:  #[0.5,0.75,1.0]
+                    act: torch.nn.SiLU
+                    bn: torch.nn.BatchNorm2d
+            - !search_space 
+              num_reserve: 1
+              flatten: True
+              sampler_cfg: *op_edge_sampler
+              space:
+                - !search_space
+                  submodule_name: SepConvBNAct_search
+                  args: !edict
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
+                    out_channel:  #[0.5,0.75,1.0]
+                    act: torch.nn.SiLU
+                    bn: torch.nn.BatchNorm2d
+            - !search_space 
+              num_reserve: 1
+              flatten: True
+              sampler_cfg: *op_edge_sampler
+              space:
+                - !search_space
+                  submodule_name: SepConvBNAct_search
+                  args: !edict
+                    candidate_op: !search_space [[3,1], [5,1], [3,2]]
+                    out_channel:  #[0.5,0.75,1.0]
+                    act: torch.nn.SiLU
+                    bn: torch.nn.BatchNorm2d
+          num_reserve: 2
+          reserve_replace: False
+          label: aff5_edge
+        upsample_op: 
+          submodule_name: torch.nn.Upsample
+          args:
+            mode: nearest
+        auto_refine: False
+        act: False
+        bn: False
+    - input_idx: -1 # 20 (/32)
+      submodule_name: YOLOC3_search
+      args: 
+        out_channel: !search_space {space: [768,1024], sampler_cfg: *ch_sampler}
+        num_repeat: 1
+        shortcut: False 
+        candidate_op: !search_space {space: [[3,1],[5,1],[3,2]], sampler_cfg: *op_edge_sampler}
+        e_bottleneck: !search_space {space: [0.5,0.75,1.0], sampler_cfg: *ch_sampler}
+        merge_kernel: True
+        separable: False
+
+    - input_idx: [16, 18, 20] # Detect(P3, P4, P5)
+      is_outlayer: True
+      submodule_name: YOLODetect_search
+      args: 
+        num_classes: *num_classes
+        anchors: *anchors
+        strides: *strides
+
+

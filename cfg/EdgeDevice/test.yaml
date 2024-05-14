@@ -1,0 +1,650 @@
+accumulate_gradient: 1
+criterion: &id001
+  args:
+    anchors:
+    - - 10
+      - 13
+      - 16
+      - 30
+      - 33
+      - 23
+    - - 30
+      - 61
+      - 62
+      - 45
+      - 59
+      - 119
+    - - 116
+      - 90
+      - 156
+      - 198
+      - 373
+      - 326
+    autobalance: false
+    hyp:
+      anchor_t: 4.0
+      box: 0.05
+      cls: 0.5
+      cls_pw: 1.0
+      fl_gamma: 0.0
+      iou_t: 0.2
+      obj: 1.0
+      obj_pw: 1.0
+    img_size: 640
+    iou_loss_ratio: 1.0
+    strides:
+    - 8
+    - 16
+    - 32
+  submodule_name: src.criterions.YOLOv5Loss
+data: cfg/dataset/coco_yolo.yaml
+engine:
+  args:
+    amp: true
+    amp_val: true
+    criterion: *id001
+    data:
+      batch_size: 64
+      data_hyp: &id002
+        degrees: 0.0
+        fliplr: 0.5
+        flipud: 0.0
+        hsv_h: 0.015
+        hsv_s: 0.7
+        hsv_v: 0.4
+        mixup: 0.0
+        mosaic: 1.0
+        perspective: 0.0
+        scale: 0.5
+        shear: 0.0
+        translate: 0.1
+      dataloader:
+        train:
+          dataloader_args:
+            batch_size: 64
+            collate_fn: !get_module
+            - src.datasets.coco_yolo.collate_fn
+            - {}
+            num_workers: 8
+            pin_memory: true
+          dataset_name: train
+          submodule_name: src.datasets.LOADER_YOLO
+        val:
+          dataloader_args:
+            batch_size: 192
+            collate_fn: !get_module
+            - src.datasets.coco_yolo.collate_fn
+            - {}
+            num_workers: 4
+            pin_memory: true
+          dataset_name: val
+          shuffle: false
+          submodule_name: src.datasets.LOADER_YOLO
+          use_dist: false
+      dataset:
+        train:
+          dataset_args:
+            augment: true
+            batch_size: 64
+            hyp: *id002
+            img_size: 640
+            path: ./data/coco2017/images/train2017/
+            rect: false
+            stride: 32
+          submodule_name: src.datasets.COCO_YOLO
+        val:
+          dataset_args:
+            augment: false
+            batch_size: 192
+            hyp: *id002
+            img_size: 640
+            pad: 0.5
+            path: ./data/coco2017/images/val2017/
+            rect: true
+            stride: 32
+          submodule_name: src.datasets.COCO_YOLO
+      input_size: 640
+      num_classes: 80
+      val_batch_size: 192
+    hooks: &id006
+      ckpt_hook:
+        args:
+          load_strict: false
+          only_master: true
+          pretrain: runs/coco_EAutoDet-s_noAlpha_nogumbelSampler/ckpt/best.pt
+          priority: 20
+          save_root: runs/EdgeDevice/ckpt/
+        submodule_name: CkptHOOK
+      ddp_hook:
+        args:
+          priority: 10
+        submodule_name: DDPHOOK
+      ema_hook:
+        args:
+          accumulate_gradient: 1
+          decay: 0.9999
+          priority: 5
+        submodule_name: EMAHOOK
+      eval_hook:
+        args:
+          anno_file: data/coco2017/annotations/instances_val2017.json
+          conf_thres: 0.001
+          eval_by_cocotools: true
+          iou_thres: 0.6
+          priority: 10
+        submodule_name: EvalCOCOmAPHOOK
+      log_hook:
+        args:
+          log_path: runs/EdgeDevice/test.log
+          logger_name: TrainPip
+          only_master: true
+          print_freq: 100
+          priority: 20
+        submodule_name: LogHOOK
+      lr_scheduler_hook:
+        args:
+          mode: epoch
+          priority: 5
+        submodule_name: LrScheduleHOOK
+      opt_hook:
+        args:
+          accumulate_gradient: 1
+          priority: 0
+        submodule_name: OptHOOK
+      warmup_hook:
+        args:
+          accumulate_gradient: 1
+          max_epoch: 3
+          max_iter: 1000
+          priority: 0
+          warmup_init_lr:
+          - 0
+          - 0.1
+          - 0
+          warmup_init_momentum: 0.8
+        submodule_name: WarmupHOOK
+    lr_scheduler: &id007
+      args:
+        lr_lambda: !get_module
+        - src.scheduler.utils.one_cycle
+        - end: 0.2
+          start: 1
+          steps: 2
+        optimizer: null
+      submodule_name: torch.optim.lr_scheduler.LambdaLR
+    model:
+      anchors: &id004
+      - - 10
+        - 13
+        - 16
+        - 30
+        - 33
+        - 23
+      - - 30
+        - 61
+        - 62
+        - 45
+        - 59
+        - 119
+      - - 116
+        - 90
+        - 156
+        - 198
+        - 373
+        - 326
+      args:
+        architecture:
+        - args:
+            act: torch.nn.SiLU
+            kernel: 3
+            out_channel: 64
+          input_idx: -1
+          submodule_name: Focus
+        - args:
+            act: torch.nn.SiLU
+            bias: false
+            bn: torch.nn.BatchNorm2d
+            candidate_op: !tuple
+            - 3
+            - 1
+            out_channel: 64
+            stride: 2
+          input_idx: -1
+          submodule_name: ConvBNAct_search
+        - args:
+            candidate_op: !tuple
+            - 5
+            - 1
+            e_bottleneck: 1.0
+            merge_kernel: true
+            num_repeat: 1
+            out_channel: 96
+            separable: false
+          input_idx: -1
+          submodule_name: YOLOC3_search
+        - args:
+            act: torch.nn.SiLU
+            bias: false
+            bn: torch.nn.BatchNorm2d
+            candidate_op: !tuple
+            - 5
+            - 1
+            out_channel: 192
+            stride: 2
+          input_idx: -1
+          submodule_name: ConvBNAct_search
+        - args:
+            candidate_op:
+            - - !tuple
+                - 3
+                - 2
+            - - !tuple
+                - 3
+                - 1
+            - - !tuple
+                - 5
+                - 1
+            e_bottleneck:
+            - - 1.0
+            - - 0.5
+            - - 1.0
+            merge_kernel: true
+            num_repeat: 3
+            out_channel: 256
+            separable: false
+          input_idx: -1
+          submodule_name: YOLOC3_search
+        - args:
+            act: torch.nn.SiLU
+            bias: false
+            bn: torch.nn.BatchNorm2d
+            candidate_op: !tuple
+            - 3
+            - 2
+            out_channel: 512
+            stride: 2
+          input_idx: -1
+          submodule_name: ConvBNAct_search
+        - args:
+            candidate_op:
+            - - &id003 !tuple
+                - 3
+                - 1
+            - - !tuple
+                - 5
+                - 1
+            - - *id003
+            e_bottleneck:
+            - - 0.5
+            - - 0.5
+            - - 1.0
+            merge_kernel: true
+            num_repeat: 3
+            out_channel: 512
+            separable: false
+          input_idx: -1
+          submodule_name: YOLOC3_search
+        - args:
+            act: torch.nn.SiLU
+            bias: false
+            bn: torch.nn.BatchNorm2d
+            candidate_op: !tuple
+            - 5
+            - 1
+            out_channel: 1024
+            stride: 2
+          input_idx: -1
+          submodule_name: ConvBNAct_search
+        - args:
+            kernels:
+            - 5
+            - 9
+            - 13
+            out_channel: 1024
+          input_idx: -1
+          submodule_name: SPP_search
+        - args:
+            act: false
+            auto_refine: false
+            bn: false
+            candidate_op:
+            - - args: !edict
+                  act: torch.nn.SiLU
+                  bn: torch.nn.BatchNorm2d
+                  candidate_op:
+                  - 3
+                  - 1
+                  out_channel: null
+#                submodule_name: ConvBNAct_search
+                submodule_name: SepConvBNAct_search
+            - - args: !edict
+                  act: torch.nn.SiLU
+                  bn: torch.nn.BatchNorm2d
+                  candidate_op:
+                  - 3
+                  - 2
+                  out_channel: null
+#                submodule_name: ConvBNAct_search
+                submodule_name: SepConvBNAct_search
+            out_channel: 768
+            strides:
+            - 2
+            - 1
+            upsample_op:
+              args:
+                mode: nearest
+              submodule_name: torch.nn.Upsample
+          input_idx:
+          - 6
+          - -1
+          submodule_name: AtomSearchModule
+        - args:
+            candidate_op: !tuple
+            - 5
+            - 1
+            e_bottleneck: 0.5
+            merge_kernel: true
+            num_repeat: 1
+            out_channel: 1024
+            separable: false
+            shortcut: false
+          input_idx: -1
+          submodule_name: YOLOC3_search
+        - args:
+            act: false
+            auto_refine: false
+            bn: false
+            candidate_op:
+            - - args: !edict
+                  act: torch.nn.SiLU
+                  bn: torch.nn.BatchNorm2d
+                  candidate_op:
+                  - 5
+                  - 1
+                  out_channel: null
+#                submodule_name: ConvBNAct_search
+                submodule_name: SepConvBNAct_search
+            - - args: !edict
+                  act: torch.nn.SiLU
+                  bn: torch.nn.BatchNorm2d
+                  candidate_op:
+                  - 5
+                  - 1
+                  out_channel: null
+#                submodule_name: ConvBNAct_search
+                submodule_name: SepConvBNAct_search
+            out_channel: 256
+            strides:
+            - 1
+            - 0.5
+            upsample_op:
+              args:
+                mode: nearest
+              submodule_name: torch.nn.Upsample
+          input_idx:
+          - 6
+          - -1
+          submodule_name: AtomSearchModule
+        - args:
+            candidate_op: !tuple
+            - 3
+            - 2
+            e_bottleneck: 0.75
+            merge_kernel: true
+            num_repeat: 1
+            out_channel: 384
+            separable: false
+            shortcut: false
+          input_idx: -1
+          submodule_name: YOLOC3_search
+        - args:
+            act: false
+            auto_refine: false
+            bn: false
+            candidate_op:
+            - - args: !edict
+                  act: torch.nn.SiLU
+                  bn: torch.nn.BatchNorm2d
+                  candidate_op:
+                  - 3
+                  - 1
+                  out_channel: null
+#                submodule_name: ConvBNAct_search
+                submodule_name: SepConvBNAct_search
+            - - args: !edict
+                  act: torch.nn.SiLU
+                  bn: torch.nn.BatchNorm2d
+                  candidate_op:
+                  - 3
+                  - 1
+                  out_channel: null
+#                submodule_name: ConvBNAct_search
+                submodule_name: SepConvBNAct_search
+            out_channel: 128
+            strides:
+            - 0.5
+            - 0.5
+            upsample_op:
+              args:
+                mode: nearest
+              submodule_name: torch.nn.Upsample
+          input_idx:
+          - -1
+          - 6
+          submodule_name: AtomSearchModule
+        - args:
+            candidate_op: !tuple
+            - 5
+            - 1
+            e_bottleneck: 0.5
+            merge_kernel: true
+            num_repeat: 1
+            out_channel: 256
+            separable: false
+            shortcut: false
+          input_idx: -1
+          submodule_name: YOLOC3_search
+        - args:
+            act: false
+            auto_refine: false
+            bn: false
+            candidate_op:
+            - - args: !edict
+                  act: torch.nn.SiLU
+                  bn: torch.nn.BatchNorm2d
+                  candidate_op:
+                  - 3
+                  - 1
+                  out_channel: null
+#                submodule_name: ConvBNAct_search
+                submodule_name: SepConvBNAct_search
+            - - args: !edict
+                  act: torch.nn.SiLU
+                  bn: torch.nn.BatchNorm2d
+                  candidate_op:
+                  - 3
+                  - 2
+                  out_channel: null
+#                submodule_name: ConvBNAct_search
+                submodule_name: SepConvBNAct_search
+            out_channel: 192
+            strides:
+            - 1
+            - 0.25
+            upsample_op:
+              args:
+                mode: nearest
+              submodule_name: torch.nn.Upsample
+          input_idx:
+          - -1
+          - 10
+          submodule_name: AtomSearchModule
+        - args:
+            candidate_op: !tuple
+            - 3
+            - 1
+            e_bottleneck: 0.75
+            merge_kernel: true
+            num_repeat: 1
+            out_channel: 192
+            separable: false
+            shortcut: false
+          input_idx: -1
+          submodule_name: YOLOC3_search
+        - args:
+            act: false
+            auto_refine: false
+            bn: false
+            candidate_op:
+            - - args: !edict
+                  act: torch.nn.SiLU
+                  bn: torch.nn.BatchNorm2d
+                  candidate_op:
+                  - 3
+                  - 1
+                  out_channel: null
+#                submodule_name: ConvBNAct_search
+                submodule_name: SepConvBNAct_search
+            - - args: !edict
+                  act: torch.nn.SiLU
+                  bn: torch.nn.BatchNorm2d
+                  candidate_op:
+                  - 5
+                  - 1
+                  out_channel: null
+#                submodule_name: ConvBNAct_search
+                submodule_name: SepConvBNAct_search
+            out_channel: 384
+            strides:
+            - 0.5
+            - 2
+            upsample_op:
+              args:
+                mode: nearest
+              submodule_name: torch.nn.Upsample
+          input_idx:
+          - 10
+          - -1
+          submodule_name: AtomSearchModule
+        - args:
+            candidate_op: !tuple
+            - 5
+            - 1
+            e_bottleneck: 0.75
+            merge_kernel: true
+            num_repeat: 1
+            out_channel: 512
+            separable: false
+            shortcut: false
+          input_idx: -1
+          submodule_name: YOLOC3_search
+        - args:
+            act: false
+            auto_refine: false
+            bn: false
+            candidate_op:
+            - - args: !edict
+                  act: torch.nn.SiLU
+                  bn: torch.nn.BatchNorm2d
+                  candidate_op:
+                  - 3
+                  - 1
+                  out_channel: null
+#                submodule_name: ConvBNAct_search
+                submodule_name: SepConvBNAct_search
+            - - args: !edict
+                  act: torch.nn.SiLU
+                  bn: torch.nn.BatchNorm2d
+                  candidate_op:
+                  - 3
+                  - 1
+                  out_channel: null
+#                submodule_name: ConvBNAct_search
+                submodule_name: SepConvBNAct_search
+            out_channel: 768
+            strides:
+            - 2
+            - 2
+            upsample_op:
+              args:
+                mode: nearest
+              submodule_name: torch.nn.Upsample
+          input_idx:
+          - 12
+          - -1
+          submodule_name: AtomSearchModule
+        - args:
+            candidate_op: !tuple
+            - 5
+            - 1
+            e_bottleneck: 0.75
+            merge_kernel: true
+            num_repeat: 1
+            out_channel: 1024
+            separable: false
+            shortcut: false
+          input_idx: -1
+          submodule_name: YOLOC3_search
+        - args:
+            anchors: *id004
+            num_classes: 80
+            strides: &id005
+            - 8
+            - 16
+            - 32
+          input_idx:
+          - 16
+          - 18
+          - 20
+          is_outlayer: true
+          submodule_name: YOLODetect_search
+        depth_multiple: 1.0
+        init_func: !get_module
+        - src.models.utils.yolov5_init_weights
+        - {}
+        log_path: runs/EdgeDevice/model.log
+        output_ch: 255
+        width_multiple: 0.5
+      ch_sampler:
+        args:
+          space_size: 3
+        submodule_name: UniformDiscreteWeightedSampler
+      num_classes: 80
+      op_edge_sampler:
+        args:
+          space_size: 3
+        submodule_name: UniformDiscreteWeightedSampler
+      strides:
+          - 8
+          - 16
+          - 32
+      submodule_name: src.models.BaseModel
+    optimizer: &id008
+      args:
+        lr: 0.01
+        momentum: 0.937
+        nesterov: true
+        params:
+        - params: bn_parameters
+        - params: bias_parameters
+        - params: all_parameters
+          weight_decay: 0.0005
+      submodule_name: torch.optim.SGD
+  run_args:
+    epochs: 2
+    max_iter: 1000
+  submodule_name: engines.NNEngine
+epoch: 2
+hooks: *id006
+lr_scheduler: *id007
+optimizer: *id008
+root_path: runs/EdgeDevice/
+train_hyp:
+  lr0: 0.01
+  lrf: 0.2
+  momentum: 0.937
+  warmup_bias_lr: 0.1
+  warmup_epochs: 3.0
+  warmup_init_momentum: 0.8
+  weight_decay: 0.0005
+

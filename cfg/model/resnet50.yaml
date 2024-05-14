@@ -1,0 +1,83 @@
+submodule_name: src.models.BaseModel
+args:
+  log_path: model.log
+  depth_multiple: 1.0
+  width_multiple: 1.0
+  output_ch: &output_ch 1000
+  architecture:
+    - input_idx: -1
+      submodule_name: ConvBNAct
+      args: 
+        out_channel: 64
+        kernel: 7
+        dilation: 1
+        stride: 2
+        bias: False
+        act: torch.nn.ReLU
+        bn: True
+    - input_idx: -1
+      submodule_name: torch.nn.MaxPool2d
+      args:
+        kernel_size: 3
+        stride: 2
+        padding: 1
+  
+    - input_idx: -1
+      submodule_name: Bottleneck
+      num_repeat: 3
+      args:
+        out_channel: 256
+        stride: 1
+  
+    - input_idx: -1
+      submodule_name: Bottleneck
+      num_repeat: 1
+      args:
+        out_channel: 512
+        stride: 2
+    - input_idx: -1
+      submodule_name: Bottleneck
+      num_repeat: 3
+      args:
+        out_channel: 512
+        stride: 1
+  
+    - input_idx: -1
+      submodule_name: Bottleneck
+      num_repeat: 1
+      args:
+        out_channel: 1024
+        stride: 2
+    - input_idx: -1
+      submodule_name: Bottleneck
+      num_repeat: 5
+      args:
+        out_channel: 1024
+        stride: 1
+  
+    - input_idx: -1
+      submodule_name: Bottleneck
+      num_repeat: 1
+      args:
+        out_channel: 2048
+        stride: 2
+    - input_idx: -1
+      submodule_name: Bottleneck
+      num_repeat: 2
+      args:
+        out_channel: 2048
+        stride: 1
+  
+    - input_idx: -1
+      submodule_name: GlobalPoolBNAct
+      args:
+        pool: avg
+        bn: False
+        act: False
+    - input_idx: -1
+      submodule_name: torch.nn.Linear
+      is_outlayer: True
+      freeze_ch: true
+      args:
+        in_features: 2048
+        out_features: *output_ch

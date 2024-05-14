@@ -1,0 +1,111 @@
+root_path: &root_path runs/coco_yolov7-tiny/230/
+epoch: &epoch 300
+accumulate_gradient: &acc_grad 1
+
+data: &data cfg/dataset/coco_yolov7-tiny.yaml
+criterion: &criterion cfg/criterion/yolov5.yaml
+model: &model cfg/model/yolov7-tiny.yaml
+
+train_hyp: &hyp
+  lr0: &lr0 0.01  # initial learning rate (SGD=1E-2, Adam=1E-3)
+  lrf: &lrf 0.1  # final OneCycleLR learning rate (lr0 * lrf)
+  momentum: &momentum 0.937  # SGD momentum/Adam beta1
+  weight_decay: &wd 0.0005
+  #  weight_decay: &wd !expr ['0.0005/64*', !cross_ref [!join [*data, ":batch_size"]]]  # optimizer weight decay 5e-4 * bs / 64
+  warmup_epochs: 3.0  # warmup epochs (fractions ok)
+  warmup_init_momentum: &warmup_init_momentum 0.8 
+  warmup_bias_lr: &warmup_bias_lr 0.1  
+
+
+optimizer: &optimizer
+  submodule_name: torch.optim.SGD
+  args:
+    params: [{'params': conv_parameters, 'weight_decay': *wd}, {'params': bias_parameters}, {'params': all_parameters}]
+    lr: *lr0
+    momentum: *momentum
+    nesterov: True
+
+lr_scheduler: &scheduler
+  submodule_name: torch.optim.lr_scheduler.LambdaLR
+  args:
+    optimizer: 
+    lr_lambda: !get_module [src.scheduler.one_cycle, {'start': 1, 'end': *lrf, 'steps': *epoch}]
+
+
+hooks: &hooks
+  opt_hook:
+    submodule_name: OptHOOK
+    args:
+      priority: 0
+      accumulate_gradient: *acc_grad
+  
+  lr_scheduler_hook:
+    submodule_name: LrScheduleHOOK
+    args: 
+      priority: 5
+      mode: epoch
+  
+  eval_hook:
+    submodule_name: EvalCOCOmAPHOOK
+    args: 
+      anno_file: 'data/coco2017/annotations/instances_val2017.json'
+      iou_thres: 0.6
+      conf_thres: 0.001
+      eval_by_cocotools: True
+      priority: 10
+  
+  ddp_hook:
+    submodule_name: DDPHOOK
+    args:
+      priority: 10
+  
+  
+  log_hook:
+    submodule_name: LogHOOK
+    args:
+      logger_name: TrainPip
+      log_path: !join [*root_path, test.log]
+      print_freq: 100
+      only_master: True
+      priority: 20
+  
+  ckpt_hook:
+    submodule_name: CkptHOOK
+    args:
+      save_root: !join [*root_path, ckpt/]
+      pretrain: 
+      only_master: True
+      priority: 20
+  
+  warmup_hook:
+    submodule_name: WarmupHOOK
+    args:
+      max_epoch: 3 
+      max_iter: 1000
+      warmup_init_lr: [0, *warmup_bias_lr, 0]
+      warmup_init_momentum: *warmup_init_momentum
+      priority: 0
+      accumulate_gradient: *acc_grad
+  
+  ema_hook:
+    submodule_name: EMAHOOK
+    args:
+      decay: 0.9999
+      priority: 5
+      accumulate_gradient: *acc_grad
+
+
+engine:
+  submodule_name: engines.NNEngine
+  args:
+    data: !cross_ref [*data]
+    criterion: !cross_ref [*criterion]
+    model: !cross_ref [*model]
+    optimizer: *optimizer
+    lr_scheduler: *scheduler
+    hooks: *hooks
+    amp: True
+    amp_val: True
+
+
+

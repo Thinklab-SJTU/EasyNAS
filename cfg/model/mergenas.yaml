@@ -1,0 +1,146 @@
+ss: &ss mergenas
+submodule_name: src.models.SearchModel
+args:
+  log_path: model.log
+  depth_multiple: 1.0
+  width_multiple: 1.0
+  output_ch: &output_ch 10
+  architecture:
+# stem
+    - input_idx: -1 # 0
+      submodule_name: ConvBNAct
+      args: 
+        out_channel: 48
+        kernel: 3
+        dilation: 1
+        stride: 1
+        bias: False
+        act: False
+        bn: !get_module [torch.nn.BatchNorm2d, {affine: True}]
+
+# normal cell * 2
+    - input_idx: [-1, -1] # 1
+      submodule_name: Cell_search
+      arch_idx: 
+      args:
+        out_channel: 64
+        strides: [1, 1]
+        candidate_op: *ss
+        gumbel_op: False
+        gumbel_edge: False
+        bn: !get_module [torch.nn.BatchNorm2d, {affine: False}]
+        act: torch.nn.ReLU
+        independent_edge_arch_param: False
+    - input_idx: [-2, -1] # 2
+      submodule_name: Cell_search
+      arch_idx: -1
+      num_repeat: 1
+      args:
+        out_channel: 64
+        strides: [1, 1]
+        candidate_op: *ss
+        gumbel_op: False
+        gumbel_edge: False
+        bn: !get_module [torch.nn.BatchNorm2d, {affine: False}]
+        act: torch.nn.ReLU
+        independent_edge_arch_param: False
+
+# reduce cell * 1  
+    - input_idx: [-2, -1] # 3
+      submodule_name: Cell_search
+      arch_idx: 
+      args:
+        out_channel: 128
+        strides: [2, 2]
+        candidate_op: *ss
+        gumbel_op: False
+        gumbel_edge: False
+        bn: !get_module [torch.nn.BatchNorm2d, {affine: False}]
+        act: torch.nn.ReLU
+        independent_edge_arch_param: False
+
+# normal cell * 2
+    - input_idx: [-2, -1] # 4
+      submodule_name: Cell_search
+      arch_idx: 1
+      args:
+        out_channel: 128
+        strides: [2, 1]
+        candidate_op: *ss
+        gumbel_op: False
+        gumbel_edge: False
+        bn: !get_module [torch.nn.BatchNorm2d, {affine: False}]
+        act: torch.nn.ReLU
+        independent_edge_arch_param: False
+    - input_idx: [-2, -1] # 5
+      submodule_name: Cell_search
+      arch_idx: -1
+      num_repeat: 1
+      args:
+        out_channel: 128
+        strides: [1, 1]
+        candidate_op: *ss
+        gumbel_op: False
+        gumbel_edge: False
+        bn: !get_module [torch.nn.BatchNorm2d, {affine: False}]
+        act: torch.nn.ReLU
+        independent_edge_arch_param: False
+
+# reduce cell * 1  
+    - input_idx: [-2, -1] # 6
+      submodule_name: Cell_search
+      is_outlayer: True
+      arch_idx: 3
+      args:
+        out_channel: 256
+        strides: [2, 2]
+        candidate_op: *ss
+        gumbel_op: False
+        gumbel_edge: False
+        bn: !get_module [torch.nn.BatchNorm2d, {affine: False}]
+        act: torch.nn.ReLU
+        independent_edge_arch_param: False
+
+# normal cell * 2
+    - input_idx: [-2, -1] # 7
+      submodule_name: Cell_search
+      arch_idx: 1
+      args:
+        out_channel: 256
+        strides: [2, 1]
+        candidate_op: *ss
+        gumbel_op: False
+        gumbel_edge: False
+        bn: !get_module [torch.nn.BatchNorm2d, {affine: False}]
+        act: torch.nn.ReLU
+        independent_edge_arch_param: False
+    - input_idx: [-2, -1] # 8
+      submodule_name: Cell_search
+      arch_idx: -1
+      num_repeat: 1
+      args:
+        out_channel: 256
+        strides: [1, 1]
+        candidate_op: *ss
+        gumbel_op: False
+        gumbel_edge: False
+        bn: !get_module [torch.nn.BatchNorm2d, {affine: False}]
+        act: torch.nn.ReLU
+        independent_edge_arch_param: False
+
+    - input_idx: -1
+      submodule_name: GlobalPoolBNAct
+      args:
+        pool: avg
+        bn: False
+        act: False
+    - input_idx: -1
+      submodule_name: LinearBNAct
+      is_outlayer: True
+      freeze_ch: true
+      args:
+        act: False
+        bn: False
+        bias: True
+        out_channel: *output_ch
+

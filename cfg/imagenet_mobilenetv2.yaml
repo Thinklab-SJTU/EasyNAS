@@ -1,0 +1,87 @@
+root_path: &root_path runs/imagenet_mobilenetv2/
+epoch: &epoch 180
+accumulate_gradient: &acc_grad 1
+
+optimizer: &optimizer
+  submodule_name: torch.optim.SGD
+  args:
+    params:
+    lr: 0.1
+    momentum: 0.9
+    weight_decay: 3.0e-5
+
+# optimizer: &optimizer
+#   submodule_name: torch.optim.AdamW
+#   args:
+#     params:
+#     lr: 4.e-3
+#     weight_decay: 0.05
+
+lr_scheduler: &scheduler
+  submodule_name: torch.optim.lr_scheduler.CosineAnnealingLR
+  args:
+    optimizer: 
+    T_max: *epoch 
+    eta_min: 1.e-4
+
+hooks: &hooks
+  opt_hook:
+    submodule_name: OptHOOK
+    args:
+      priority: 0
+      accumulate_gradient: *acc_grad
+  
+  lr_scheduler_hook:
+    submodule_name: LrScheduleHOOK
+    args: 
+      priority: 5
+      mode: epoch
+  
+  eval_hook:
+    submodule_name: EvalAccHOOK
+    args: 
+      priority: 5
+  
+  ddp_hook:
+    submodule_name: DDPHOOK
+    args:
+      priority: 10
+  
+  log_hook:
+    submodule_name: LogHOOK
+    args:
+      logger_name: TrainPip
+      log_path: !join [*root_path, test.log]
+      print_freq: 100
+      only_master: True
+      priority: 20
+  
+  ckpt_hook:
+    submodule_name: CkptHOOK
+    args:
+      save_root: !join [*root_path, ckpt/]
+      pretrain: 
+      only_master: True
+      priority: 20
+  
+  # warmup_hook:
+  #   submodule_name: WarmupHOOK
+  #   args:
+  #     max_iter: 1000
+  #     warmup_init_lr_rate: 1.e-3
+  #     priority: 10
+  #     accumulate_gradient: *acc_grad
+
+
+engine:
+  submodule_name: NNengine
+  args:
+    data: !cross_ref [cfg/dataset/imagenet.yaml]
+    model: !cross_ref [cfg/model/mobilenetv2.yaml]
+    criterion:
+      submodule_name: torch.nn.CrossEntropyLoss
+    optimizer: *optimizer
+    lr_scheduler: *scheduler
+    hooks: *hooks
+    amp: false
+

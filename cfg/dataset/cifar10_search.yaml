@@ -1,0 +1,50 @@
+num_classes: 10
+input_size: 32
+batch_size: &bs 64
+val_batch_size: &val_bs 96
+dataset:
+  train:
+    submodule_name: src.datasets.CIFAR10
+    dataset_args:
+      root: ./data/
+      train: True
+      download: True
+      transform: !get_module [src.datasets.cifar.get_transforms, {cutout: False}]
+  val:
+    submodule_name: src.datasets.CIFAR10
+    pakcage_path: 
+    dataset_args:
+      root: ./data/
+      train: False
+      download: True
+      transform: !get_module [src.datasets.cifar.get_transforms, {cutout: False}]
+
+dataloader:
+  train:
+    dataset_name: train
+    portion: 0.5
+    dataloader_args:
+      batch_size: *bs
+      pin_memory: True
+      num_workers: 4
+  search_val:
+    dataset_name: train
+    portion: 0.5
+    dataloader_args:
+      batch_size: *bs
+      pin_memory: True
+      num_workers: 4
+  train_weight:
+    dataset_name: train
+    portion: 0.5
+    dataloader_args:
+      batch_size: *bs
+      pin_memory: True
+      num_workers: 4
+  val:
+    dataset_name: val
+    use_dist: False
+    dataloader_args:
+      batch_size: *val_bs
+      pin_memory: True
+      num_workers: 4

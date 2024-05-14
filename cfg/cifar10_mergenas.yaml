@@ -1,0 +1,97 @@
+root_path: &root_path runs/cifar10_mergenas_bs64/
+epoch: &epoch 50
+accumulate_gradient: &acc_grad 1
+
+criterion: &criterion
+  submodule_name: src.criterions.CriterionWithAux
+  args:
+    criterion_or_cfg:
+      submodule_name: torch.nn.CrossEntropyLoss
+    auxiliary_or_cfg: null
+
+optimizer: &optimizer
+  submodule_name: torch.optim.SGD
+  args:
+    params:
+    lr: 0.025
+    momentum: 0.9
+    weight_decay: 3.e-4
+
+lr_scheduler: &scheduler
+  submodule_name: torch.optim.lr_scheduler.CosineAnnealingLR
+  args:
+    optimizer: 
+    T_max: *epoch
+    eta_min: 0.001
+
+hooks: &hooks
+  opt_hook:
+    submodule_name: OptHOOK
+    args:
+      priority: 0
+      grad_clip: 5
+      accumulate_gradient: *acc_grad
+  
+  lr_scheduler_hook:
+    submodule_name: LrScheduleHOOK
+    args: 
+      priority: 5
+      mode: epoch
+
+  darts_hook:
+    submodule_name: DARTSHOOK
+    args:
+      optimizer_cfg:
+        submodule_name: torch.optim.Adam
+        args:
+          lr: 3.e-4
+          betas: [0.5, 0.999]
+          weight_decay: 1.e-3
+      dataloader_name: search_val
+      criterion_cfg: *criterion
+      update_freq: 1
+      accumulate_gradient: *acc_grad
+      priority: 30
+      save_root: !join [*root_path, arch/]
+      discretize_width: 2.25
+      discretize_depth: 5
+  
+  eval_hook:
+    submodule_name: EvalAccHOOK
+    args: 
+      priority: 5
+  
+  ddp_hook:
+    submodule_name: DDPHOOK
+    args:
+      priority: 10
+  
+  
+  log_hook:
+    submodule_name: LogHOOK
+    args:
+      logger_name: TrainPip
+      log_path: !join [*root_path, test.log]
+      print_freq: 100
+      only_master: True
+      priority: 20
+  
+  ckpt_hook:
+    submodule_name: CkptHOOK
+    args:
+      save_root: !join [*root_path, ckpt/]
+      pretrain: 
+      only_master: True
+      priority: 20
+  
+engine:
+  submodule_name: engines.NNEngine
+  args:
+    data: !cross_ref [cfg/dataset/cifar10_search.yaml]
+    model: !cross_ref [cfg/model/mergenas.yaml]
+    criterion: *criterion
+    optimizer: *optimizer
+    lr_scheduler: *scheduler
+    hooks: *hooks
+    amp: False
+

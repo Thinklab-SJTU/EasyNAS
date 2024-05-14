@@ -1,0 +1,62 @@
+num_classes: 80
+input_size: &imgsz 640
+batch_size: &bs 64
+val_batch_size: &val_bs 192
+
+data_hyp: &hyp
+  hsv_h: 0.015  # image HSV-Hue augmentation (fraction)
+  hsv_s: 0.7  # image HSV-Saturation augmentation (fraction)
+  hsv_v: 0.4  # image HSV-Value augmentation (fraction)
+  degrees: 0.0  # image rotation (+/- deg)
+  translate: 0.1  # image translation (+/- fraction)
+  scale: 0.5  # image scale (+/- gain)
+  shear: 0.0  # image shear (+/- deg)
+  perspective: 0.0  # image perspective (+/- fraction), range 0-0.001
+  flipud: 0.0  # image flip up-down (probability)
+  fliplr: 0.5  # image flip left-right (probability)
+  mosaic: 1.0  # image mosaic (probability)
+  mixup: 0.0  # image mixup (probability)
+
+dataset:
+  train:
+    submodule_name: src.datasets.COCO_YOLO
+    dataset_args:
+      path: ./data/coco2017/images/train2017/
+      img_size: *imgsz
+      batch_size: *bs
+      hyp: *hyp
+      augment: True
+      rect: False
+      stride: 32
+  val:
+    submodule_name: src.datasets.COCO_YOLO
+    dataset_args:
+      path: ./data/coco2017/images/val2017/
+      img_size: *imgsz
+      batch_size: *val_bs
+      hyp: *hyp
+      augment: False
+      rect: True # Note that when rect is True, you have to set shuffle as False in the dataloader configuration.
+      pad: 0.5
+      stride: 32
+
+dataloader:
+  train:
+    dataset_name: train
+    submodule_name: src.datasets.LOADER_YOLO
+    dataloader_args:
+      batch_size: *bs
+      pin_memory: True
+      num_workers: 8
+      collate_fn: !get_module [src.datasets.coco_yolo.collate_fn]
+  val:
+    dataset_name: val
+    submodule_name: src.datasets.LOADER_YOLO
+    use_dist: False
+    shuffle: False
+    dataloader_args:
+      batch_size: *val_bs
+      pin_memory: True
+      num_workers: 4
+      collate_fn: !get_module [src.datasets.coco_yolo.collate_fn]
+

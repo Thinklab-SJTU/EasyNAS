@@ -1,0 +1,664 @@
+# parameters
+num_classes: &num_classes 80  # number of classes
+
+# anchors
+anchors: &anchors
+  - [10,13, 16,30, 33,23]  # P3/8
+  - [30,61, 62,45, 59,119]  # P4/16
+  - [116,90, 156,198, 373,326]  # P5/32
+
+strides: &strides [8, 16, 32]
+
+submodule_name: src.models.BaseModel
+args:
+  log_path: model.log
+  depth_multiple: 1.0  # model depth multiple
+  width_multiple: 1.0  # layer channel multiple
+  output_ch: &output_ch 255
+  init_func: !get_module [src.models.utils.yolov5_init_weights]
+  architecture:
+# YOLOv7-tiny backbone
+    - input_idx: -1 # 0-P1/2
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 32
+        kernel: 3
+        dilation: 1
+        stride: 2
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: -1 # 1-P2/4
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 64
+        kernel: 3
+        dilation: 1
+        stride: 2
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+
+    - input_idx: -1
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 32
+        kernel: 1
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: -2
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 32
+        kernel: 1
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: -1
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 32
+        kernel: 3
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: -1
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 32
+        kernel: 3
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: [-1, -2, -3, -4]
+      submodule_name: Concat
+      args:
+        dimension: 1
+    - input_idx: -1 # 7
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 64
+        kernel: 1
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+
+    - input_idx: -1 # 8-P3/8
+      submodule_name: PoolBNAct
+      args: 
+        kernel: 2
+        stride: 2
+        pool: 'max'
+        bn: False
+        act: False
+    - input_idx: -1
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 64
+        kernel: 1
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: -2
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 64
+        kernel: 1
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: -1
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 64
+        kernel: 3
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: -1
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 64
+        kernel: 3
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: [-1, -2, -3, -4]
+      submodule_name: Concat
+      args:
+        dimension: 1
+    - input_idx: -1 #14
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 128
+        kernel: 1
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+
+    - input_idx: -1 # 15-P4/16
+      submodule_name: PoolBNAct
+      args: 
+        kernel: 2
+        stride: 2
+        pool: 'max'
+        bn: False
+        act: False
+    - input_idx: -1
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 128
+        kernel: 1
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: -2
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 128
+        kernel: 1
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: -1
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 128
+        kernel: 3
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: -1
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 128
+        kernel: 3
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: [-1, -2, -3, -4]
+      submodule_name: Concat
+      args:
+        dimension: 1
+    - input_idx: -1 #21
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 256
+        kernel: 1
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+
+    - input_idx: -1 # 22-P5/32
+      submodule_name: PoolBNAct
+      args: 
+        kernel: 2
+        stride: 2
+        pool: 'max'
+        bn: False
+        act: False
+    - input_idx: -1
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 256
+        kernel: 1
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: -2
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 256
+        kernel: 1
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: -1
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 256
+        kernel: 3
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: -1
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 256
+        kernel: 3
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: [-1, -2, -3, -4]
+      submodule_name: Concat
+      args:
+        dimension: 1
+    - input_idx: -1 #28
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 512
+        kernel: 1
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+
+# yolov7-tiny head
+    - input_idx: -1
+      submodule_name: SPP
+      args: 
+        out_channel: 256
+        expansion: 1
+        kernels: [5, 9, 13]
+    - input_idx: -2
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 256
+        kernel: 1
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: [-1, -2]
+      submodule_name: Concat
+      args:
+        dimension: 1
+    - input_idx: -1 # 32
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 256
+        kernel: 1
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+
+    - input_idx: -1
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 128
+        kernel: 1
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: -1
+      submodule_name: torch.nn.Upsample
+      args:
+        size: 
+        scale_factor: 2
+        mode: nearest
+    - input_idx: 21 # route backbone P4
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 128
+        kernel: 1
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: [-1, -2]
+      submodule_name: Concat
+      args:
+        dimension: 1
+
+    - input_idx: -1
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 64
+        kernel: 1
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: -2
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 64
+        kernel: 1
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: -1
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 64
+        kernel: 3
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: -1
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 64
+        kernel: 3
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: [-1, -2, -3, -4]
+      submodule_name: Concat
+      args:
+        dimension: 1
+    - input_idx: -1 # 42
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 128
+        kernel: 1
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+
+    - input_idx: -1
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 64
+        kernel: 1
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: -1
+      submodule_name: torch.nn.Upsample
+      args:
+        size: 
+        scale_factor: 2
+        mode: nearest
+    - input_idx: 14 # route backbone P3
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 64
+        kernel: 1
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: [-1, -2]
+      submodule_name: Concat
+      args:
+        dimension: 1
+
+    - input_idx: -1
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 32
+        kernel: 1
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: -2
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 32
+        kernel: 1
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: -1
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 32
+        kernel: 3
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: -1
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 32
+        kernel: 3
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: [-1, -2, -3, -4]
+      submodule_name: Concat
+      args:
+        dimension: 1
+    - input_idx: -1 # 52
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 64
+        kernel: 1
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+
+    - input_idx: -1
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 128
+        kernel: 3
+        dilation: 1
+        stride: 2
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: [-1, 42] 
+      submodule_name: Concat
+      args:
+        dimension: 1
+
+    - input_idx: -1
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 64
+        kernel: 1
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: -2
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 64
+        kernel: 1
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: -1
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 64
+        kernel: 3
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: -1
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 64
+        kernel: 3
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: [-1, -2, -3, -4]
+      submodule_name: Concat
+      args:
+        dimension: 1
+    - input_idx: -1 # 60
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 128
+        kernel: 1
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+
+    - input_idx: -1
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 256
+        kernel: 3
+        dilation: 1
+        stride: 2
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: [-1, 32] 
+      submodule_name: Concat
+      args:
+        dimension: 1
+
+    - input_idx: -1
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 128
+        kernel: 1
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: -2
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 128
+        kernel: 1
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: -1
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 128
+        kernel: 3
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: -1
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 128
+        kernel: 3
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+    - input_idx: [-1, -2, -3, -4]
+      submodule_name: Concat
+      args:
+        dimension: 1
+    - input_idx: -1 # 68
+      submodule_name: ConvBNAct 
+      args: 
+        out_channel: 256
+        kernel: 1
+        dilation: 1
+        stride: 1
+        bias: False
+        act: torch.nn.SiLU
+        bn: torch.nn.BatchNorm2d
+
+    - input_idx: 52
+      submodule_name: ConvBNAct
+      args: 
+        out_channel: 128
+        kernel: 3
+        dilation: 1
+        stride: 1
+        act: torch.nn.SiLU
+    - input_idx: 60
+      submodule_name: ConvBNAct
+      args: 
+        out_channel: 256
+        kernel: 3
+        dilation: 1
+        stride: 1
+        act: torch.nn.SiLU
+    - input_idx: 68
+      submodule_name: ConvBNAct
+      args: 
+        out_channel: 512
+        kernel: 3
+        dilation: 1
+        stride: 1
+        act: torch.nn.SiLU
+
+    - input_idx: [69, 70, 71] # Detect(P3, P4, P5)
+      is_outlayer: True
+      submodule_name: src.models.layers.yolov7.YOLOv7Detect
+      args: 
+        num_classes: *num_classes
+        anchors: *anchors
+        strides: *strides
+
+
+

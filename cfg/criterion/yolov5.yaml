@@ -1,0 +1,20 @@
+
+loss_hyp: &hyp
+  box: 0.05  # box loss gain
+  cls: 0.5  # cls loss gain
+  cls_pw: 1.0  # cls BCELoss positive_weight
+  obj: 1.0  # obj loss gain (scale with pixels)
+  obj_pw: 1.0  # obj BCELoss positive_weight
+  iou_t: 0.20  # IoU training threshold
+  anchor_t: 4.0  # anchor-multiple threshold
+  fl_gamma: 0.0  # focal loss gamma (efficientDet default gamma=1.5)
+
+submodule_name: src.criterions.YOLOv5Loss
+args:
+  hyp: *hyp
+  img_size: !cross_ref [cfg/dataset/coco_yolo.yaml:input_size]
+  strides: !cross_ref [cfg/model/yolov5s.yaml:strides]
+  anchors: !cross_ref [cfg/model/yolov5s.yaml:anchors]
+  iou_loss_ratio: 1.0
+  autobalance: False
+

@@ -1,0 +1,292 @@
+op_space: &op_space
+  - submodule_name: darts_conv
+    args: {kernel_dilation: [3,1], affine: False}
+  - submodule_name: darts_conv
+    args: {kernel_dilation: [5,1], affine: False}
+  - submodule_name: darts_conv
+    args: {kernel_dilation: [3,2], num_repeat: 1, affine: False}
+  - submodule_name: darts_conv
+    args: {kernel_dilation: [5,2], num_repeat: 1, affine: False}
+  - submodule_name: PoolBNAct
+    args: {kernel: 3, pool: 'max', bn: {submodule_name: 'torch.nn.BatchNorm2d', args: {affine: False}}, act: False}
+  - submodule_name: PoolBNAct
+    args: {kernel: 3, pool: 'avg', bn: {submodule_name: 'torch.nn.BatchNorm2d', args: {affine: False}}, act: False}
+  - submodule_name: darts_identity
+    args: {bn: {submodule_name: 'torch.nn.BatchNorm2d', args: {affine: False}}}
+#  - submodule_name: Zero
+
+op_sampler: &op_sampler
+  submodule_name: WeightedSampler
+edge_sampler: &edge_sampler
+  submodule_name: WeightedSampler
+
+normal_edge: &normal_edge
+  - !search_space # node 0
+    sampler_cfg: *edge_sampler
+    label: normal_node0
+    num_reserve: 2
+    reserve_replace: False
+    space: [0,1]
+  - !search_space # node 1
+    sampler_cfg: *edge_sampler
+    label: normal_node1
+    num_reserve: 2
+    reserve_replace: False
+    space: [0,1,2]
+  - !search_space # node 2
+    sampler_cfg: *edge_sampler
+    label: normal_node2
+    num_reserve: 2
+    reserve_replace: False
+    space: [0,1,2,3]
+  - !search_space # node 3
+    sampler_cfg: *edge_sampler
+    label: normal_node3
+    num_reserve: 2
+    reserve_replace: False
+    space: [0,1,2,3,4]
+
+reduce_edge: &reduce_edge
+  - !search_space # node 0
+    sampler_cfg: *edge_sampler
+    label: reduce_node0
+    num_reserve: 2
+    reserve_replace: False
+    space: [0,1]
+  - !search_space # node 1
+    sampler_cfg: *edge_sampler
+    label: reduce_node1
+    num_reserve: 2
+    reserve_replace: False
+    space: [0,1,2]
+  - !search_space # node 2
+    sampler_cfg: *edge_sampler
+    label: reduce_node2
+    num_reserve: 2
+    reserve_replace: False
+    space: [0,1,2,3]
+  - !search_space # node 3
+    sampler_cfg: *edge_sampler
+    label: reduce_node3
+    num_reserve: 2
+    reserve_replace: False
+    space: [0,1,2,3,4]
+
+normal_op: &normal_op
+  - !search_space # node 0
+    sampler_cfg: *edge_sampler
+    label: normal_node0
+    num_reserve: 2
+    reserve_replace: False
+    space:
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: normal_node0_op0}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: normal_node0_op1}
+  - !search_space # node 1
+    sampler_cfg: *edge_sampler
+    label: normal_node1
+    num_reserve: 2
+    reserve_replace: False
+    space:
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: normal_node1_op0}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: normal_node1_op1}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: normal_node1_op2}
+  - !search_space # node 2
+    sampler_cfg: *edge_sampler
+    label: normal_node2
+    num_reserve: 2
+    reserve_replace: False
+    space:
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: normal_node2_op0}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: normal_node2_op1}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: normal_node2_op2}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: normal_node2_op3}
+  - !search_space # node 3
+    sampler_cfg: *edge_sampler
+    label: normal_node3
+    num_reserve: 2
+    reserve_replace: False
+    space:
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: normal_node3_op0}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: normal_node3_op1}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: normal_node3_op2}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: normal_node3_op3}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: normal_node3_op4}
+
+reduce_op: &reduce_op
+  - !search_space # node 0
+    sampler_cfg: *edge_sampler
+    label: reduce_node0
+    num_reserve: 2
+    reserve_replace: False
+    space:
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: reduce_node0_op0}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: reduce_node0_op1}
+  - !search_space # node 1
+    sampler_cfg: *edge_sampler
+    label: reduce_node1
+    num_reserve: 2
+    reserve_replace: False
+    space:
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: reduce_node1_op0}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: reduce_node1_op1}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: reduce_node1_op2}
+  - !search_space # node 2
+    sampler_cfg: *edge_sampler
+    label: reduce_node2
+    num_reserve: 2
+    reserve_replace: False
+    space:
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: reduce_node2_op0}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: reduce_node2_op1}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: reduce_node2_op2}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: reduce_node2_op3}
+  - !search_space # node 3
+    sampler_cfg: *edge_sampler
+    label: reduce_node3
+    num_reserve: 2
+    reserve_replace: False
+    space:
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: reduce_node3_op0}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: reduce_node3_op1}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: reduce_node3_op2}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: reduce_node3_op3}
+      - !search_space {sampler_cfg: *op_sampler, space: *op_space, num_reserve: 1, label: reduce_node3_op4}
+
+submodule_name: src.models.BaseModel
+args:
+  log_path: model.log
+  depth_multiple: 1.0
+  width_multiple: 1.0
+  output_ch: &output_ch 10
+  init_func: null
+  architecture:
+# stem
+    - input_idx: -1 # 0
+      submodule_name: ConvBNAct
+      args: 
+        out_channel: 48
+        kernel: 3
+        dilation: 1
+        stride: 1
+        bias: False
+        act: False # torch.nn.ReLU
+        bn: !get_module [torch.nn.BatchNorm2d, {affine: True}]
+
+# normal cell * 2
+    - input_idx: [-1, -1] # 1
+      submodule_name: Cell_search
+      arch_idx: 
+      args:
+        out_channel: 64
+        strides: [1, 1]
+        candidate_edge: *normal_edge
+        candidate_op: *normal_op
+        bn: !get_module [torch.nn.BatchNorm2d, {affine: False}]
+        label: normal
+        drop_path_prob: 0
+    - input_idx: [-2, -1] # 2
+      submodule_name: Cell_search
+      arch_idx: -1
+      num_repeat: 1
+      args:
+        out_channel: 64
+        strides: [1, 1]
+        candidate_edge: *normal_edge
+        candidate_op: *normal_op
+        bn: !get_module [torch.nn.BatchNorm2d, {affine: False}]
+        label: normal
+        drop_path_prob: 0
+
+# reduce cell * 1  
+    - input_idx: [-2, -1] # 3
+      submodule_name: Cell_search
+      arch_idx: 
+      args:
+        out_channel: 128
+        strides: [2, 2]
+        candidate_edge: *reduce_edge
+        candidate_op: *reduce_op
+        bn: !get_module [torch.nn.BatchNorm2d, {affine: False}]
+        label: reduce
+        drop_path_prob: 0
+
+# normal cell * 2
+    - input_idx: [-2, -1] # 4
+      submodule_name: Cell_search
+      arch_idx: 1
+      args:
+        out_channel: 128
+        strides: [2, 1]
+        candidate_edge: *normal_edge
+        candidate_op: *normal_op
+        bn: !get_module [torch.nn.BatchNorm2d, {affine: False}]
+        label: normal
+        drop_path_prob: 0
+    - input_idx: [-2, -1] # 5
+      submodule_name: Cell_search
+      arch_idx: -1
+      num_repeat: 1
+      args:
+        out_channel: 128
+        strides: [1, 1]
+        candidate_edge: *normal_edge
+        candidate_op: *normal_op
+        bn: !get_module [torch.nn.BatchNorm2d, {affine: False}]
+        label: normal
+        drop_path_prob: 0
+
+# reduce cell * 1  
+    - input_idx: [-2, -1] # 6
+      submodule_name: Cell_search
+      is_outlayer: True
+      arch_idx: 3
+      args:
+        out_channel: 256
+        strides: [2, 2]
+        candidate_edge: *reduce_edge
+        candidate_op: *reduce_op
+        bn: !get_module [torch.nn.BatchNorm2d, {affine: False}]
+        label: reduce
+        drop_path_prob: 0
+
+# normal cell * 2
+    - input_idx: [-2, -1] # 7
+      submodule_name: Cell_search
+      arch_idx: 1
+      args:
+        out_channel: 256
+        strides: [2, 1]
+        candidate_edge: *normal_edge
+        candidate_op: *normal_op
+        bn: !get_module [torch.nn.BatchNorm2d, {affine: False}]
+        label: normal
+        drop_path_prob: 0
+    - input_idx: [-2, -1] # 8
+      submodule_name: Cell_search
+      arch_idx: -1
+      num_repeat: 1
+      args:
+        out_channel: 256
+        strides: [1, 1]
+        candidate_edge: *normal_edge
+        candidate_op: *normal_op
+        bn: !get_module [torch.nn.BatchNorm2d, {affine: False}]
+        label: normal
+        drop_path_prob: 0
+
+    - input_idx: -1
+      submodule_name: GlobalPoolBNAct
+      args:
+        pool: avg
+        bn: False
+        act: False
+    - input_idx: -1
+      submodule_name: LinearBNAct
+      is_outlayer: True
+      freeze_ch: true
+      args:
+        act: False
+        bn: False
+        bias: True
+        out_channel: *output_ch
+
