@@ -31,6 +31,7 @@ Customers can:
   - [x] Particle Swarm Optimization
   - [ ] Ant Colony Optimization
 - [x] Gradient-based Search Algorithm
+  - [ ] First-order-optimization-based Search Algorithm
   - [x] Zero-order-optimization-based Search Algorithm
 - [ ] Bayesian Optimization
 
