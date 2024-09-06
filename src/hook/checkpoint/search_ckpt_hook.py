@@ -50,11 +50,15 @@ class SearchCkptHOOK(HOOK):
         current_epoch_best = self.get_best(current_epoch_reward)
         #TODO: runner.info is EasyDict, it will decompose namedtuple
         best = runner.info.results.get('best', None)
-        if best is None or current_epoch_best.reward > best[-1]:
-            runner.info.results.best = copy.copy(current_epoch_best)
-            self.save_yaml(runner.info.results.best[0].config, name='best.yaml')
+        if best is None or current_epoch_best.reward > best['reward']:
+#            runner.info.results.best = copy.copy(current_epoch_best)
+            runner.info.results.best = current_epoch_best._asdict()
+            self.save_yaml(
+                    data={'query': current_epoch_best.query.config, 'reward': current_epoch_best.reward.to_parsable()}, 
+                    name='best.yaml')
+#            self.save_yaml(runner.info.results.best['query'].config, name='best.yaml')
 #            self.save_ckpt(runner, 'best.pt')
-        print("Best: Query", QueryReward(*runner.info.results.best))
+        print("Best: Query", QueryReward(**runner.info.results.best))
 
         # save reward
         self.save_yaml(data=[{'query': qr.query.config, 'reward': qr.reward.to_parsable()} for qr in current_epoch_reward], name='epoch%d.yaml'%runner.info.get('current_epoch', 0))

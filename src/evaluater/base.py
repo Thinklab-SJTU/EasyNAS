@@ -1,5 +1,6 @@
 import os
 import sys
+import atexit
 from copy import deepcopy
 import time
 from collections import UserList
@@ -26,6 +27,20 @@ class Contractor(object):
         self.log_dir = log_dir
         if self.log_dir is not None:
             os.makedirs(self.log_dir, exist_ok=True)
+        atexit.register(self.kill_process)
+                 
+    def kill_process(self):
+        eval_ps = getattr(self, 'eval_ps', None)
+        if eval_ps:
+            print(f"Killing {len(eval_ps)} workers...")
+            for p in eval_ps:
+                try:
+                    p.terminate()
+                except Exception as e:
+                    print(e)
+            for p in eval_ps:
+               p.join()
+        print("Workers are killed")
 
     def _recruit_worker(self, worker_cls, resource=None, log_dir=None, worker_id=None):
         if worker_id is None: worker_id = len(self.worker_id)
@@ -33,7 +48,7 @@ class Contractor(object):
         self.worker_id[worker_id] = worker
         worker._ID = worker_id
         if worker.log_dir is not None:
-            worker.config_logger(f'worker-{worker_id}', os.path.join(worker.log_dir, f'worker-{worker_id}'))
+#            worker.config_logger(f'worker-{worker_id}', os.path.join(worker.log_dir, f'worker-{worker_id}'))
             import builtins as __builtin__
             builtin_print = __builtin__.print
             __builtin__.print = worker.logger.info
@@ -44,29 +59,36 @@ class Contractor(object):
             __builtin__.print = builtin_print
         del self.worker_id[worker._ID]
 
-    def dispatch(self, sample_queue, reward_queue, worker_id=None, worker_cls=None):
-        if worker_cls is None: worker_cls = Evaluater
-        evaluater = self._recruit_worker(worker_cls, log_dir=self.log_dir, worker_id=worker_id)
-        while True:
-            task = sample_queue.get()
-            if task is None:
-#                sample_queue.task_done()
-                break
-            rewards = evaluater.do_one_task(task)
-            reward_queue.put((task, rewards))
-        self._dismiss_worker(evaluater)
+    def dispatch(self, sample_queue, reward_queue, error_queue=None, worker_id=None, worker_cls=None):
+        try:
+            if worker_cls is None: worker_cls = Evaluater
+            evaluater = self._recruit_worker(worker_cls, log_dir=self.log_dir, worker_id=worker_id)
+            while True:
+                task = sample_queue.get()
+                if task is None:
+#                    sample_queue.task_done()
+                    break
+                rewards = evaluater.do_one_task(task)
+                reward_queue.put((task, rewards))
+            self._dismiss_worker(evaluater)
+        except Exception as e:
+            error_queue.put((worker_id, e))
+#        error_queue.put((worker_id, None))
 
     @contextmanager
-    def build(self, sample_queue, reward_queue): 
-        eval_ps = [mp.Process(target=self.dispatch, args=(sample_queue, reward_queue, i)) for i in range(self.num_workers)]
-        for p in eval_ps:
+    def build(self, sample_queue, reward_queue, error_queue=None): 
+        self.eval_ps = [mp.Process(target=self.dispatch, args=(sample_queue, reward_queue, error_queue, i)) for i in range(self.num_workers)]
+        for p in self.eval_ps:
             p.start()
-        yield eval_ps
+        yield self.eval_ps
         # dispatch: break out from the while
         for _ in range(self.num_workers):
             sample_queue.put(None)
-        for p in eval_ps:
-            p.join()
+        for p in self.eval_ps:
+            try:
+                p.join()
+            except Exception as e:
+                raise(e)
 
 class Evaluater(object):
     def __init__(self, eval_engines, resource=None, log_dir=None, worker_id=None):

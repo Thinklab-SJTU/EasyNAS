@@ -60,9 +60,10 @@ class SearchEngine(BaseEngine):
 #            ctx = multiprocessing.get_context('spawn')
             sample_queue = mp.JoinableQueue()
             reward_queue = mp.JoinableQueue()
+            error_queue = mp.JoinableQueue()
 
             # multiprocessing for contractor
-            with self.contractor.build(sample_queue, reward_queue):
+            with self.contractor.build(sample_queue, reward_queue, error_queue) as eval_ps:
 
                 # initialize queries
                 if len(self.searcher.current_queries) == 0:
@@ -90,20 +91,34 @@ class SearchEngine(BaseEngine):
                                     self.searcher.current_queries.pop(q)
                                     self.searcher.history_reward[-1].append(QueryReward(q, r))
                             next_queries = self.searcher.query_next()
-                            print(f"Num. of this queries={len(self.searcher.history_reward[-1])}; Num. of next queries={len(next_queries)}")
     #                        print(len(self.searcher.current_queries), len(self.searcher.history_reward[-1]), len(next_queries))
                             for q in next_queries:
                                 self.searcher.preprocess_cfg(q)
                                 sample_queue.put(q)
                             self.searcher.current_queries.update({q: 'waiting' for q in next_queries})
+                            print(f"Num. of this queries={len(self.searcher.history_reward[-1])}; Num. of next queries={len(self.searcher.current_queries)}")
                             self.info.current_epoch += 1
+                            for p in eval_ps:
+                                if p.exitcode is not None:
+                                    pid, e = error_queue.get(timeout=1)
+                                    if e is not None:
+                                        print(f"Worker-{pid} got error!")
+                                        raise(e)
     
                 # get rewards of queries in the last epoch
-                self.searcher.history_reward.append([])
+                last_reward = []
                 while len(self.searcher.current_queries)>0:
                     query, reward = reward_queue.get()
                     self.searcher.current_queries.pop(query)
-                    self.searcher.history_reward[-1].append(QueryReward(query, reward))
+                    last_reward.append(QueryReward(query, reward))
+                if len(last_reward) > 0:
+                    self.searcher.history_reward.append(last_reward)
+                for p in eval_ps:
+                    if p.exitcode is not None:
+                        pid, e = error_queue.get(timeout=1)
+                        if e is not None:
+                            print(f"Worker-{pid} got error!")
+                            raise(e)
 
 #        for i, rewards in enumerate(self.searcher.history_reward):
 #            print("Epoch", i)

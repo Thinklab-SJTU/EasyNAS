@@ -37,6 +37,8 @@ class Hyperband(Searcher):
     def query_next(self):
         s = self.num_inner_loop[self.current_outer_loop]
         n = math.floor(self.num_initial / math.pow(self.eta, self.current_outer_loop+self.current_inner_loop) * (self.num_inner_loop[0]+1) / (s+1))
+        if n == 0:
+            return []
         if self.current_inner_loop == 0:
             next_queries = self._query_initial(n)
         else:
@@ -56,7 +58,7 @@ class Hyperband(Searcher):
         return next_queries
 
     def state_dict(self):
-        ckpt = super(EvolutionAlgorithm, self).state_dict()
+        ckpt = super(Hyperband, self).state_dict()
         ckpt['current_outer_loop'] = self.current_outer_loop
         return ckpt
 
