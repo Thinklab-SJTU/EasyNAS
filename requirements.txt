@@ -9,3 +9,4 @@ opencv-python
 thop
 pycocotools>=2.0
 paramiko
+psutil

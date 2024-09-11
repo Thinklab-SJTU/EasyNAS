@@ -4,6 +4,7 @@ from easydict import EasyDict
 from typing import Union, Optional, List, Tuple
 from .base import BaseEngine
 import subprocess
+import psutil
 
 class BashEngine(BaseEngine):
     def __init__(self, 
@@ -27,12 +28,12 @@ class BashEngine(BaseEngine):
         atexit.register(self.kill_process)
                  
     def kill_process(self):
-        print("Killing popen process...")
         process = getattr(self, 'process', None)
         if process:
+            print("Killing popen process...")
             process.kill()
             process.wait()
-        print("Popen process Killed...")
+            print("Popen process Killed...")
 
     def default_parse_fn(self, stdout):
         stdout = stdout.split('\n')
@@ -44,7 +45,7 @@ class BashEngine(BaseEngine):
         for line in stdout[::-1]:
             for n in result_keys:
                 if n in line:
-                    results[n] = float(line.split(':')[-1])
+                    results[n] = float(line.split(' ')[-1])
             for k in results.keys():
                 result_keys.discard(k)
             if len(result_keys) == 0: break
@@ -56,11 +57,10 @@ class BashEngine(BaseEngine):
         if self.visible_cuda:
             bash_cmd = "CUDA_VISIBLE_DEVICES=" + ','.join([str(i) for i in self.visible_cuda]) + ' ' + bash_cmd
         print(f"Runing bash cmd as: {bash_cmd}")
-#        process = subprocess.Popen(bash_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-        self.process = subprocess.Popen(
+        self.process = psutil.Popen( # use psutil.Popen instead of subprocess.Popen, so that we can get children processes by psutil
                 bash_cmd, 
                 stdout=subprocess.PIPE, 
-                stderr=subprocess.PIPE, #subprocess.STDOUT, 
+                stderr=subprocess.STDOUT, #subprocess.PIPE, subprocess.STDOUT, 
                 shell=True, 
                 bufsize=1,
                 universal_newlines=True)

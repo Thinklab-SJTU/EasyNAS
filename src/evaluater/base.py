@@ -28,6 +28,15 @@ class Contractor(object):
         if self.log_dir is not None:
             os.makedirs(self.log_dir, exist_ok=True)
         atexit.register(self.kill_process)
+
+    def _kill_process(self, pid):
+        import psutil
+        print(pid)
+        childlist = psutil.Process(pid).children(recursive=True)
+        for i in childlist:
+            print("Killing child process", i.pid)
+            i.kill()
+        psutil.Process(pid).kill()
                  
     def kill_process(self):
         eval_ps = getattr(self, 'eval_ps', None)
@@ -35,12 +44,13 @@ class Contractor(object):
             print(f"Killing {len(eval_ps)} workers...")
             for p in eval_ps:
                 try:
-                    p.terminate()
+                    self._kill_process(p.pid)
+#                    p.terminate()
                 except Exception as e:
                     print(e)
             for p in eval_ps:
                p.join()
-        print("Workers are killed")
+            print("Workers are killed")
 
     def _recruit_worker(self, worker_cls, resource=None, log_dir=None, worker_id=None):
         if worker_id is None: worker_id = len(self.worker_id)
@@ -89,6 +99,7 @@ class Contractor(object):
                 p.join()
             except Exception as e:
                 raise(e)
+        del self.eval_ps
 
 class Evaluater(object):
     def __init__(self, eval_engines, resource=None, log_dir=None, worker_id=None):
