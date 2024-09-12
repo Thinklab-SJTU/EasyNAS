@@ -284,8 +284,7 @@ class _SearchSpace(ABC):
                 space.apply_sampler_weights(fn, recurse, memo)
 
     def __repr__(self):
-        string = f"{self.__class__.__name__}(space={self.space}, label={self.label}, sampler={self.sampler})"
-#        string = f"{self.__class__.__name__}(space={self.space}, label=self.labelsampler={self.sampler})"
+        string = f"{self.__class__.__name__}(space_len={len(self.space)}, label={self.label}, sampler={self.sampler})"
         return string
     def __getitem__(self, key):
         return self.space[key]
@@ -773,3 +772,47 @@ class ContinuousSpace(_SearchSpace):
         out = self.sampler.topk(self.space, k=self.num_reserve)
         return out if self.return_list else out[0]
 
+class ContinuousTensorSpace(ContinuousSpace):
+    def __init__(self, space, sampler_cfg='UniformContinousSampler', size=1, embed_fn=None, label=None):
+        """
+        space is a string with format "start:end"
+        """
+        super(ContinuousSpace, self).__init__(space, sampler_cfg, embed_fn, label)
+        self.start, self.end = [float(tmp) for tmp in space.split(':')]
+#        self.sampler.set_param(space)
+        if isinstance(size, int):
+            self.size = (size, )
+        else: self.size = tuple(size)
+
+    def get_size(self, label_computed=None):
+        return super(ContinuousTensorSpace, self).get_size(label_computed)
+
+    def _sample_once(self, label_samples=None):
+        if label_samples is None: label_samples = {}
+        if self.label in label_samples:
+            return self.sample_from_node(label_samples[self.label], label_samples)
+        sample = tuple(self.sampler.sample(self.size))
+        sample = SampleNode(self, {0: sample})
+        if not self.label.startswith('_SearchSpace#'): label_samples[self.label] = sample
+        return sample
+
+    def sample_from_node(self, src_sample_node, label_samples):
+        sample = {}
+        for k, v in src_sample_node.sample.items():
+            sample[k] = v 
+        return SampleNode(self, sample)
+
+    def __len__(self):
+        return self.end - self.start
+
+    def build_config(self, sample):
+        return sample[0]
+
+    def build_embedding(self, sample):
+        if self.embed_fn:
+            return self.embed_fn(sample)
+        else:
+            vals = (sample[0]-self.start)/(self.end-self.start)
+            return vals
+    def discretize(self, **replace_settings):
+        raise(TypeError("ContinuousTensorSpace does not support to discretize the space."))

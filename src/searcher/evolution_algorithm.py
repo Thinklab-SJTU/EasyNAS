@@ -86,7 +86,7 @@ class EvolutionAlgorithm(Searcher):
                 stack.extend(list(zip(_father.sample.values(), _mother.sample.values())))
             else:
                 if np.random.random_sample() < 0.5:
-                    _father.sample = _mother.sample
+                    _father.sample = deepcopy(_mother.sample)
                 else:
                     for idx, sub_sample in _father.sample.items():
                         if idx in _mother.sample:

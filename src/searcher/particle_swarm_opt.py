@@ -8,7 +8,7 @@ import torch
 from .base import Searcher
 
 class Particle:
-    def __init__(self, sample, momentum=0.5, local_acceleration=1, global_acceleration=2):
+    def __init__(self, space, momentum=0.5, local_acceleration=1, global_acceleration=2):
         self.momentum = momentum
         self.local_acceleration = local_acceleration
         self.global_acceleration = global_acceleration

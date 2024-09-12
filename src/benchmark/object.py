@@ -86,6 +86,11 @@ class Benchmark_func(nn.Module):
         else:
             self.input = nn.Parameter(torch.tensor(init_point, requires_grad=True))
 
+    def update_weight(weight):
+        if isinstance(weight, np.array):
+            weight = torch.from_numpy(weight, device=self.input.device, dtype=self.input.dtype)
+        self.input.data.copy_(weight)
+
     def forward(self):
         return self.function(self.input)
 

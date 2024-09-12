@@ -29,7 +29,10 @@ def parse_cfg(yaml_file):
 
 
 DIGITS={'0':0,'1':1,'2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9}
+def str2int(s):
+    return int(float(s))
 def str2float(s):
+    return float(s)
     s=s.split('.')
     if s[0]==0:
         return 0+reduce(lambda x,y:x/10+y , map(lambda x:DIGITS[x],s[1][::-1]))/10
@@ -112,7 +115,13 @@ class CfgLoader(yaml.SafeLoader):
                 ss_args = {'space': ss_args}
             else:
                 assert len(ss_args_tmp) == 3
-                ss_args = {'space': np.arange(*[str2float(tmp) for tmp in ss_args_tmp]).tolist()}
+                str2type = str2int
+                for tmp in ss_args_tmp:
+#                    if '.' in tmp or ('e' in tmp and '-' in tmp.split('e')[-1]):
+                     if str2int(tmp) != str2float(tmp):
+                        str2type = str2float
+                        break
+                ss_args = {'space': np.arange(*[str2type(tmp) for tmp in ss_args_tmp]).tolist()}
         elif isinstance(node, yaml.SequenceNode):
             ss_args = {'space': self.construct_sequence(node, deep=True)}
         elif isinstance(node, yaml.MappingNode):
