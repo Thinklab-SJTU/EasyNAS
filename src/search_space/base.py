@@ -208,7 +208,7 @@ class _SearchSpace(ABC):
     def _sample_once(self, label_samples=None):
         pass
     @abstractmethod
-    def sample_from_node(self, node, label_samples, num_sampled=0):
+    def sample_from_node(self, node, label_samples):
         pass
     @abstractmethod
     def enum_space(self):
@@ -227,11 +227,18 @@ class _SearchSpace(ABC):
             self._tmp_iter_in_sample += 1
         return sample_nodes
 
-    def sample_from_nodes(self, src_sample_nodes, label_samples, num_sampled=0):
+    def build_nodes(self, src_samples):
+        sample_nodes = []
+        for idx, sample in enumerate(src_samples):
+            sample_nodes.append(self.build_node(sample))
+        return sample_nodes
+
+    def sample_from_nodes(self, src_sample_nodes, label_samples=None):
         sample_nodes = [] 
+        if label_samples is None: label_samples = {}
         for idx, node in enumerate(src_sample_nodes):
             assert self.__class__.__name__ == node.space.__class__.__name__
-            sample_nodes.append(self.sample_from_node(node, label_samples, num_sampled+idx))
+            sample_nodes.append(self.sample_from_node(node, label_samples))
         return sample_nodes
 
     def named_sampler(self, prefix='', recurse=True, memo=None):
@@ -414,7 +421,7 @@ class IIDSpace(_SearchSpace):
     def _sample_once(self, label_samples=None):
         if label_samples is None: label_samples = {}
         if self.label in label_samples:
-            return self.sample_from_node(label_samples[self.label], label_samples, num_sampled)
+            return self.sample_from_node(label_samples[self.label], label_samples)
         sample = {}
         for prefix, space in self._child_spaces.items():
             sample[prefix] = space._sample_once(label_samples)
@@ -432,6 +439,23 @@ class IIDSpace(_SearchSpace):
             else:
                 sample[prefix] = self._child_spaces[prefix]._sample_once(label_samples)
         return SampleNode(self, sample)
+
+    def build_node(self, src_sample):
+        sample = {}
+        queue = [("", self.space, src_sample)]
+        while len(queue) > 0:
+            prefix, space, src = queue.pop()
+            if isinstance(space, _SearchSpace):
+                prefix = prefix.rstrip('.')
+                sample[prefix] = space.build_node(src)
+            elif isinstance(space, dict):
+                for sub_k, sub_v in src.items():
+                    queue.append((prefix+f"{space.__class__.__name__}::{sub_k}.", space[sub_k], sub_v))
+            elif isinstance(space, (list, tuple)):
+                for i, v in enumerate(src):
+                    queue.append((prefix+f"{space.__class__.__name__}::{i}.", space[i], v))
+        return SampleNode(self, sample)
+
 
     def enum_from_node(self, src_sample_node, label_sample):
         for child_sample in my_product([partial(space.enum_from_node, src_sample_node.sample[prefix], label_sample) for prefix, space in self._child_spaces.items()]):
@@ -559,7 +583,17 @@ class DiscreteSpace(_SearchSpace):
                         self._set_item_by_name(cand, '.'.join(keys[1:]), ch_cand)
             sample[idx] = cand
         return SampleNode(self, sample)
-    
+
+    def build_node(self, src_sample):
+        sample = {}
+        for i, src in enumerate(src_sample):
+            try:
+                idx = self.space.index(src)
+                sample[idx] = src
+            except IndexError as e:
+                print("Default sample has not supported nesting DiscreteSpace yet.")
+                raise(e)
+        return SampleNode(self, sample)
 
     def build_config(self, sample):
         config = []
@@ -684,9 +718,13 @@ class FlattenSampledDiscreteSpace(DiscreteSpace):
         with self.change_to_flattened_space():
             return super(FlattenSampledDiscreteSpace, self)._sample_once(label_samples)
 
-    def sample_from_node(self, node, label_samples, num_sampled=0):
+    def sample_from_node(self, node, label_samples):
         with self.change_to_flattened_space():
-            return super(FlattenSampledDiscreteSpace, self).sample_from_node(node, label_samples, num_sampled)
+            return super(FlattenSampledDiscreteSpace, self).sample_from_node(node, label_samples)
+
+    def build_node(self, src_sample):
+        with self.change_to_flattened_space():
+            return super(FlattenSampledDiscreteSpace, self).build_node(src_sample)
 
     def build_config(self, sample):
         with self.change_to_flattened_space():
@@ -745,6 +783,13 @@ class ContinuousSpace(_SearchSpace):
         sample = {}
         for ratio in src_sample_node.sample.keys():
             sample[ratio] = ratio * self.size + self.start
+        return SampleNode(self, sample)
+
+    def build_node(self, src_sample):
+        sample = {}
+        for v in src_sample:
+            ratio = (v-self.start) / self.size
+            sample[ratio] = v 
         return SampleNode(self, sample)
 
     def __len__(self):

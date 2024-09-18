@@ -19,6 +19,7 @@ class EvolutionAlgorithm(Searcher):
             num_mutation,
             prob_mutation,
             num_population=None,
+            init_points=None,
             num_reward_one_deal=-1):
         self.num_epoch = num_epoch
         self.num_survive = num_survive
@@ -27,6 +28,7 @@ class EvolutionAlgorithm(Searcher):
         if num_population is None: 
             self.num_population = num_crossover + num_mutation
         else: self.num_population = max(num_population, num_crossover+num_mutation)
+        self.init_points = init_points
         self.prob_mutation = prob_mutation
 
         self.current_epoch = 1
@@ -35,7 +37,16 @@ class EvolutionAlgorithm(Searcher):
         super(EvolutionAlgorithm, self).__init__(search_space, self.num_population, num_reward_one_deal)
 
     def query_initial(self):
-        queries = self.search_space.sample(self.num_initial, replace=False)
+        queries = []
+        num_sample = self.num_initial
+        if self.init_points is not None:
+            sample_nodes = self.search_space.build_nodes(self.init_points)
+            queries.extend(self.search_space.sample_from_nodes(sample_nodes))
+            print("Get default initial queries:")
+            for q in queries:
+                print(q)
+            num_sample = self.num_initial - len(self.init_points)
+        queries.extend(self.search_space.sample(num_sample, replace=False))
         for q in queries:
             self.seen.add(hash(q))
         return queries
