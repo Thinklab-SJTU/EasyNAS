@@ -4,7 +4,7 @@ from copy import deepcopy
 from .base import Searcher
 
 class Hyperband(Searcher):
-    def __init__(self, search_space, num_initial, max_resource_inner_loop, min_resource_per_query=None, reserve_rate=3, with_outer_loop=False, num_reward_one_deal=-1):
+    def __init__(self, search_space, num_initial, max_resource_inner_loop, min_resource_per_query=None, reserve_rate=3, with_outer_loop=False, num_reward_one_deal=-1, init_points=None):
         """
         max_resource_inner_loop should be a dict, whose key is the resource name in training cfg, whose value is the maximum resource restriction.
         """
@@ -18,7 +18,7 @@ class Hyperband(Searcher):
         tmp = math.ceil(math.log(min(max(self.R[n]/self.r[n] for n in self.R.keys()), num_initial)) / math.log(self.eta))
         print(f"There are {tmp} inner loops.")
         self.num_inner_loop = list(range(tmp, -1, -1)) if with_outer_loop else [tmp]
-        super(Hyperband, self).__init__(search_space, num_initial, num_reward_one_deal)
+        super(Hyperband, self).__init__(search_space, num_initial, num_reward_one_deal, init_points=init_points)
 
         self.current_outer_loop, self.current_inner_loop = 0, 0
         
@@ -26,7 +26,7 @@ class Hyperband(Searcher):
         return self.current_outer_loop >= len(self.num_inner_loop) or len(self.current_queries) <= 0
 
     def _query_initial(self, n):
-        return self.search_space.sample(n, replace=False)
+        return super(HyperBand, self).query_initial(n)
 
     def query_initial(self):
         return self.query_next()

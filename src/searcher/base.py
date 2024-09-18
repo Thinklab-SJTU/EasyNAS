@@ -4,15 +4,25 @@ from multiprocessing import Process, JoinableQueue
 from builder import parse_cfg, get_submodule_by_name
 
 class Searcher(object):
-    def __init__(self, search_space, num_initial, num_reward_one_deal=-1):
+    def __init__(self, search_space, num_initial, num_reward_one_deal=-1, init_points=None,):
         self.search_space = search_space
         self.num_initial = num_initial
         self.num_reward_one_deal = num_reward_one_deal
+        self.init_points = init_points
         self.history_reward = []
         self.current_queries = {}
 
-    def query_initial(self):
-        queries = self.search_space.sample(self.num_initial, replace=False)
+    def query_initial(self, num_sample=None):
+        queries = []
+        num_sample = num_sample or self.num_initial
+        if self.init_points is not None:
+            sample_nodes = self.search_space.build_nodes(self.init_points)
+            queries.extend(self.search_space.sample_from_nodes(sample_nodes))
+            print("Get default initial queries:")
+            for q in queries:
+                print(q)
+            num_sample = self.num_initial - len(self.init_points)
+        queries.extend(self.search_space.sample(num_sample, replace=False))
         return queries
 
     def stop_search(self):

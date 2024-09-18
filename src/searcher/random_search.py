@@ -5,7 +5,7 @@ class RandomSearch(Searcher):
         return True
 
     def query_initial(self):
-        return self.search_space.sample(self.num_initial, replace=False)
+        return super(RandomSearch, self).query_initial()
 
     def query_next(self):
         return []
