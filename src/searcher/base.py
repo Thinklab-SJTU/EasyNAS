@@ -32,7 +32,7 @@ class Searcher(object):
         if self.num_reward_one_deal in [-1, None]:
             return not ('waiting' in self.current_queries.values())
         else:
-            return (len(self.current_queries) - sum(1 for reward in self.current_queries.values() if reward == 'waiting')) >= num_reward_one_deal
+            return (len(self.current_queries) - sum(1 for reward in self.current_queries.values() if reward == 'waiting')) >= self.num_reward_one_deal
 
     def query_next(self):
         raise(NotImplementedError("No Implementation."))
