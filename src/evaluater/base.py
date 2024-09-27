@@ -3,7 +3,7 @@ import sys
 import atexit
 from copy import deepcopy
 import time
-from collections import UserList
+from collections import UserList, namedtuple
 import multiprocessing as mp
 from multiprocessing import Process, JoinableQueue, Queue
 import logging
@@ -14,6 +14,32 @@ from builder import parse_cfg, get_submodule_by_name
 from engines.base import BaseEngine
 from src.search_space.base import SampleNode
 
+class HW_Resource():
+    def __init__(
+            self, 
+            gpu=None,
+            host=None, 
+            username=None,
+            password=None,
+            pkey=None,
+            port=22,
+    ):
+        if isinstance(gpu, int):
+            self.gpu = [gpu]
+        else:
+            assert isinstance(gpu, (list, tuple))
+            self.gpu = gpu
+        if host is not None:
+            raise(NotImplementedError("Not implementation for remote resource control"))
+            from src.evaluater.connect import build_sshclient
+            self.ssh = build_sshclient(host, username, password, pkey, port)
+        else:
+            self.ssh = None
+
+    def set(self):
+        if gpu is not None:
+            os.environ['CUDA_VISIBLE_DEVICES'] = ",".join([str(g) for g in gpu])
+
 class Reward(UserList):
     def to_parsable(self):
         return [float(tmp) for tmp in self]
@@ -22,7 +48,9 @@ class Contractor(object):
     def __init__(self, eval_engines, resource=None, log_dir=None, num_workers=1):
         self.num_workers = num_workers
         self.eval_engines = eval_engines
-        self.resource = resource
+        if resource is None: resource = tuple({} for _ in range(num_workers))
+        assert len(resouce) == num_workers
+        self.resource = [HW_Resource(**r) for r in resource]
         self.worker_id = {}
         self.log_dir = log_dir
         if self.log_dir is not None:
@@ -52,9 +80,9 @@ class Contractor(object):
                p.join()
             print("Workers are killed")
 
-    def _recruit_worker(self, worker_cls, resource=None, log_dir=None, worker_id=None):
+    def _recruit_worker(self, worker_cls, log_dir=None, worker_id=None):
         if worker_id is None: worker_id = len(self.worker_id)
-        worker = worker_cls(self.eval_engines, resource=resource, log_dir=log_dir, worker_id=worker_id)
+        worker = worker_cls(self.eval_engines, log_dir=log_dir, worker_id=worker_id)
         self.worker_id[worker_id] = worker
         worker._ID = worker_id
         if worker.log_dir is not None:
@@ -69,8 +97,9 @@ class Contractor(object):
             __builtin__.print = builtin_print
         del self.worker_id[worker._ID]
 
-    def dispatch(self, sample_queue, reward_queue, error_queue=None, worker_id=None, worker_cls=None):
+    def dispatch(self, resource, sample_queue, reward_queue, error_queue=None, worker_id=None, worker_cls=None):
         try:
+            resource.set()
             if worker_cls is None: worker_cls = Evaluater
             evaluater = self._recruit_worker(worker_cls, log_dir=self.log_dir, worker_id=worker_id)
             while True:
@@ -87,7 +116,7 @@ class Contractor(object):
 
     @contextmanager
     def build(self, sample_queue, reward_queue, error_queue=None): 
-        self.eval_ps = [mp.Process(target=self.dispatch, args=(sample_queue, reward_queue, error_queue, i)) for i in range(self.num_workers)]
+        self.eval_ps = [mp.Process(target=self.dispatch, args=(self.resource[i], sample_queue, reward_queue, error_queue, i)) for i in range(self.num_workers)]
         for p in self.eval_ps:
             p.start()
         yield self.eval_ps
@@ -102,8 +131,7 @@ class Contractor(object):
         del self.eval_ps
 
 class Evaluater(object):
-    def __init__(self, eval_engines, resource=None, log_dir=None, worker_id=None):
-        self.resource = resource
+    def __init__(self, eval_engines, log_dir=None, worker_id=None):
         self.worker_id = worker_id
         self.task_id = 0
         self.eval_engines = self.get_eval_engines(eval_engines)
