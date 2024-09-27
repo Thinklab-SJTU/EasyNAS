@@ -37,8 +37,11 @@ class HW_Resource():
             self.ssh = None
 
     def set(self):
-        if gpu is not None:
-            os.environ['CUDA_VISIBLE_DEVICES'] = ",".join([str(g) for g in gpu])
+        print("="*100)
+        if self.gpu is not None:
+            os.environ['CUDA_VISIBLE_DEVICES'] = ",".join([str(g) for g in self.gpu])
+            print(f"visible cuda: {os.environ['CUDA_VISIBLE_DEVICES']}")
+        print("="*100)
 
 class Reward(UserList):
     def to_parsable(self):
@@ -49,7 +52,7 @@ class Contractor(object):
         self.num_workers = num_workers
         self.eval_engines = eval_engines
         if resource is None: resource = tuple({} for _ in range(num_workers))
-        assert len(resouce) == num_workers
+        assert len(resource) == num_workers
         self.resource = [HW_Resource(**r) for r in resource]
         self.worker_id = {}
         self.log_dir = log_dir
@@ -112,6 +115,7 @@ class Contractor(object):
             self._dismiss_worker(evaluater)
         except Exception as e:
             error_queue.put((worker_id, e))
+            raise(e)
 #        error_queue.put((worker_id, None))
 
     @contextmanager
