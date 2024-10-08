@@ -27,7 +27,7 @@ class HW_Resource():
         if isinstance(gpu, int):
             self.gpu = [gpu]
         else:
-            assert isinstance(gpu, (list, tuple))
+            assert gpu is None or isinstance(gpu, (list, tuple))
             self.gpu = gpu
         if host is not None:
             raise(NotImplementedError("Not implementation for remote resource control"))

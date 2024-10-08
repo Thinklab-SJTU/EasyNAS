@@ -37,19 +37,10 @@ class EvolutionAlgorithm(Searcher):
         super(EvolutionAlgorithm, self).__init__(search_space, self.num_population, num_reward_one_deal, init_points=init_points)
 
     def query_initial(self):
-#        queries = []
-#        num_sample = self.num_initial
-#        if self.init_points is not None:
-#            sample_nodes = self.search_space.build_nodes(self.init_points)
-#            queries.extend(self.search_space.sample_from_nodes(sample_nodes))
-#            print("Get default initial queries:")
-#            for q in queries:
-#                print(q)
-#            num_sample = self.num_initial - len(self.init_points)
-#        queries.extend(self.search_space.sample(num_sample, replace=False))
         queries = super(EvolutionAlgorithm, self).query_initial()
         for q in queries:
             self.seen.add(hash(q))
+        self.num_total -= len(self.history_reward[-1])
         return queries
 
     def stop_search(self):
