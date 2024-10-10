@@ -148,14 +148,16 @@ def gumbel_softmax(logits, temperature=1, hard=True):
 
 # Parameterless, Continuous
 class UniformContinousSampler(_NumpySampler):
-    def __init__(self, start=0, end=1):
+    def __init__(self, start=0, end=1, seed=None):
+        super(UniformContinousSampler, self).__init__(seed)
         self.start, self.end = start, end
     def set_param(self, space):
         self.start, self.end = [float(tmp) for tmp in space.split(':')]
     def sample(self, num):
         return self.rdm.uniform(self.start, self.end, size=num)
 class NormalSampler(_NumpySampler):
-    def __init__(self, mean=0, std=1):
+    def __init__(self, mean=0, std=1, seed=None):
+        super(NormalSampler, self).__init__(seed)
         self.mean, self.std = mean, std
     def set_param(self, space):
         self.mean, self.std = [float(tmp) for tmp in space.split(':')]

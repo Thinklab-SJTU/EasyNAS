@@ -108,26 +108,43 @@ class CfgLoader(yaml.SafeLoader):
         return eval(expr)
 
     def construct_search_space(self, node):
-        if isinstance(node, yaml.ScalarNode):
-            ss_args = self.construct_scalar(node)
+        def _deal_with_space(ss_args):
+            if not isinstance(ss_args, str):
+                return ss_args
             ss_args_tmp = ss_args.split(':')
-            if len(ss_args_tmp) == 2:
-                ss_args = {'space': ss_args}
-            else:
-                assert len(ss_args_tmp) == 3
+            space = ss_args
+            assert len(ss_args_tmp) in [2,3]
+            if len(ss_args_tmp) == 3:
                 str2type = str2int
                 for tmp in ss_args_tmp:
 #                    if '.' in tmp or ('e' in tmp and '-' in tmp.split('e')[-1]):
                      if str2int(tmp) != str2float(tmp):
                         str2type = str2float
                         break
-                ss_args = {'space': np.arange(*[str2type(tmp) for tmp in ss_args_tmp]).tolist()}
+                space = np.arange(*[str2type(tmp) for tmp in ss_args_tmp]).tolist()
+            return space
+        if isinstance(node, yaml.ScalarNode):
+            ss_args = self.construct_scalar(node)
+            ss_args = {'space': ss_args}
+#            ss_args_tmp = ss_args.split(':')
+#            if len(ss_args_tmp) == 2:
+#                ss_args = {'space': ss_args}
+#            else:
+#                assert len(ss_args_tmp) == 3
+#                str2type = str2int
+#                for tmp in ss_args_tmp:
+##                    if '.' in tmp or ('e' in tmp and '-' in tmp.split('e')[-1]):
+#                     if str2int(tmp) != str2float(tmp):
+#                        str2type = str2float
+#                        break
+#                ss_args = {'space': np.arange(*[str2type(tmp) for tmp in ss_args_tmp]).tolist()}
         elif isinstance(node, yaml.SequenceNode):
             ss_args = {'space': self.construct_sequence(node, deep=True)}
         elif isinstance(node, yaml.MappingNode):
             ss_args = self.construct_mapping(node, deep=True)
             if 'space' not in ss_args:
                 ss_args = {'space': ss_args}
+        ss_args['space'] = _deal_with_space(ss_args['space'])
         return SearchSpace(**ss_args)
 #        def foo_constructor(loader, node):
 #            instance = Foo.__new__(Foo)
@@ -157,10 +174,13 @@ class CfgDumper(yaml.SafeDumper):
         return self.represent_sequence('!get_module', [module.__name__+'.'+cls_or_func.__name__, data.keywords])
     def represent_sampleNode(self, data):
         return self.represent_mapping('!sample_node', data.config)
+    def represent_numpyfloat(self, data):
+        return self.represent_float(float(data))
 CfgDumper.add_representer(edict, CfgDumper.represent_python_edict)
 CfgDumper.add_representer(tuple, CfgDumper.represent_python_tuple)
 CfgDumper.add_representer(partial, CfgDumper.represent_python_partial)
 CfgDumper.add_representer(SampleNode, CfgDumper.represent_sampleNode)
+CfgDumper.add_representer(np.float64, CfgDumper.represent_numpyfloat)
 
 if __name__ == '__main__':
 

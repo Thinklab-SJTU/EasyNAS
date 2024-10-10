@@ -40,7 +40,7 @@ class EvolutionAlgorithm(Searcher):
         queries = super(EvolutionAlgorithm, self).query_initial()
         for q in queries:
             self.seen.add(hash(q))
-        self.num_total -= len(self.history_reward[-1])
+        self.num_total -= len(queries)
         return queries
 
     def stop_search(self):

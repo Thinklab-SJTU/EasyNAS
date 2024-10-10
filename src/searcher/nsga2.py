@@ -10,7 +10,10 @@ class NSGA2(EvolutionAlgorithm):
             prob_mutation,
             num_population=None,
             num_reward_one_deal=-1):
-        super(NSGA2, self).__init__(search_space, num_epoch, num_survive, num_crossover, num_mutation, prob_mutation, num_population, num_reward_one_deal)
+        super(NSGA2, self).__init__(
+                search_space, num_epoch, num_survive, num_crossover, num_mutation, prob_mutation, num_population, 
+                num_reward_one_deal=num_reward_one_deal
+                )
 
     def domiates(self, cand1, cand2):
         ''' Whether cand1 dominates cand2

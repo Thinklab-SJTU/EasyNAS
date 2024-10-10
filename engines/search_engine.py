@@ -11,7 +11,7 @@ from src.util_type import QueryReward
 
 
 class SearchEngine(BaseEngine):
-    def __init__(self, search_space, searcher, contractor, hooks):
+    def __init__(self, search_space, searcher, contractor, hooks=[]):
         self.search_space, self.searcher, self.contractor= self.build_from_cfg(search_space, searcher, contractor, hooks)
 
         print(f"The size of Search space is {self.search_space.size}")
