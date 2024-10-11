@@ -1,6 +1,8 @@
 import os
 import time
 from multiprocessing import Process, JoinableQueue
+from collections import Counter 
+
 from builder import parse_cfg, get_submodule_by_name
 
 class Searcher(object):
@@ -17,11 +19,15 @@ class Searcher(object):
         num_sample = num_sample or self.num_initial
         if self.init_points is not None:
             sample_nodes = self.search_space.build_nodes(self.init_points)
+            # deduplicate
+            counts = Counter(sample_nodes)
+            sample_nodes = [x for x in sample_nodes if counts[x] == 1]
+#            sample_nodes = list(set(sample_nodes))
             queries.extend(self.search_space.sample_from_nodes(sample_nodes))
-            print("Get default initial queries:")
+            print(f"Get {len(self.init_points)}({len(queries)}) default (different) initial queries:")
             for q in queries:
                 print(q)
-            num_sample = self.num_initial - len(self.init_points)
+            num_sample = self.num_initial - len(queries)
         queries.extend(self.search_space.sample(num_sample, replace=False))
         return queries
 
