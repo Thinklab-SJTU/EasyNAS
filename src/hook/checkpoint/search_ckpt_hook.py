@@ -38,7 +38,8 @@ class SearchCkptHOOK(HOOK):
         checkpoint = self.get_presearch_reward(presearch=self.presearch)
         if checkpoint is not None:
             runner.searcher.load_state_dict(checkpoint['searcher'])
-            runner.info.results = checkpoint['results']
+            runner.info = checkpoint['info']
+#            runner.info.results = checkpoint['results']
 
     def get_best(self, query_reward):
         best_query_reward = max(query_reward, key=lambda x: x.reward)
@@ -48,8 +49,7 @@ class SearchCkptHOOK(HOOK):
         # get best
         current_epoch_reward = runner.searcher.history_reward[-1]
         current_epoch_best = self.get_best(current_epoch_reward)
-        #TODO: runner.info is EasyDict, it will decompose namedtuple
-        best = runner.info.results.get('best', None)
+        #TODO: runner.info is EasyDict, it will decompose namedtuple best = runner.info.results.get('best', None)
         if best is None or current_epoch_best.reward > best['reward']:
 #            runner.info.results.best = copy.copy(current_epoch_best)
             runner.info.results.best = current_epoch_best._asdict()
@@ -71,7 +71,8 @@ class SearchCkptHOOK(HOOK):
     def save_ckpt(self, runner, name=None):
         name = 'ckpt_%d.pt'%runner.info.current_epoch if name is None else name
         ckpt = {
-          'results': runner.info.results,
+#          'results': runner.info.results,
+          'info': runner.info,
           'searcher': runner.searcher.state_dict(),
                }
         save_path = os.path.join(self.save_root, name)
