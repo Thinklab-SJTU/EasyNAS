@@ -29,6 +29,7 @@ class SearchEngine(BaseEngine):
             'results': EasyDict(),
             })
 
+
     def build_from_cfg(self, search_space_cfg, searcher_cfg, contractor_cfg, hooks_cfg):
         # build search_space
         print("Building search space")
@@ -66,12 +67,15 @@ class SearchEngine(BaseEngine):
             with self.contractor.build(sample_queue, reward_queue, error_queue) as eval_ps:
 
                 # initialize queries
-                if len(self.searcher.current_queries) == 0:
+                if len(self.searcher.current_queries) == 0 and len(self.searcher.history_reward) == 0:
                     print("Initializing...")
                     next_queries = self.searcher.query_initial()
+                elif len(self.searcher.current_queries) == 0 and len(self.searcher.history_reward) > 0 and not self.searcher.stop_search():
+                    print("Generating next queries based on history...")
+                    next_queries = self.searcher.query_next()
                 else:
                     print("Loading queries")
-                    next_queries = self.searcher.current_queries.keys()
+                    next_queries = [q for q, v in self.searcher.current_queries.items() if v =='waiting']
                 for q in next_queries:
                     q = self.searcher.preprocess_cfg(q)
                     sample_queue.put(q)

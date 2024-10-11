@@ -58,7 +58,7 @@ class SearchCkptHOOK(HOOK):
                     name='best.yaml')
 #            self.save_yaml(runner.info.results.best['query'].config, name='best.yaml')
 #            self.save_ckpt(runner, 'best.pt')
-        print("Best: Query", QueryReward(**runner.info.results.best))
+        print(f"Best Query: {QueryReward(**runner.info.results.best)}")
 
         # save reward
         self.save_yaml(data=[{'query': qr.query.config, 'reward': qr.reward.to_parsable()} for qr in current_epoch_reward], name='epoch%d.yaml'%runner.info.get('current_epoch', 0))

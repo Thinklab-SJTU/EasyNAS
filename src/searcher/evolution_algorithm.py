@@ -153,3 +153,8 @@ class EvolutionAlgorithm(Searcher):
         ckpt['current_survive'] = self.current_survive
         return ckpt
 
+    def load_state_dict(self, state_dict):
+        super(EvolutionAlgorithm, self).load_state_dict(state_dict)
+        for rs in self.history_reward:
+            self.num_total -= len(rs)
+

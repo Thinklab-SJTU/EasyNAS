@@ -61,6 +61,15 @@ class Searcher(object):
         num_epoch = len(self.history_reward)
         num_task = sum(len(tmp) for tmp in self.history_reward)
         print(f"{num_epoch}-epochs and {num_task}-tasks have been loaded")
+        print('='*10 + " History_rewards " + '='*10)
+        for i, rewards in enumerate(self.history_reward):
+            print(f"----- epoch {i}")
+            for r in rewards:
+                print(r)
+        print('='*10 + " current_queries" + '='*10)
+        for q, r in self.current_queries.items():
+            print(f"Query: {q}; Reward: {r}")
+        
 
 
 

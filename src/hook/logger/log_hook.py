@@ -27,7 +27,7 @@ class LogHOOK(HOOK):
         logging.basicConfig(stream=sys.stdout, level=logging.INFO, format=log_format, datefmt='%m/%d %I:%M:%S %p')
         self.logger = logging.getLogger(logger_name)
         if log_path:
-            fh = logging.FileHandler(log_path)
+            fh = logging.FileHandler(log_path, mode='w')
             fh.setFormatter(logging.Formatter(log_format))
             self.logger.addHandler(fh)
 

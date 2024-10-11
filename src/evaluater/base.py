@@ -91,20 +91,23 @@ class Contractor(object):
         if worker.log_dir is not None:
 #            worker.config_logger(f'worker-{worker_id}', os.path.join(worker.log_dir, f'worker-{worker_id}'))
             import builtins as __builtin__
-            builtin_print = __builtin__.print
+            self.builtin_print = __builtin__.print
             __builtin__.print = worker.logger.info
+        print("\n")
+        print(f"Recruit worker-{worker_id}\n")
         return worker 
 
     def _dismiss_worker(self, worker):
         if worker.log_dir is not None:
-            __builtin__.print = builtin_print
+            import builtins as __builtin__
+            __builtin__.print = self.builtin_print
         del self.worker_id[worker._ID]
 
     def dispatch(self, resource, sample_queue, reward_queue, error_queue=None, worker_id=None, worker_cls=None):
         try:
-            resource.set()
             if worker_cls is None: worker_cls = Evaluater
             evaluater = self._recruit_worker(worker_cls, log_dir=self.log_dir, worker_id=worker_id)
+            resource.set()
             while True:
                 task = sample_queue.get()
                 if task is None:

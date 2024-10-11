@@ -7,6 +7,7 @@ from .evaluation.eval_hook import EvalAccHOOK
 from .checkpoint.ckpt_hook import CkptHOOK
 from .checkpoint.search_ckpt_hook import SearchCkptHOOK
 from .logger.log_hook import LogHOOK
+from .logger.base_log_hook import BaseLogHOOK
 from .ddp.ddp_hook import DDPHOOK
 from .supernet.supernet_hook import DARTSHOOK, ZARTSHOOK
 
