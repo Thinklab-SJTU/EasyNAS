@@ -100,7 +100,15 @@ class SearchEngine(BaseEngine):
                                 self.searcher.preprocess_cfg(q)
                                 sample_queue.put(q)
                             self.searcher.current_queries.update({q: 'waiting' for q in next_queries})
-                            print(f"Num. of this queries={len(self.searcher.history_reward[-1])};\nNum. of next queries={len(next_queries)};\nNum. of current queries={len(self.searcher.current_queries)}")
+
+                            print(f"Num. of this queries: {len(self.searcher.history_reward[-1])}")
+                            string = "="*10 + f'Generate {len(next_queries)} new queries' + "="*10
+                            print(string)
+                            for q in next_queries:
+                                print(q)
+                            print('='*len(string))
+                            print(f"Num. of queries to be evaluated: {len(self.searcher.current_queries)}")
+
                             self.info.current_epoch += 1
                             for p in eval_ps:
                                 if p.exitcode is not None:
