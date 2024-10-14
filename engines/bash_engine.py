@@ -53,7 +53,15 @@ class BashEngine(BaseEngine):
 
     def run(self, *args, **kwargs):
         kwargs.update({k:v for k, v in self.kwargs.items() if k not in kwargs})
-        bash_cmd = ' '.join([self.bash_cmd] + [f"--{k} {v}" for k, v in kwargs.items()])
+        command = [self.bash_cmd]
+        for k, v in kwargs.items():
+            if isinstance(v, list):
+                v = [f'--{k}'] + v
+                command.append(' '.join(map(str, v)))
+            else:
+                command.append(f"--{k} {v}")
+#        bash_cmd = ' '.join([self.bash_cmd] + [f"--{k} {v}" for k, v in kwargs.items()])
+        bash_cmd = ' '.join(command)
         if self.visible_cuda:
             bash_cmd = "CUDA_VISIBLE_DEVICES=" + ','.join([str(i) for i in self.visible_cuda]) + ' ' + bash_cmd
         print(f"Runing bash cmd as: {bash_cmd}")
