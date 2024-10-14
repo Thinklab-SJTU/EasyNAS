@@ -84,10 +84,14 @@ class EvolutionAlgorithm(Searcher):
             label_samples[_sample.space.label] = _sample
         return sample
 
-    def _crossover(self, survive):
+    def _crossover(self, survive, prob_mutation=0.):
         label_samples = {}
-        father = deepcopy(self._choose(survive, 1))[0]
-        mother = self._choose(survive, 1)[0]
+        if len(survive) < 2: 
+            return None
+        father, mother = self._choose(survive, 2, replace=False) # two different identities
+        father = deepcopy(father)
+#        father = deepcopy(self._choose(survive, 1))[0]
+#        mother = self._choose(survive, 1)[0]
         stack = [(father, mother)]
         while len(stack) > 0:
             _father, _mother = stack.pop()
@@ -99,7 +103,9 @@ class EvolutionAlgorithm(Searcher):
             if isinstance(_father.space, IIDSpace):
                 stack.extend(list(zip(_father.sample.values(), _mother.sample.values())))
             else:
-                if np.random.random_sample() < 0.5:
+                if np.random.random_sample() < prob_mutation:
+                    _father.sample = _father.space._sample_once(label_samples).sample
+                elif np.random.random_sample() < 0.5:
                     _father.sample = deepcopy(_mother.sample)
                 else:
                     for idx, sub_sample in _father.sample.items():
@@ -116,6 +122,7 @@ class EvolutionAlgorithm(Searcher):
         while len(new_children) < num_new_children and _iter < max_iter:
             _iter += 1
             cand = fn(**fn_kwargs)
+            if cand is None: break
             hash_cand = hash(cand)
             if hash_cand not in hash_children:
                 hash_children.add(hash_cand)

@@ -2,20 +2,23 @@ root_path: &search_root_path runs/search_test/
 
 space: &search_space !search_space
   epoch: 1
-  op1: !search_space 
-    space: ['a', 'b', 'c', 'd']
-    num_reserve: !search_space
-      space: '3:7:1'
-      label: sample_num
-    reserve_replace: True
-    label: op
-  op2: !search_space 
-    space: ['aa', 'bb', 'cc', 'dd']
-    label: op
-  op3: !search_space 
-    space: '0.2:0.8'
-    num_reserve: !search_space '3:7:1'
-    label: op3
+  op: !search_space
+    space: [0, 1, 2, 3]
+    num_repeat: 10
+#  op1: !search_space 
+#    space: ['a', 'b', 'c', 'd']
+#    num_reserve: !search_space
+#      space: '3:7:1'
+#      label: sample_num
+#    reserve_replace: True
+#    label: op
+#  op2: !search_space 
+#    space: ['aa', 'bb', 'cc', 'dd']
+#    label: op
+#  op3: !search_space 
+#    space: '0.2:0.8'
+#    num_reserve: !search_space '3:7:1'
+#    label: op3
         
 #  a: !search_space 0.1:0.3
 #  b: !search_space 0.2:0.8:0.1
@@ -103,13 +106,13 @@ space: &search_space !search_space
 #            i3: !search_space 0.8:1.8:0.1
 
 searcher: &searcher
-  submodule_name: src.searcher.NSGA2
+  submodule_name: src.searcher.EvolutionAlgorithm #NSGA2
   args:
     num_epoch: 5
-    num_survive: 10
-    num_crossover: 0
-    num_mutation: 8
-    num_population: 10
+    num_survive: 4
+    num_crossover: 1
+    num_mutation: 3
+    num_population: 4
     prob_mutation: 0.1
 
 contractor: &contractor
@@ -118,7 +121,7 @@ contractor: &contractor
     eval_engines: 
       - submodule_name: engines.SimulateEngine
       - submodule_name: engines.SimulateEngine
-    num_workers: 3
+    num_workers: 1
 
 #evaluater: &evaluater
 #  submodule_name: src.evaluater.Evaluater
