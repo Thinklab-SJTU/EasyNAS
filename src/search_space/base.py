@@ -12,7 +12,6 @@ import torch
 import numpy as np
 import warnings
 
-from builder.utils import get_submodule_by_name
 
 def get_item(src, idx):
     if isinstance(src, dict): 
@@ -165,6 +164,7 @@ class _SearchSpace(ABC):
         _SearchSpace._cnt += 1
         self._child_spaces = self.extract_child_space(space)
         if sampler_cfg is not None and self.label not in _SearchSpace._samplers:
+            from builder.utils import get_submodule_by_name
             if isinstance(sampler_cfg, str):
                 sampler_cfg = {'submodule_name': sampler_cfg}
             sampler_cls = get_submodule_by_name(sampler_cfg.get('submodule_name'), search_path='src.search_space.sampler')

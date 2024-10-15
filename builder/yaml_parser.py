@@ -108,6 +108,7 @@ class CfgLoader(yaml.SafeLoader):
         return eval(expr)
 
     def construct_search_space(self, node):
+        from src.search_space.base import SearchSpace
         def _deal_with_space(ss_args):
             if not isinstance(ss_args, str):
                 return ss_args
