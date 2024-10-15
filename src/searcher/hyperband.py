@@ -26,7 +26,7 @@ class Hyperband(Searcher):
         return self.current_outer_loop >= len(self.num_inner_loop) or len(self.current_queries) <= 0
 
     def _query_initial(self, n):
-        return super(HyperBand, self).query_initial(n)
+        return super(Hyperband, self).query_initial(n)
 
     def query_initial(self):
         return self.query_next()
