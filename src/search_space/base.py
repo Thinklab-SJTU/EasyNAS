@@ -592,7 +592,7 @@ class DiscreteSpace(_SearchSpace):
                 keys = [tmp.split('::')[-1] for tmp in ch_prefix.split('.')]
                 if int(keys[0]) == idx:
                     ch_s = self._get_item_by_name(s, '.'.join(keys[1:]))
-                    if isinstance(ch_s, SampleNode):
+                    if isinstance(ch_s, SampleNode) and ch_s.space.label == child_space.label:
                         ch_cand = child_space.sample_from_node(ch_s, label_samples)
                     else:
                         ch_cand = child_space._sample_once(label_samples=label_samples)

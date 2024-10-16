@@ -78,10 +78,12 @@ class EvolutionAlgorithm(Searcher):
             else:
                 if np.random.random_sample() < prob_mutation:
                     _sample.sample = _sample.space._sample_once(label_samples).sample
+                    if not _sample.space.label.startswith('_SearchSpace#'): 
+                        assert _sample.space.label in label_samples
                 else:
+                    if not _sample.space.label.startswith('_SearchSpace#'): label_samples[_sample.space.label] = _sample
                     for idx, sub_sample in _sample.sample.items():
                         stack.extend(_sample.get_sampleNode(sub_sample))
-            label_samples[_sample.space.label] = _sample
         return sample
 
     def _crossover(self, survive, prob_mutation=0.):
@@ -89,7 +91,7 @@ class EvolutionAlgorithm(Searcher):
         if len(survive) < 2: 
             return None
         father, mother = self._choose(survive, 2, replace=False) # two different identities
-        father = deepcopy(father)
+        father, mother = deepcopy(father), deepcopy(mother)
 #        father = deepcopy(self._choose(survive, 1))[0]
 #        mother = self._choose(survive, 1)[0]
         stack = [(father, mother)]
@@ -99,19 +101,22 @@ class EvolutionAlgorithm(Searcher):
                 _father.sample = _father.space.sample_from_node(label_samples[_father.space.label], label_samples).sample
                 continue
             if _father.space.label != _mother.space.label: 
+                if not _father.space.label.startswith('_SearchSpace#'): label_samples[_father.space.label] = _father
                 continue
             if isinstance(_father.space, IIDSpace):
                 stack.extend(list(zip(_father.sample.values(), _mother.sample.values())))
             else:
                 if np.random.random_sample() < prob_mutation:
                     _father.sample = _father.space._sample_once(label_samples).sample
+                    if not _sample.space.label.startswith('_SearchSpace#'): 
+                        assert _sample.space.label in label_samples
+                    continue
                 elif np.random.random_sample() < 0.5:
-                    _father.sample = deepcopy(_mother.sample)
-                else:
-                    for idx, sub_sample in _father.sample.items():
-                        if idx in _mother.sample:
-                            stack.extend(list(zip(_father.get_sampleNode(_father.sample[idx]), _mother.get_sampleNode(_mother.sample[idx]))))
-            label_samples[_father.space.label] = _father
+                    _father.sample, _mother.sample = _mother.sample, _father.sample
+                if not _father.space.label.startswith('_SearchSpace#'): label_samples[_father.space.label] = _father
+                for idx, sub_sample in _father.sample.items():
+                    if idx in _mother.sample:
+                        stack.extend(list(zip(_father.get_sampleNode(_father.sample[idx]), _mother.get_sampleNode(_mother.sample[idx]))))
         return father
 
     def reproduction(self, num_new_children, fn, hash_children=None, **fn_kwargs):
