@@ -442,6 +442,9 @@ class IIDSpace(_SearchSpace):
                 sample[prefix] = self._child_spaces[prefix].sample_from_node(s, label_samples)
             else:
                 sample[prefix] = self._child_spaces[prefix]._sample_once(label_samples)
+        for prefix, s in self._child_spaces.items():
+            if prefix not in src_sample_node.sample:
+                sample[prefix] = s._sample_once(label_samples)
         return SampleNode(self, sample)
 
     def build_node(self, src_sample):
