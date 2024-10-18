@@ -127,18 +127,6 @@ class CfgLoader(yaml.SafeLoader):
         if isinstance(node, yaml.ScalarNode):
             ss_args = self.construct_scalar(node)
             ss_args = {'space': ss_args}
-#            ss_args_tmp = ss_args.split(':')
-#            if len(ss_args_tmp) == 2:
-#                ss_args = {'space': ss_args}
-#            else:
-#                assert len(ss_args_tmp) == 3
-#                str2type = str2int
-#                for tmp in ss_args_tmp:
-##                    if '.' in tmp or ('e' in tmp and '-' in tmp.split('e')[-1]):
-#                     if str2int(tmp) != str2float(tmp):
-#                        str2type = str2float
-#                        break
-#                ss_args = {'space': np.arange(*[str2type(tmp) for tmp in ss_args_tmp]).tolist()}
         elif isinstance(node, yaml.SequenceNode):
             ss_args = {'space': self.construct_sequence(node, deep=True)}
         elif isinstance(node, yaml.MappingNode):

@@ -45,7 +45,7 @@ class HW_Resource():
 
 class Reward(UserList):
     def to_parsable(self):
-        return [float(tmp) for tmp in self]
+        return [None if tmp is None else float(tmp) for tmp in self]
 
 class Contractor(object):
     def __init__(self, eval_engines, resource=None, log_dir=None, num_workers=1):

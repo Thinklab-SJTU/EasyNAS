@@ -82,9 +82,13 @@ class BashEngine(BaseEngine):
                 stdout += output.strip() + "\n"
             if not output and exit_code is not None: 
                 break
-        print("Bash cmd done!")
-        results = self.parse_fn(stdout)
-        self.info.results.update(results)
+        if exit_code == 0:
+            print("Bash cmd done!")
+            results = self.parse_fn(stdout)
+            self.info.results.update(results)
+        else:
+            print("Bash cmd meet error and exit!")
+            self.info.results = None
 
     def update(self, sample):
         self.kwargs.update(sample)

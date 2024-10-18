@@ -47,6 +47,8 @@ class BaseEngine(object):
         raise(NotImplementedError("No implementation"))
 
     def extract_performance(self, eval_names=None):
+        if self.info.results is None:
+            return None
         if eval_names is None: eval_names = self.eval_names
         performance = []
         for i, eval_name in enumerate(eval_names):

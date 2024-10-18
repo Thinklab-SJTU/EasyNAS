@@ -136,25 +136,31 @@ class EvolutionAlgorithm(Searcher):
 
     def query_next(self):
         self.num_total -= len(self.history_reward[-1])
-        self.current_survive += self.history_reward[-1]
-        self.current_survive = self.natural_selection(self.current_survive, self.num_survive)
-        if self.num_reward_one_deal == -1:
-            num_mutation, num_crossover, num_random = self.num_mutation, self.num_crossover, self.num_population-self.num_mutation-self.num_crossover
-        else:
+        self.current_survive += [qr for qr in self.history_reward[-1] if None not in qr.reward]
+        if len(self.current_survive) == 0:
+            # random search
             num_sample = len(self.history_reward[-1])
-            prob_mutation, prob_crossover = self.num_mutation/self.num_population, self.num_crossover/self.num_population
-            prob_random = 1 - prob_mutation - prob_crossover
-            sample = np.array(np.random.choice([1,2,3], size=num_sample, p=[prob_mutation, prob_crossover, prob_random], replace=True))
-            num_mutation, num_crossover, num_random = (sample==1).sum(), (sample==2).sum(), (sample==3).sum()
-        # mutation
-        population = self.reproduction(num_mutation, self._mutation, survive=self.current_survive, prob_mutation=self.prob_mutation, hash_children=self.seen)
-        print(f"Mutation... Population has {len(population)} identities")
-        # crossover
-        population.extend(self.reproduction(num_crossover, self._crossover, survive=self.current_survive, hash_children=self.seen))
-        print(f"Crossover... Population has {len(population)} identities")
-        # random search
-        population.extend(self.reproduction(num_random, self.search_space._sample_once, hash_children=self.seen))
-        print(f"Random Select... Population has {len(population)} identities")
+            population = self.reproduction(num_sample, self.search_space._sample_once, hash_children=self.seen)
+            print(f"No survive identities! Random Select... Population has {len(population)} identities")
+        else:
+            self.current_survive = self.natural_selection(self.current_survive, self.num_survive)
+            if self.num_reward_one_deal == -1:
+                num_mutation, num_crossover, num_random = self.num_mutation, self.num_crossover, self.num_population-self.num_mutation-self.num_crossover
+            else:
+                num_sample = len(self.history_reward[-1])
+                prob_mutation, prob_crossover = self.num_mutation/self.num_population, self.num_crossover/self.num_population
+                prob_random = 1 - prob_mutation - prob_crossover
+                sample = np.array(np.random.choice([1,2,3], size=num_sample, p=[prob_mutation, prob_crossover, prob_random], replace=True))
+                num_mutation, num_crossover, num_random = (sample==1).sum(), (sample==2).sum(), (sample==3).sum()
+            # mutation
+            population = self.reproduction(num_mutation, self._mutation, survive=self.current_survive, prob_mutation=self.prob_mutation, hash_children=self.seen)
+            print(f"Mutation... Population has {len(population)} identities")
+            # crossover
+            population.extend(self.reproduction(num_crossover, self._crossover, survive=self.current_survive, hash_children=self.seen))
+            print(f"Crossover... Population has {len(population)} identities")
+            # random search
+            population.extend(self.reproduction(num_random, self.search_space._sample_once, hash_children=self.seen))
+            print(f"Random Select... Population has {len(population)} identities")
 
         self.current_epoch += 1
         return population
