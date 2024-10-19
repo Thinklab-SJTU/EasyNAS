@@ -51,7 +51,7 @@ class SearchCkptHOOK(HOOK):
         current_epoch_best = self.get_best(current_epoch_reward)
         #TODO: runner.info is EasyDict, it will decompose namedtuple 
         best = runner.info.results.get('best', None)
-        if best is None or current_epoch_best.reward > best['reward']:
+        if None not in current_epoch_best.reward and (best is None or current_epoch_best.reward > best['reward']):
 #            runner.info.results.best = copy.copy(current_epoch_best)
             runner.info.results.best = current_epoch_best._asdict()
             self.save_yaml(

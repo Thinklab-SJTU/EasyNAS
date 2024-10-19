@@ -113,7 +113,12 @@ class Contractor(object):
                 if task is None:
 #                    sample_queue.task_done()
                     break
-                rewards = evaluater.do_one_task(task)
+                try:
+                    rewards = evaluater.do_one_task(task)
+                except Exception as e:
+                    print("Evaluate meet error!")
+                    print(e)
+                    rewards = Reward([None])
                 reward_queue.put((task, rewards))
             self._dismiss_worker(evaluater)
         except Exception as e:
