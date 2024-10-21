@@ -42,6 +42,9 @@ class SearchCkptHOOK(HOOK):
 #            runner.info.results = checkpoint['results']
 
     def get_best(self, query_reward):
+        query_reward = [qr for qr in query_reward if None not in qr.reward]
+        if len(query_reward) == 0:
+            return None
         best_query_reward = max(query_reward, key=lambda x: x.reward)
         return best_query_reward
 
@@ -51,7 +54,7 @@ class SearchCkptHOOK(HOOK):
         current_epoch_best = self.get_best(current_epoch_reward)
         #TODO: runner.info is EasyDict, it will decompose namedtuple 
         best = runner.info.results.get('best', None)
-        if None not in current_epoch_best.reward and (best is None or current_epoch_best.reward > best['reward']):
+        if current_epoch_best is not None and (best is None or current_epoch_best.reward > best['reward']):
 #            runner.info.results.best = copy.copy(current_epoch_best)
             runner.info.results.best = current_epoch_best._asdict()
             self.save_yaml(
