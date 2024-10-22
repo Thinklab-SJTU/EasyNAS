@@ -83,19 +83,21 @@ class SearchEngine(BaseEngine):
     
                 # iterablely search
                 print("Searching...")
+                done_tasks = []
                 while not self.searcher.stop_search():
                     q, r = reward_queue.get()
                     assert q in self.searcher.current_queries
+                    done_tasks.append((q, r))
                     self.searcher.current_queries[q] = r
                     if self.searcher.get_enough_rewards():
                         with hooks_epoch(self._hooks, self):
                             self.searcher.history_reward.append([])
-                            for q, r in list(self.searcher.current_queries.items()):
-                                if r != 'waiting': 
-                                    self.searcher.current_queries.pop(q)
-                                    self.searcher.history_reward[-1].append(QueryReward(q, r))
+                            for i in range(len(done_tasks)):
+                                q, r = done_tasks.pop()
+                                assert q.status in ['done', 'error'], f"Get status as {q.status}"
+                                self.searcher.current_queries.pop(q)
+                                self.searcher.history_reward[-1].append(QueryReward(q, r))
                             next_queries = self.searcher.query_next()
-    #                        print(len(self.searcher.current_queries), len(self.searcher.history_reward[-1]), len(next_queries))
                             for q in next_queries:
                                 self.searcher.preprocess_cfg(q)
                                 sample_queue.put(q)

@@ -46,6 +46,15 @@ class SampleNode(object):
         """
         self.space = space
         self.sample = sample
+        self._status = 'waiting'
+
+    @property
+    def status(self):
+        return self._status
+    @status.setter
+    def status(self, value):
+        assert value in ['waiting', 'evaluating', 'error', 'done']
+        self._status = value
 
     def _build_sample_attr(self, name, fn, sample):
         if hasattr(self, name):

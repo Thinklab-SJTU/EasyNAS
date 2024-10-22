@@ -1,0 +1,58 @@
+root_path: &root_path runs/
+
+space: &search_space !search_space
+  epoch: 1
+  op: !search_space
+    space: [0, 1, 2, 3]
+    num_repeat: 10
+
+engine: &engine
+  submodule_name: engines.BashEngine
+  args:
+    bash_cmd: "bash test/test.sh"
+    eval_names: ['acc']
+
+
+searcher: &searcher
+  submodule_name: src.searcher.EvolutionAlgorithm
+  args:
+    num_epoch: 16
+    num_survive: 8
+    num_crossover: 2
+    num_mutation: 6
+    num_population: 9
+    prob_mutation: 0.3
+    init_points:
+    num_reward_one_deal: 2
+
+contractor: &contractor
+  submodule_name: src.evaluater.Contractor
+  args:
+    eval_engines: [*engine]
+    num_workers: 8
+    log_dir: !join [*root_path, logs/]
+
+search_hooks: &search_hooks
+  ckpt_hook:
+    submodule_name: SearchCkptHOOK
+    args:
+      priority: 30
+      save_root: !join [*root_path, search_ckpt]
+#      presearch: !join [*root_path, search_ckpt/last.pt]
+
+  log_hook:
+    submodule_name: BaseLogHOOK
+    args:
+      priority: 10
+      logger_name: Searcher
+      log_path: !join [*root_path, logs/searcher.log] 
+
+
+engine:
+  submodule_name: engines.SearchEngine
+  args:
+    search_space: *search_space
+    searcher: *searcher
+    contractor: *contractor
+    hooks: *search_hooks
+

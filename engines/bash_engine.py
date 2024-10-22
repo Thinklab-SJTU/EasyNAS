@@ -49,7 +49,7 @@ class BashEngine(BaseEngine):
             for k in results.keys():
                 result_keys.discard(k)
             if len(result_keys) == 0: break
-        return results
+        return None if len(results) == 0 else results
 
     def run(self, *args, **kwargs):
         kwargs.update({k:v for k, v in self.kwargs.items() if k not in kwargs})
@@ -82,13 +82,16 @@ class BashEngine(BaseEngine):
                 stdout += output.strip() + "\n"
             if not output and exit_code is not None: 
                 break
+        results = self.parse_fn(stdout)
+        if results is None:
+            self.info.results = None
+        else:
+            self.info.results.update(results)
         if exit_code == 0:
             print("Bash cmd done!")
-            results = self.parse_fn(stdout)
-            self.info.results.update(results)
         else:
             print("Bash cmd meet error and exit!")
-            self.info.results = None
+            raise(ValueError("Bash cmd meet error and exit!"))
 
     def update(self, sample):
         self.kwargs.update(sample)

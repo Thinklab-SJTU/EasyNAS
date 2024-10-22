@@ -44,6 +44,7 @@ class EvolutionAlgorithm(Searcher):
         return queries
 
     def stop_search(self):
+        print(f"Need to query another {self.num_total} identities...")
         return self.num_total <= 0
 #        return self.current_epoch >= self.num_epoch
 
@@ -136,7 +137,8 @@ class EvolutionAlgorithm(Searcher):
 
     def query_next(self):
         self.num_total -= len(self.history_reward[-1])
-        self.current_survive += [qr for qr in self.history_reward[-1] if None not in qr.reward]
+#        self.current_survive += [qr for qr in self.history_reward[-1] if None not in qr.reward]
+        self.current_survive += [qr for qr in self.history_reward[-1] if qr.query.status != 'error']
         if len(self.current_survive) == 0:
             # random search
             num_sample = len(self.history_reward[-1])

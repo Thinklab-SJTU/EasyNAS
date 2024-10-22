@@ -42,7 +42,8 @@ class SearchCkptHOOK(HOOK):
 #            runner.info.results = checkpoint['results']
 
     def get_best(self, query_reward):
-        query_reward = [qr for qr in query_reward if None not in qr.reward]
+#        query_reward = [qr for qr in query_reward if None not in qr.reward]
+        query_reward = [qr for qr in query_reward if qr.query.status != 'error']
         if len(query_reward) == 0:
             return None
         best_query_reward = max(query_reward, key=lambda x: x.reward)
@@ -62,7 +63,8 @@ class SearchCkptHOOK(HOOK):
                     name='best.yaml')
 #            self.save_yaml(runner.info.results.best['query'].config, name='best.yaml')
 #            self.save_ckpt(runner, 'best.pt')
-        print(f"Best Query: {QueryReward(**runner.info.results.best)}")
+        if runner.info.results.get('best', None):
+            print(f"Best Query: {QueryReward(**runner.info.results.best)}")
 
         # save reward
         self.save_yaml(data=[{'query': qr.query.config, 'reward': qr.reward.to_parsable()} for qr in current_epoch_reward], name='epoch%d.yaml'%runner.info.get('current_epoch', 0))
