@@ -615,10 +615,18 @@ class DiscreteSpace(_SearchSpace):
 
     def build_node(self, src_sample):
         sample = {}
+        if not self.return_list:
+            src_sample = [src_sample]
         for i, src in enumerate(src_sample):
             try:
-                idx = self.space.index(src)
-                sample[i] = (idx, src)
+                if isinstance(src, tuple): #TODO: Need to change to a special type, otherwise tuple cannot be used in the search space
+                    idx, src = src[0], src[1]
+                else:
+                    idx = self.space.index(src)
+                if isinstance(self.space[idx], _SearchSpace):
+                    sample[i] = (idx, self.space[idx].build_node(src))
+                else:
+                    sample[i] = (idx, src)
             except IndexError as e:
                 print("Default sample has not supported nesting DiscreteSpace yet.")
                 raise(e)
@@ -831,6 +839,8 @@ class ContinuousSpace(_SearchSpace):
 
     def build_node(self, src_sample):
         sample = {}
+        if not self.return_list:
+            src_sample = [src_sample]
         for v in src_sample:
             ratio = (v-self.start) / self.size
             sample[ratio] = v 
