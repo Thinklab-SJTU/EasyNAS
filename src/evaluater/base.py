@@ -122,6 +122,7 @@ class Contractor(object):
                     print("Evaluating meets error!")
                     print(e)
                     task.status = 'error'
+                evaluater.task_id += 1
                 reward_queue.put((task, rewards))
             self._dismiss_worker(evaluater)
         except Exception as e:
@@ -199,7 +200,6 @@ class Evaluater(object):
             else: rewards.append(reward)
         print(f'Get reward = {rewards}')
         print('='*20+f"Worker-{self.worker_id}:Task-{self.task_id} End"+'='*20)
-        self.task_id += 1
         return rewards
 
 class Evaluater_ori(object):

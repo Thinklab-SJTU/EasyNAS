@@ -362,10 +362,11 @@ class _SearchSpace(ABC):
         return src
 
     def new_space(self, **kwargs):
+        ori_num_reserve = getattr(kwargs, 'num_reserve', None)
         for key in inspect.getfullargspec(self.__class__.__init__).args:
             if key not in kwargs and hasattr(self, key):
                 kwargs[key] = getattr(self, key)
-        if getattr(kwargs, 'return_list', False):
+        if ori_num_reserve is None and not getattr(self, 'return_list', False):
             kwargs['num_reserve'] = None
         for prefix, child_space in self._child_spaces.items():
             new_child_space = child_space.new_space()
@@ -503,11 +504,11 @@ class RepeatSpace(IIDSpace):
         assert isinstance(space, _SearchSpace)
         self.num_repeat = num_repeat
         self.independent = independent
-        space = {0: space}
+        space = {'0': space}
         if independent:
             for i in range(1, num_repeat):
                 repeat_label = None if label is None else label+'repeat_%d'%i
-                space[i] = space[0].new_space(label=repeat_label)
+                space[str(i)] = space['0'].new_space(label=repeat_label)
 #        space = {i: space.new_space(label=None) if i>0 and independent else space for i in range(num_repeat)}
         super(IIDSpace, self).__init__(space, sampler_cfg=None, embed_fn=None, label=label)
 
@@ -525,7 +526,7 @@ class RepeatSpace(IIDSpace):
         return config
 
     def discretize(self, **replace_settings):
-        return [self.space[i].discretize(**replace_settings) for i in range(self.num_repeat)]
+        return [self.space[str(i)].discretize(**replace_settings) for i in range(self.num_repeat)]
 
 ###########################################
 class DiscreteSpace(_SearchSpace):
