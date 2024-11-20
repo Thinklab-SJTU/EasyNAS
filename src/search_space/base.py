@@ -525,6 +525,13 @@ class RepeatSpace(IIDSpace):
             config = [_config['0'] for _ in range(self.num_repeat)]
         return config
 
+    def build_node(self, src_sample):
+        _src_sample = {}
+        for i, sample in enumerate(src_sample):
+            _src_sample[str(i)] = sample
+        sample_node = super(RepeatSpace, self).build_node(_src_sample)
+        return sample_node
+
     def discretize(self, **replace_settings):
         return [self.space[str(i)].discretize(**replace_settings) for i in range(self.num_repeat)]
 
