@@ -62,3 +62,5 @@ class BaseEngine(object):
 #            performance = sign * self.info.results[eval_name]
         return performance if len(performance)>1 else performance[0]
 
+    def extract_save_info(self):
+        return getattr(self.info, 'save_infos', None)

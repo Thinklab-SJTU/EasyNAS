@@ -189,16 +189,23 @@ class Evaluater(object):
     def do_one_task(self, task):
         print('='*20+f"Worker-{self.worker_id}:Task-{self.task_id} Begin"+'='*20)
         rewards = Reward()
+        infos = {}
         for _idx, engine in enumerate(self.eval_engines):
             print(f"Running {_idx}-th evaluation engine as {engine}")
             if isinstance(task, SampleNode):
-                task = deepcopy(task.config)
-            engine.update(task)
+                _task = deepcopy(task.config)
+            engine.update(_task)
             engine.run()
             reward = engine.extract_performance() #engine.info.results.val.best
             if isinstance(reward, (list, tuple)): rewards.extend(list(reward))
             else: rewards.append(reward)
+            save_info = engine.extract_save_info()
+            if save_info:
+                infos[f'engine_{_idx}'] = save_info
         print(f'Get reward = {rewards}')
+        if infos:
+            print(f'Get info = {infos}')
+            task.save_infos = infos
         print('='*20+f"Worker-{self.worker_id}:Task-{self.task_id} End"+'='*20)
         return rewards
 
