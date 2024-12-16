@@ -104,9 +104,10 @@ class BashEngine(BaseEngine):
         else:
             self.info.results.update(results)
         
-        save_infos = self.parse_fn(stdout, result_keys = set(self.save_info_names))
-        if save_infos is not None:
-            self.info.save_infos = save_infos
+        if self.save_info_names:
+            save_infos = self.parse_fn(stdout, result_keys = set(self.save_info_names))
+            if save_infos is not None:
+                self.info.save_infos = save_infos
 
         if exit_code == 0:
             print("Bash cmd done!")

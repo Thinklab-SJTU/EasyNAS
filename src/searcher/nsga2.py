@@ -9,10 +9,12 @@ class NSGA2(EvolutionAlgorithm):
             num_mutation,
             prob_mutation,
             num_population=None,
+            init_points=None,
             num_reward_one_deal=-1):
         super(NSGA2, self).__init__(
                 search_space, num_epoch, num_survive, num_crossover, num_mutation, prob_mutation, num_population, 
-                num_reward_one_deal=num_reward_one_deal
+                num_reward_one_deal=num_reward_one_deal,
+                init_points=init_points
                 )
 
     def domiates(self, cand1, cand2):

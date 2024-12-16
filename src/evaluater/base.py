@@ -1,5 +1,6 @@
 import os
 import sys
+import traceback
 import atexit
 from copy import deepcopy
 import time
@@ -121,6 +122,8 @@ class Contractor(object):
                 except Exception as e:
                     print("Evaluating meets error!")
                     print(e)
+                    traceback.print_tb(sys.exc_info()[2])
+#                    traceback.print_exc()
                     task.status = 'error'
                 evaluater.task_id += 1
                 reward_queue.put((task, rewards))
@@ -201,7 +204,7 @@ class Evaluater(object):
             else: rewards.append(reward)
             save_info = engine.extract_save_info()
             if save_info:
-                infos[f'engine_{_idx}'] = save_info
+                infos[f'engine#{_idx}'] = save_info
         print(f'Get reward = {rewards}')
         if infos:
             print(f'Get info = {infos}')
