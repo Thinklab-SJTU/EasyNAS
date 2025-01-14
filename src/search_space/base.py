@@ -430,7 +430,8 @@ class IIDSpace(_SearchSpace):
         if self.embed_fn:
             return self.embed_fn(sample)
         else:
-            return None #len(sample)
+            embeds = [sub_sample.embedding for sub_sample in sample.values]
+            return np.concatenate(embeds, axis=0)
                 
     def _sample_once(self, label_samples=None):
         if label_samples is None: label_samples = {}
@@ -662,10 +663,13 @@ class DiscreteSpace(_SearchSpace):
     def build_embedding(self, sample):
         if self.embed_fn:
             return self.embed_fn(sample)
-        else:
+        else: # one-hot encoding
             num_reserve = len(sample)
             embed = np.zeros(len(self.space))
             for cand_idx, s in sample.values():
+                #TODO: for tree-based search_space
+                if isinstance(self.space[cand_idx], _SearchSpace): 
+                    raise(NotImplementedError("No implementation for tree-based search space"))
                 embed[int(cand_idx)] = 1./num_reserve
             return embed
 
@@ -868,7 +872,7 @@ class ContinuousSpace(_SearchSpace):
     def build_embedding(self, sample):
         if self.embed_fn:
             return self.embed_fn(sample)
-        else:
+        else: # normalized value
             vals = np.array([(v-self.start)/self.size for v in sample.values()])
             return vals
 
