@@ -1,19 +1,218 @@
 import os
 import sys
+import traceback
+import atexit
 from copy import deepcopy
 import time
-from collections import UserList
+from collections import UserList, namedtuple
+import multiprocessing as mp
 from multiprocessing import Process, JoinableQueue, Queue
 import logging
+from functools import partial
+from contextlib import contextmanager
 
 from builder import parse_cfg, get_submodule_by_name
+from engines.base import BaseEngine
+from src.search_space.base import SampleNode
+
+class HW_Resource():
+    def __init__(
+            self, 
+            gpu=None,
+            host=None, 
+            username=None,
+            password=None,
+            pkey=None,
+            port=22,
+    ):
+        if isinstance(gpu, int):
+            self.gpu = [gpu]
+        else:
+            assert gpu is None or isinstance(gpu, (list, tuple))
+            self.gpu = gpu
+        if host is not None:
+            raise(NotImplementedError("Not implementation for remote resource control"))
+            from src.evaluater.connect import build_sshclient
+            self.ssh = build_sshclient(host, username, password, pkey, port)
+        else:
+            self.ssh = None
+
+    def set(self):
+        print("="*100)
+        if self.gpu is not None:
+            os.environ['CUDA_VISIBLE_DEVICES'] = ",".join([str(g) for g in self.gpu])
+            print(f"visible cuda: {os.environ['CUDA_VISIBLE_DEVICES']}")
+        print("="*100)
 
 class Reward(UserList):
     def to_parsable(self):
-        return [float(tmp) for tmp in self]
+        return [None if tmp is None else float(tmp) for tmp in self]
 
+class Contractor(object):
+    def __init__(self, eval_engines, resource=None, log_dir=None, num_workers=1):
+        self.num_workers = num_workers
+        self.eval_engines = eval_engines
+        if resource is None: resource = tuple({} for _ in range(num_workers))
+        assert len(resource) == num_workers
+        self.resource = [HW_Resource(**r) for r in resource]
+        self.worker_id = {}
+        self.log_dir = log_dir
+        if self.log_dir is not None:
+            os.makedirs(self.log_dir, exist_ok=True)
+        atexit.register(self.kill_process)
+
+    def _kill_process(self, pid):
+        import psutil
+        print(pid)
+        childlist = psutil.Process(pid).children(recursive=True)
+        for i in childlist:
+            print("Killing child process", i.pid)
+            i.kill()
+        psutil.Process(pid).kill()
+                 
+    def kill_process(self):
+        eval_ps = getattr(self, 'eval_ps', None)
+        if eval_ps:
+            print(f"Killing {len(eval_ps)} workers...")
+            for p in eval_ps:
+                try:
+                    self._kill_process(p.pid)
+#                    p.terminate()
+                except Exception as e:
+                    print(e)
+            for p in eval_ps:
+               p.join()
+            print("Workers are killed")
+
+    def _recruit_worker(self, worker_cls, log_dir=None, worker_id=None):
+        if worker_id is None: worker_id = len(self.worker_id)
+        worker = worker_cls(self.eval_engines, log_dir=log_dir, worker_id=worker_id)
+        self.worker_id[worker_id] = worker
+        worker._ID = worker_id
+        if worker.log_dir is not None:
+#            worker.config_logger(f'worker-{worker_id}', os.path.join(worker.log_dir, f'worker-{worker_id}'))
+            import builtins as __builtin__
+            self.builtin_print = __builtin__.print
+            __builtin__.print = worker.logger.info
+        print("\n")
+        print(f"Recruit worker-{worker_id}\n")
+        return worker 
+
+    def _dismiss_worker(self, worker):
+        if worker.log_dir is not None:
+            import builtins as __builtin__
+            __builtin__.print = self.builtin_print
+        del self.worker_id[worker._ID]
+
+    def dispatch(self, resource, sample_queue, reward_queue, error_queue=None, worker_id=None, worker_cls=None):
+        try:
+            if worker_cls is None: worker_cls = Evaluater
+            evaluater = self._recruit_worker(worker_cls, log_dir=self.log_dir, worker_id=worker_id)
+            resource.set()
+            while True:
+                task = sample_queue.get()
+                task.status = 'evaluating'
+                if task is None:
+#                    sample_queue.task_done()
+                    break
+                rewards = Reward([None])
+                try:
+                    rewards = evaluater.do_one_task(task)
+                    task.status = 'done'
+                except Exception as e:
+                    print("Evaluating meets error!")
+                    print(e)
+                    traceback.print_tb(sys.exc_info()[2])
+#                    traceback.print_exc()
+                    task.status = 'error'
+                evaluater.task_id += 1
+                reward_queue.put((task, rewards))
+            self._dismiss_worker(evaluater)
+        except Exception as e:
+            error_queue.put((worker_id, e))
+            raise(e)
+#        error_queue.put((worker_id, None))
+
+    @contextmanager
+    def build(self, sample_queue, reward_queue, error_queue=None): 
+        self.eval_ps = [mp.Process(target=self.dispatch, args=(self.resource[i], sample_queue, reward_queue, error_queue, i)) for i in range(self.num_workers)]
+        for p in self.eval_ps:
+            p.start()
+        yield self.eval_ps
+        # dispatch: break out from the while
+        for _ in range(self.num_workers):
+            sample_queue.put(None)
+        for p in self.eval_ps:
+            try:
+                p.join()
+            except Exception as e:
+                raise(e)
+        del self.eval_ps
 
 class Evaluater(object):
+    def __init__(self, eval_engines, log_dir=None, worker_id=None):
+        self.worker_id = worker_id
+        self.task_id = 0
+        self.eval_engines = self.get_eval_engines(eval_engines)
+        self.log_dir = log_dir
+        if self.log_dir is not None:
+            os.makedirs(self.log_dir, exist_ok=True)
+        if self.log_dir is not None and worker_id is not None:
+            self.config_logger(f'EVALUATER#{worker_id}', os.path.join(self.log_dir, f'evaluater-{worker_id}'))
+
+    def config_logger(self, logger_name, log_path=None):
+        log_format = '[%(asctime)s] [%(name)s] [%(levelname)s]: %(message)s'
+        logging.basicConfig(stream=sys.stdout, level=logging.INFO, format=log_format, datefmt='%m/%d %I:%M:%S %p')
+        self.logger = logging.getLogger(logger_name)
+        if log_path:
+            fh = logging.FileHandler(log_path, mode='a')
+            fh.setFormatter(logging.Formatter(log_format))
+            self.logger.addHandler(fh)
+
+    def get_eval_engines(self, eval_engines):
+        _eval_engines = []
+
+        if not isinstance(eval_engines, (list, tuple)):
+            eval_engines = [eval_engines]
+
+        for engine in eval_engines:
+            if isinstance(engine, dict) and 'submodule_name' in engine:
+                _engine = get_submodule_by_name(engine['submodule_name'], search_path='src.evaluater')(
+                              **engine.get('args', {}),
+                              )
+                if engine.get('run_args', False):
+                    _engine.run = partial(_engine.run, **engine['run_args'])
+                _eval_engines.append(_engine)
+            elif isinstance(engine, BaseEngine):
+                _eval_engines.append(engine)
+            if getattr(_eval_engines[-1], 'root_path', None):
+                _eval_engines[-1].root_path = os.path.join(_eval_engines[-1].root_path, f'{self.worker_id}')
+        return _eval_engines
+
+    def do_one_task(self, task):
+        print('='*20+f"Worker-{self.worker_id}:Task-{self.task_id} Begin"+'='*20)
+        rewards = Reward()
+        infos = {}
+        for _idx, engine in enumerate(self.eval_engines):
+            print(f"Running {_idx}-th evaluation engine as {engine}")
+            if isinstance(task, SampleNode):
+                _task = deepcopy(task.config)
+            engine.update(_task)
+            engine.run()
+            reward = engine.extract_performance() #engine.info.results.val.best
+            if isinstance(reward, (list, tuple)): rewards.extend(list(reward))
+            else: rewards.append(reward)
+            save_info = engine.extract_save_info()
+            if save_info:
+                infos[f'engine#{_idx}'] = save_info
+        print(f'Get reward = {rewards}')
+        if infos:
+            print(f'Get info = {infos}')
+            task.save_infos = infos
+        print('='*20+f"Worker-{self.worker_id}:Task-{self.task_id} End"+'='*20)
+        return rewards
+
+class Evaluater_ori(object):
     def __init__(self, eval_fns, resource=None, log_dir=None):
         self.resource = resource
         self.eval_fns = self.get_eval_fn(eval_fns)

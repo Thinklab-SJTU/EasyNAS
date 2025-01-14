@@ -4,10 +4,15 @@ import ast
 import paramiko
 
 # Connect to Computer B
-def build_sshclient(host, username, password, port=22):
+def build_sshclient(host, username, password=None, pkey=None, port=22):
+    assert password is not None or pkey is not None
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect(host, port=port, username=username, password=password)
+    if pkey and os.path.exists(pkey):
+        private_key = paramiko.RSAKey.from_private_key_file(pkey)
+        ssh.connect(host, port=port, username=username, pkey=pkey)
+    else:
+        ssh.connect(host, port=port, username=username, password=password)
     return ssh
 
 
@@ -68,7 +73,7 @@ def fetch_info_rk3588(ssh, cmd):
 
         if latency == 0 or memory == 0:
             raise Exception('Failed to parse output: \n{}'.format(output))
-        return [latency, memory]
+        return {'latency': latency, 'memory': memory}
     info = fetch_info(ssh, cmd, end_identifier, output_parser)
     return info
 

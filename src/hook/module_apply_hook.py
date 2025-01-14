@@ -25,12 +25,14 @@ class DropPathProbHOOK(ModuleApplyHOOK):
     def set_drop_prob(self, m, eta):
         if isinstance(m, DropPath):
             m.drop_prob = self.init_drops[m] * eta
+#            print(f"Set drop_path as {m.drop_prob}")
 
     def before_run(self, runner):
         self.init_drops = {m: m.drop_prob for m in runner.model.modules() if isinstance(m, DropPath)}
 
     def apply(self, runner):
         eta = runner.info.current_epoch / runner.info.epochs
+        print(f"Multiply drop_path by {eta}")
         runner.model.apply(partial(self.set_drop_prob, eta=eta))
 
 

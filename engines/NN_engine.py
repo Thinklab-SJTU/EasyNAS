@@ -4,83 +4,147 @@ import bisect
 import math
 from itertools import chain
 import torch
+import torch.nn as nn
 
 from builder import create_dataloader, create_model, create_optimizer, create_criterion, create_hook, create_scheduler, create_search_space
 from src.hook import HOOK, OptHOOK, hooks_run, hooks_epoch, hooks_train_epoch, hooks_val_epoch, hooks_train_iter, hooks_val_iter
 from .base import BaseEngine
 
 class NNEngine(BaseEngine):
-    def __init__(self, data, model, criterion=None, optimizer=None, lr_scheduler=None, hooks=tuple(), local_rank=-1, sync_bn=False, amp=False, amp_val=False):
+    def __init__(self, data, model, criterion=None, optimizer=None, lr_scheduler=None, hooks=tuple(), local_rank=-1, sync_bn=False, amp=False, amp_val=False, root_path=None, eval_names=('val.best', )):
 
         self.local_rank = local_rank
+        self.sync_bn = sync_bn
         self.device = torch.device('cuda', max(local_rank, 0))
         self.search_space = create_search_space(model) # an instance of _Searchspace
-        self.dataloaders, model, self.criterion, self.optimizer, self.lr_scheduler, hooks = self.build_from_cfg(data, model, criterion, optimizer, lr_scheduler, hooks)
-
-        self.train_loader, self.val_loader, self.test_loader = self.dataloaders.get('train', None), self.dataloaders.get('val', None), self.dataloaders.get('test', None)
-        assert self.train_loader is not None
+        self.default_cfg = {}
+        self.build_all(data, model, criterion, optimizer, lr_scheduler, hooks)
 
         self.amp, self.amp_val = amp, amp_val
         self.scaler = torch.cuda.amp.GradScaler(enabled=True) if amp else None
 
-        self.model_without_ddp = model
-        if self.local_rank >= 0:
-#            # convert BN to SyncBN
-            if sync_bn:
-                model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
-            self.model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[self.local_rank], output_device=self.local_rank)
-        else:
-            self.model = model
-#            self.model = model.to(self.device)
-
-
         self.start_epoch = 0
-        self._hooks = []
-        for hook in hooks: self.register_hook(hook)
+        self.eval_names = eval_names
         self.info = EasyDict({
             'results': {'train': {'best': 0}, 'val': {'best': 0}},
             'current_iter': 0,
             'current_epoch': 0,
             })
 
+        self.root_path = root_path
 
-    def build_from_cfg(self, data_cfg, model_cfg, criterion_cfg, optimizer_cfg, lr_scheduler_cfg, hooks_cfg):
-        # build data
-        print("Building dataloader")
-        datasets, dataloaders = create_dataloader(data_cfg)
 
-        # build model
-        print("Building model")
-        model = create_model(model_cfg, input_size=data_cfg.get('input_size', None), local_rank=self.local_rank)
+    def _build_dataset(self, data):
+        if data is None:
+            assert hasattr(self, 'dataloaders')
+            return 
+        # build from cfg
+        elif 'dataloader' in data:
+            self.default_cfg['data'] = data
+            print("Building dataloader")
+            _, self.dataloaders = create_dataloader(data)
+        else:
+            self.dataloaders = data
+        self.train_loader, self.val_loader, self.test_loader = self.dataloaders.get('train', None), self.dataloaders.get('val', None), self.dataloaders.get('test', None)
 
-        # build criterion
-        if criterion_cfg:
+    def _build_model(self, model, input_size=None):
+        if model is None:
+            assert hasattr(self, 'model')
+            return 
+        # build from cfg
+        elif isinstance(model, dict):
+            if hasattr(self, 'model'): 
+                delattr(self, 'model')
+                delattr(self, 'model_without_ddp')
+            self.default_cfg['model'] = model
+            print("Building model")
+            model = create_model(model, input_size=input_size, local_rank=self.local_rank)
+            self.model_without_ddp = model
+            if self.local_rank >= 0:
+#                # convert BN to SyncBN
+                if self.sync_bn:
+                    model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
+                self.model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[self.local_rank], output_device=self.local_rank)
+            else:
+                self.model = model
+#                self.model = model.to(self.device)
+        else: 
+            assert(isinstance(model, nn.Module))
+            self.model_without_ddp = self.model = model
+            #TODO: What about local_rank > 0
+
+    def _build_criterion(self, criterion):
+        if criterion is None:
+            self.criterion = getattr(self, 'criterion', None)
+            return 
+        # build from cfg
+        elif isinstance(criterion, dict):
+            self.default_cfg['criterion'] = criterion
             print("Building criterion")
-            criterion = create_criterion(criterion_cfg, local_rank=self.local_rank).to(self.device)
-        else: criterion = None
+            self.criterion = create_criterion(criterion, local_rank=self.local_rank).to(self.device)
+        else: 
+            assert(isinstance(criterion, nn.Module))
+            self.criterion = criterion
 
-        # build optimizer
-        if optimizer_cfg:
+    def _build_optimizer(self, optimizer, model, criterion=None):
+        if optimizer is None:
+            self.optimizer = getattr(self, 'optimizer', None)
+            return 
+        # build from cfg
+        elif isinstance(optimizer, dict):
+            self.default_cfg['optimizer'] = optimizer
             print("Building optimizer")
-            optimizer = create_optimizer(model, optimizer_cfg, criterion)
-        else: optimizer = None
+            self.optimizer = create_optimizer(optimizer, model, criterion)
+        else: 
+            assert(isinstance(optimizer, torch.optim.Optimizer))
+            self.optimizer = optimizer
 
-        # build scheduler
-        if lr_scheduler_cfg:
+    def _build_scheduler(self, scheduler, optimizer):
+        if scheduler is None:
+            self.lr_scheduler = getattr(self, 'lr_scheduler', None)
+            return 
+        # build from cfg
+        elif isinstance(scheduler, dict):
+            self.default_cfg['lr_scheduler'] = scheduler
             print("Building lr scheduler")
-            lr_scheduler_cfg['args']['optimizer'] = optimizer
-            lr_scheduler = create_scheduler(lr_scheduler_cfg)
-        else: lr_scheduler = None
+            scheduler['args']['optimizer'] = optimizer
+            self.lr_scheduler = create_scheduler(scheduler)
+        else: 
+            assert(isinstance(scheduler, torch.optim.LRScheduler))
+            self.lr_scheduler = scheduler
 
+    def _build_hooks(self, hooks_cfg):
+        if hooks_cfg:
+            self.default_cfg['hooks'] = hooks_cfg
+            print("Building hooks")
+            self._hooks = []
+            gen = hooks_cfg.values() if isinstance(hooks_cfg, dict) else iter(hooks_cfg)
+            for v in gen:
+                print(v)
+                if (not v.get('args', {}).get('only_master', False)) or self.local_rank in [-1, 0]:
+                    self.register_hook(create_hook(v))
+        else: self._hooks = getattr(self, '_hooks', [])
+
+    def build_all(self, data=None, model=None, criterion=None, optimizer=None, lr_scheduler=None, hooks=None):
+        # build data
+        self._build_dataset(data)
+        # build model
+        input_size = data.get('input_size', None) if isinstance(data, dict) else None
+        self._build_model(model, input_size=input_size)
+        # build criterion
+        self._build_criterion(criterion)
+        # build optimizer
+        if model and not optimizer:
+            optimizer = self.default_cfg.get('optimizer', None)
+        self._build_optimizer(optimizer, self.model_without_ddp, self.criterion)
+        # build scheduler
+        if optimizer and not lr_scheduler:
+            lr_scheduler = self.default_cfg.get('lr_scheduler', None)
+        self._build_scheduler(lr_scheduler, self.optimizer)
         # build other hooks
-        print("Building hooks")
-        hooks = []
-        gen = hooks_cfg.values() if isinstance(hooks_cfg, dict) else iter(hooks_cfg)
-        for v in gen:
-            print(v)
-            if (not v.get('args', {}).get('only_master', False)) or self.local_rank in [-1, 0]:
-                hooks.append(create_hook(v))
-        return dataloaders, model, criterion, optimizer, lr_scheduler, hooks
+        if not hooks:
+            hooks = self.default_cfg.get('hooks', None)
+        self._build_hooks(hooks)
 
     def is_ddp(self):
         return self.local_rank >= 0
@@ -155,6 +219,7 @@ class NNEngine(BaseEngine):
                         with hooks_val_epoch(self._hooks, self):
                             self.val(self.val_loader, self.model, self.criterion)
                 max_iter -= len(self.train_loader)
+                if max_iter <=0: break
 #        self.call_hook('after_run')
 
     def validate(self):
@@ -186,6 +251,18 @@ class NNEngine(BaseEngine):
         else:
             self.validate()
 
-    def extract_performance(self):
-        return self.info.results.val.best
+    def update(self, sample):
+        self.build_all(**sample)
+        if self.scaler is not None: self.scaler = torch.cuda.amp.GradScaler(enabled=True)
+        self.start_epoch = 0
+        self.info = EasyDict({
+            'results': {'train': {'best': 0}, 'val': {'best': 0}},
+            'current_iter': 0,
+            'current_epoch': 0,
+            })
+
+    def extract_performance(self, eval_names=None):
+        super(NNEngine, self).extract_performance(eval_names)
+#        return self.info.results.val.best
+
         

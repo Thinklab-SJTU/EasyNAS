@@ -1,0 +1,76 @@
+root_path: &root_path runs/benchmark/PyCUTEst_LIZO/
+
+obj: &obj
+  submodule_name: src.benchmark.pycutest_object.PyCUTEst_benchmark
+  args:
+      fn_names: ['ARGTRIGLS', 'CHNROSNB', 'ROSENBR', 'COATING', 'GENHUMPS', 'MANCINO', 'BOXPOWER', 'CHAINWOO', 'MODBEALE', 'SROSENBR', 'BROYDNBDLS', 'DIXMAANC', 'NONDIA', 'POWELLSG', 'BROYDNBDLS']
+      sifParams:
+        - {N: 10}
+        - {N: 25}
+        - null
+        - null
+        - {N: 100}
+        - {N: 100}
+        - {N: 1000}
+        - {NS: 499}
+        - {N/2: 1000}
+        - {N/2: 250}
+        - {N: 5000}
+        - {M: 3000}
+        - {N: 5000}
+        - {N: 5000}
+        - {N: 50}
+      constraints: unconstrained
+#      num_problem: 5
+
+optimizer: &optimizer
+  submodule_name: src.optimizer.lizo.LIZO
+  args:
+    params: 
+    lr: 1.0e-4
+    num_sample_per_step: 8
+    reuse_distance_bound: 2.e-4 #2.e-2
+    orthogonal_sample: False
+    fast_alg: True
+    line_search_fn: !get_module [src.optimizer.lizo._backtracking, {shrink_rate: 0.2, c1: 1.e-4, max_ls: 10}]
+
+lr_scheduler: &scheduler
+  submodule_name: torch.optim.lr_scheduler.LambdaLR
+  args:
+    optimizer: 
+    lr_lambda: !get_module [src.scheduler.utils.multistep, {gamma: 0.2, milestones: [100]}]
+
+hooks: &hooks
+  opt_hook:
+    submodule_name: ZOOptHOOK
+    args:
+      priority: 0
+  
+  lr_scheduler_hook:
+    submodule_name: LrScheduleHOOK
+    args: 
+      priority: 5
+      mode: iter
+  
+  log_hook:
+    submodule_name: src.hook.logger.log_hook.LogHOOK
+    args:
+      logger_name: BenchmarkEngine
+      log_path: !join [*root_path, train.log]
+      print_freq: 10
+      priority: 30
+
+engine:
+  submodule_name: engines.BenchmarkEngine
+  args:
+    obj: *obj
+    optimizer: *optimizer
+    lr_scheduler: *scheduler
+    hooks: *hooks
+  run_args: 
+    max_iter: 500
+
+
+
+
+

@@ -158,10 +158,10 @@ def main():
 #  color2 = ['#ffa03e', 'purple', 'black','blue', 'red']
   color2 = ['#ffa03e', 'purple', 'black','blue', 'red']
   sgd_files = ['runs/pycutest_SGD/ablation_lr_test0.yaml', 'runs/pycutest_SGD/ablation_lr_test1.yaml', 'runs/pycutest_SGD/ablation_lr_test2.yaml']
-  zosgd_files = ['runs/pycutest_zosgd/ablation_lr.yaml', 'runs/pycutest_zosgd/ablation_lr_test1.yaml', 'runs/pycutest_zosgd/ablation_lr_test2.yaml']
-  zosignsgd_files = ['runs/pycutest_zosign-sgd/ablation_lr.yaml', 'runs/pycutest_zosign-sgd/ablation_lr_test1.yaml', 'runs/pycutest_zosign-sgd/ablation_lr_test2.yaml']
-  zoadam_files = ['runs/pycutest_zoadam/ablation_lr.yaml', 'runs/pycutest_zoadam/ablation_lr_test1.yaml', 'runs/pycutest_zoadam/ablation_lr_test2.yaml']
-  lizo_files = ['runs/pycutest/ablation_lr.yaml', 'runs/pycutest/ablation_lr_test1.yaml', 'runs/pycutest/ablation_lr_test2.yaml']
+  zosgd_files = ['runs/pycutest_zosgd_N2/ablation_lr_test0.yaml', 'runs/pycutest_zosgd_N2/ablation_lr_test1.yaml', 'runs/pycutest_zosgd_N2/ablation_lr_test2.yaml']
+  zosignsgd_files = ['runs/pycutest_zosign-sgd_N2/ablation_lr_test0.yaml', 'runs/pycutest_zosign-sgd_N2/ablation_lr_test1.yaml', 'runs/pycutest_zosign-sgd_N2/ablation_lr_test2.yaml']
+  zoadam_files = ['runs/pycutest_zoadam_N2/ablation_lr_test3.yaml', 'runs/pycutest_zoadam_N2/ablation_lr_test4.yaml', 'runs/pycutest_zoadam_N2/ablation_lr_test5.yaml']
+  lizo_files = ['runs/pycutest_N2/ablation_lr_test6.yaml', 'runs/pycutest_N2/ablation_lr_test7.yaml', 'runs/pycutest_N2/ablation_lr_test8.yaml']
   sgd_data, zosgd_data, zosignsgd_data, zoadam_data, lizo_data = [], [], [], [], []
   for sgd_f, zosgd_f, zosignsgd_f, zoadam_f, lizo_f in zip(sgd_files, zosgd_files, zosignsgd_files, zoadam_files, lizo_files):
       _sgd_data = read_info(sgd_f)
@@ -176,12 +176,12 @@ def main():
       lizo_data.append(get_best_lr(_lizo_data))
   data = {
 #          'SGD': sgd_data,
-          'ZO-SGD': zosgd_data,
-          'ZO-signSGD': zosignsgd_data,
+#          'ZO-SGD': zosgd_data,
+#          'ZO-signSGD': zosignsgd_data,
           'ZO-AdaMM': zoadam_data,
           'ReLIZO': lizo_data,
           }
-  fns = list(zosgd_data[0].keys())
+  fns = list(lizo_data[0].keys())
   for fn in fns:
       print(f'Plot {fn}')
       fig = plt.figure(figsize=(8, 8))
@@ -212,15 +212,16 @@ def main():
           y_mean = y.mean(axis=0)
           y_std = y.std(axis=0)
           x = range(0, len(y_mean))
-          print(len(y), min(y_mean))
           ax1.plot(x, y_mean, "-", label=label, lw=2, c=color2[i])
           ax1.fill_between(x, y_mean-y_std, y_mean+y_std, alpha=0.5, facecolor=color2[i])
+          print(label, min(y_mean), y.min(axis=1))
 
       # set legend
       h1, l1 = ax1.get_legend_handles_labels()
       ax1.legend(h1, l1, loc=1, ncol=1)
-      plt.savefig(os.path.join(base_dir, f'best_lr_{fn}.pdf') )
+      plt.savefig(os.path.join(base_dir, f'N2_best_lr_{fn}.pdf') )
   plt.close('all')
+  assert 0
 
   ##################
   # plot bound - num_samples

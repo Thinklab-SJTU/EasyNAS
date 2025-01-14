@@ -1,0 +1,52 @@
+root_path: &search_root_path runs/search_test/
+
+space: &search_space !search_space
+  epoch: 1
+  layer1: !search_space ['bspline', 'cheb', 'xxx']
+  layer2: !search_space ['bspline', 'cheb', 'xxx']
+  layer3: !search_space ['bspline', 'cheb', 'xxx']
+
+engine: &engine
+  submodule_name: engines.BashEngine
+  args:
+    bash_cmd: "cd <path/to/your/dir> && python main.py"
+    eval_names: ['acc']
+
+searcher: &searcher
+  submodule_name: src.searcher.HyperBand
+  args:
+    num_initial: 1000
+    max_resource_inner_loop: {epoch: 27}
+    min_resource_per_query: {epoch: 1}
+    reserve_rate: 3
+
+contractor: &contractor
+  submodule_name: src.evaluater.Contractor
+  args:
+    eval_engines: [*engine]
+    num_workers: 1
+    log_dir: !join [*search_root_path, logs/]
+
+hooks: &hooks
+  ckpt_hook:
+    submodule_name: SearchCkptHOOK
+    args:
+      priority: 30
+      save_root: !join [*search_root_path, search_ckpt/]
+  log_hook:
+    submodule_name: BaseLogHOOK
+    args:
+      priority: 10
+      logger_name: searcher
+      log_path: !join [*search_root_path, logs/search.log]
+
+
+engine:
+  submodule_name: engines.SearchEngine
+  args:
+    search_space: *search_space
+    searcher: *searcher
+    contractor: *contractor
+    hooks: *hooks
+
+

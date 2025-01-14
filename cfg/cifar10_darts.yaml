@@ -1,4 +1,5 @@
-root_path: &root_path runs/cifar10_noPermutation_darts_noEdgeAlpha_noCutout_noActEachOp_SepConvInterReLU_alphaInit1e-3_actBeforeOp_gradClip5_noInitW_updateFreq1_withZeroOp/
+#root_path: &root_path runs/cifar10_noPermutation_darts_noEdgeAlpha_noCutout_noActEachOp_SepConvInterReLU_alphaInit1e-3_actBeforeOp_gradClip5_noInitW_updateFreq1_withZeroOp/
+root_path: &root_path runs/cifar10_darts/
 epoch: &epoch 50
 accumulate_gradient: &acc_grad 1
 
@@ -53,8 +54,17 @@ hooks: &hooks
       accumulate_gradient: *acc_grad
       priority: 30
       save_root: !join [*root_path, arch/]
-      discretize_width: 2.25
-      discretize_depth: 5
+      replace_settings: # TODO: 1. affine should be True (both in Cell_search and darts_conv); 2. No BN after Pooling
+        args.width_multiple: 2.25
+        args.depth_multiple: 5
+        args.architecture.1.args.drop_path_prob: 0.2
+        args.architecture.2.args.drop_path_prob: 0.2
+        args.architecture.3.args.drop_path_prob: 0.2
+        args.architecture.4.args.drop_path_prob: 0.2
+        args.architecture.5.args.drop_path_prob: 0.2
+        args.architecture.6.args.drop_path_prob: 0.2
+        args.architecture.7.args.drop_path_prob: 0.2
+        args.architecture.8.args.drop_path_prob: 0.2
   
   eval_hook:
     submodule_name: EvalAccHOOK
@@ -94,4 +104,6 @@ engine:
     lr_scheduler: *scheduler
     hooks: *hooks
     amp: False
+  run_args:
+    epochs: *epoch 
 

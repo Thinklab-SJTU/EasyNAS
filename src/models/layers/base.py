@@ -174,7 +174,7 @@ class SearchModule(nn.Module):
 
     def state_dict(self, *args, destination=None, prefix='', keep_vars=False):
         destination = super(SearchModule, self).state_dict(*args, destination, prefix, keep_vars)
-        destination[prefix+'search_space'] = {k:v for k, v in vars(self).items() if isinstance(v, SearchSpace)}
+        destination[prefix+'search_space'] = {k:v for k, v in vars(self).items() if isinstance(v, _SearchSpace)}
         destination.update({prefix+k: v if keep_vars else v.detach() for k, v in self._arch_parameters.items()})
         return destination
 
@@ -203,6 +203,7 @@ class OpBuilder(object):
             if isinstance(op, IIDSpace):
                 op = op.space
             op = edict(op)
+            if 'args' not in op: op.args = {}
             up_s, s = int(1./stride), max(1, stride)
             adjust_ch = False
             tmp_module = get_layer(op.submodule_name)

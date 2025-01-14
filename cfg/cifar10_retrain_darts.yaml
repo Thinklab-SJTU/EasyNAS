@@ -1,5 +1,5 @@
-base_path: &base_path runs/cifar10_noPermutation_darts_noEdgeAlpha_noCutout_noActEachOp_SepConvInterReLU_alphaInit1e-3_actBeforeOp_gradClip5_noInitW_updateFreq1_withZeroOp/
-root_path: &root_path !join [*base_path, retrain-affineTrue_drop_path0.2-dynamic/]
+base_path: &base_path runs/cifar10_darts/
+root_path: &root_path !join [*base_path, retrain/]
 epoch: &epoch 600
 accumulate_gradient: &acc_grad 1
 
@@ -9,6 +9,10 @@ auxiliary_model: &aux
     output_ch: &output_ch 10
     architecture:
       - input_idx: -1 # 0
+        submodule_name: torch.nn.ReLU 
+        args:
+          inplace: True
+      - input_idx: -1 # 1
         submodule_name: PoolBNAct
         args: 
           pool: avg
@@ -18,21 +22,21 @@ auxiliary_model: &aux
           act: False
           bn: False
           count_include_pad: False
-      - input_idx: -1 # 1
+      - input_idx: -1 # 2
         submodule_name: ConvBNAct
         args: 
           out_channel: 128
           kernel: 1
           act: torch.nn.ReLU
           bn: torch.nn.BatchNorm2d
-      - input_idx: -1 # 2
+      - input_idx: -1 # 3
         submodule_name: ConvBNAct
         args: 
           out_channel: 768
           kernel: 2
           act: torch.nn.ReLU
           bn: torch.nn.BatchNorm2d
-      - input_idx: -1 # 3
+      - input_idx: -1 # 4
         submodule_name: LinearBNAct
         is_outlayer: True
         args: 
@@ -124,3 +128,5 @@ engine:
     lr_scheduler: *scheduler
     hooks: *hooks
     amp: False
+  run_args:
+    epochs: *epoch

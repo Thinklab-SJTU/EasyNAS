@@ -56,7 +56,7 @@ func_map = {
         'bias_parameters': bias_parameters,
         }
 
-def create_optimizer(model, cfg: dict, criterion=None):
+def create_optimizer(cfg: dict, model, criterion=None):
     cfg = deepcopy(cfg)
     if criterion:
         model = module_iters(model, criterion)

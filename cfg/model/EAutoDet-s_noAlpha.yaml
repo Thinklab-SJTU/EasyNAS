@@ -2,14 +2,14 @@
 #  submodule_name: WeightedSampler
 #  args:
 #    norm_fn: pseudo_gumbel_softmax
-#ch_sampler: &ch_sampler
-#  submodule_name: WeightedSampler
-#  args:
-#    norm_fn: pseudo_gumbel_softmax
 op_edge_sampler: &op_edge_sampler
   submodule_name: UniformDiscreteWeightedSampler
 ch_sampler: &ch_sampler
-  submodule_name: UniformDiscreteWeightedSampler
+  submodule_name: WeightedSampler
+  args:
+    norm_fn: pseudo_gumbel_softmax
+#ch_sampler: &ch_sampler
+#  submodule_name: UniformDiscreteWeightedSampler
 
 num_classes: &num_classes 80  # number of classes
 #

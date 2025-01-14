@@ -29,7 +29,7 @@ class BenchmarkEngine(BaseEngine):
         # build optimizer
         if optimizer_cfg:
             print("Building optimizer")
-            optimizer = create_optimizer(obj, optimizer_cfg)
+            optimizer = create_optimizer(optimizer_cfg, obj)
         else: optimizer = None
 
         # build scheduler
@@ -97,3 +97,4 @@ class BenchmarkEngine(BaseEngine):
 
     def extract_performance(self):
         return self.info.results.get('best')
+

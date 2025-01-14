@@ -2,108 +2,134 @@ root_path: &search_root_path runs/search_test/
 
 space: &search_space !search_space
   epoch: 1
+  op: !search_space
+    space: [0, 1, 2, 3]
+    num_repeat: 10
+#  op1: !search_space 
+#    space: ['a', 'b', 'c', 'd']
+#    num_reserve: !search_space
+#      space: '3:7:1'
+#      label: sample_num
+#    reserve_replace: True
+#    label: op
+#  op2: !search_space 
+#    space: ['aa', 'bb', 'cc', 'dd']
+#    label: op
+#  op3: !search_space 
+#    space: '0.2:0.8'
+#    num_reserve: !search_space '3:7:1'
+#    label: op3
+        
 #  a: !search_space 0.1:0.3
-  b: !search_space 0.2:0.8:0.1
-  c: !search_space [1,2,3,4]
-  d:
-    d1: d1
-    d2: !search_space 
-      space: [d21, d22, d23]
-      label: d2
-    d3: !search_space 
-      space: [d31, d32, d33]
-      label: d2
-
-  e: !search_space
-    label: e
-    space:
-      - e1
-      - !search_space
-        space:
-            e21: e21
-            e22: !search_space 
-              space: [e221, e222, e223]
-              label: d2
-            e23: !search_space 
-              space: [e231, e232, e233]
-              label: d2
-      - !search_space
-        space:
-#            e31: !search_space 0.3:0.6
-            e32: !search_space 0.8:1.8:0.1
-  f: !search_space
-    space:
-      f1: f1
-      f2: !search_space 
-        space: [f21, f22, f23]
-        label: f2
-      f3: !search_space 
-        space: [f31, f32, f33]
-        label: f2
-  eg: !search_space
-    label: e
-    space:
-      - eg1
-      - !search_space
-        space:
-            e21: eg21
-            e22: !search_space 
-              space: [eg221, eg222, eg223]
-              label: eg2
-            e23: !search_space 
-              space: [eg231, eg232, eg233]
-      - !search_space
-        space:
-#            e31: !search_space 0.3:0.6
-            e32: !search_space 0.8:1.8:0.1
-
-  h: !search_space
-    label: d2
-    space:
-      - h1
-      - !search_space
-        space:
-            h21: h21
-            h22: !search_space 
-              space: [h221, h222, h223]
-              label: h2
-            h23: !search_space 
-              space: [h231, h232, h233]
-              label: h2
-      - !search_space
-        space:
-            h3: !search_space 0.8:1.8:0.1
-
-  i: !search_space 
-    space:
-      - i1
-      - i21: i21
-        i22: !search_space 
-          space: [i221, i222, i223]
-        i23: !search_space 
-          space: [i231, i232, i233]
-          #          label: h2
-      - !search_space
-        space:
-            i3: !search_space 0.8:1.8:0.1
+#  b: !search_space 0.2:0.8:0.1
+#  c: !search_space [1,2,3,4]
+#  d:
+#    d1: d1
+#    d2: !search_space 
+#      space: [d21, d22, d23]
+#      label: d2
+#    d3: !search_space 
+#      space: [d31, d32, d33]
+#      label: d2
+#
+#  e: !search_space
+#    label: e
+#    space:
+#      - e1
+#      - !search_space
+#        space:
+#            e21: e21
+#            e22: !search_space 
+#              space: [e221, e222, e223]
+#              label: d2
+#            e23: !search_space 
+#              space: [e231, e232, e233]
+#              label: d2
+#      - !search_space
+#        space:
+##            e31: !search_space 0.3:0.6
+#            e32: !search_space 0.8:1.8:0.1
+#  f: !search_space
+#    space:
+#      f1: f1
+#      f2: !search_space 
+#        space: [f21, f22, f23]
+#        label: f2
+#      f3: !search_space 
+#        space: [f31, f32, f33]
+#        label: f2
+#  eg: !search_space
+#    label: e
+#    space:
+#      - eg1
+#      - !search_space
+#        space:
+#            e21: eg21
+#            e22: !search_space 
+#              space: [eg221, eg222, eg223]
+#              label: eg2
+#            e23: !search_space 
+#              space: [eg231, eg232, eg233]
+#      - !search_space
+#        space:
+##            e31: !search_space 0.3:0.6
+#            e32: !search_space 0.8:1.8:0.1
+#
+#  h: !search_space
+#    label: d2
+#    space:
+#      - h1
+#      - !search_space
+#        space:
+#            h21: h21
+#            h22: !search_space 
+#              space: [h221, h222, h223]
+#              label: h2
+#            h23: !search_space 
+#              space: [h231, h232, h233]
+#              label: h2
+#      - !search_space
+#        space:
+#            h3: !search_space 0.8:1.8:0.1
+#
+#  i: !search_space 
+#    space:
+#      - i1
+#      - i21: i21
+#        i22: !search_space 
+#          space: [i221, i222, i223]
+#        i23: !search_space 
+#          space: [i231, i232, i233]
+#          #          label: h2
+#      - !search_space
+#        space:
+#            i3: !search_space 0.8:1.8:0.1
 
 searcher: &searcher
-  submodule_name: src.searcher.NSGA2
+  submodule_name: src.searcher.EvolutionAlgorithm #NSGA2
   args:
     num_epoch: 5
-    num_survive: 10
-    num_crossover: 4
-    num_mutation: 4
-    num_population: 10
+    num_survive: 4
+    num_crossover: 1
+    num_mutation: 3
+    num_population: 4
     prob_mutation: 0.1
 
-evaluater: &evaluater
-  submodule_name: src.evaluater.Evaluater
+contractor: &contractor
+  submodule_name: src.evaluater.Contractor
   args:
-    eval_fns: 
-      - !get_module src.evaluater.performance.get_random
-      - !get_module src.evaluater.performance.get_random
-      - !get_module src.evaluater.performance.get_random
+    eval_engines: 
+      - submodule_name: engines.SimulateEngine
+      - submodule_name: engines.SimulateEngine
+    num_workers: 1
+
+#evaluater: &evaluater
+#  submodule_name: src.evaluater.Evaluater
+#  args:
+#    eval_fns: 
+#      - !get_module src.evaluater.performance.get_random
+#      - !get_module src.evaluater.performance.get_random
+#      - !get_module src.evaluater.performance.get_random
 
 hooks: &hooks
   ckpt_hook:
@@ -118,8 +144,7 @@ engine:
   args:
     search_space: *search_space
     searcher: *searcher
-    evaluater: *evaluater
+    contractor: *contractor
     hooks: *hooks
-    num_eval_workers: 1
 
 

@@ -19,7 +19,7 @@ def DWConvBNAct(in_channel, out_channel, kernel=1, dilation=1, stride=1, group=1
 
 
 class PoolBNAct(nn.Module):
-    def __init__(self, kernel, out_channel=None, stride=1, pool='max', pad=None, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=True)), act=nn.ReLU(), **kwargs): 
+    def __init__(self, kernel, out_channel=None, stride=1, pool='max', pad=None, bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True)), act=nn.ReLU(), **kwargs): 
         super(PoolBNAct, self).__init__()
         if bn: assert out_channel is not None
 
@@ -269,7 +269,7 @@ class DropPath(nn.Module):
         shape = (x.shape[0],) + (1,) * (x.ndim - 1)
         random_tensor = keep_prob + torch.rand(shape, dtype=x.dtype, device=x.device)
         random_tensor.floor_()
-#        x.div_(keep_prob).mul_(random_tensor)
+#        random_tensor = torch.bernoulli(torch.ones(shape, dtype=x.dtype, device=x.device)*keep_prob)
         x = x.div(keep_prob).mul_(random_tensor)
         return x
 

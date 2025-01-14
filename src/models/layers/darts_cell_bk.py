@@ -1,3 +1,5 @@
+
+from easydict import EasyDict as edict
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -5,25 +7,22 @@ from torch.autograd import Variable
 #from mish_cuda import MishCuda as Mish
 
 from .base import SearchModule
-from .search_space import get_search_space, darts
+from src.search_space.cell_space import get_search_space, darts
 from .common import ConvBNAct, FactorizedReduce
 from .search_common import AFF
 from .utils import get_act, get_layer
 
-#class darts_identity(nn.Module):
-#    def __init__(self, in_channel, out_channel, stride, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)), act=True):
-#        super(darts_identity, self).__init__()
-#        if stride == 1:
-#            self.op = nn.Identity()
-#        else: self.op = FactorizedReduce(in_channel, out_channel, stride, bn, act)
-#    
-#    def forward(self, x):
-#        return self.op(x)
-
 def darts_identity(in_channel, out_channel, stride, bn=dict(name='torch.nn.BatchNorm2d', args=dict(affine=False)), act=True):
     if stride == 1:
         return nn.Identity()
-    else: return FactorizedReduce(in_channel, out_channel, stride, bn, act)
+    else: 
+        if act:
+            return nn.Sequential(
+                    get_act(act),
+                    FactorizedReduce(in_channel, out_channel, stride, bn, False)
+                    )
+        else:
+            return FactorizedReduce(in_channel, out_channel, stride, bn, False)
 
 
 class Cell(nn.Module):
@@ -36,6 +35,7 @@ class Cell(nn.Module):
       self.edges = edges
       self._multiplier = multiplier
       C = out_channel // multiplier
+      self.strides = strides
 
       reduction = True
       for s in strides:
@@ -44,7 +44,12 @@ class Cell(nn.Module):
               break
       self.preprocess = nn.ModuleList([])
       for cin, s in zip(in_channel, strides):
-          self.preprocess.append(FactorizedReduce(cin, C, stride=2, act=act, bn=bn) if not reduction and s==2 else ConvBNAct(cin, C, kernel=1, stride=1, act=act, bn=bn))
+          pre_op = nn.Sequential(
+                  get_act(act),
+                  FactorizedReduce(cin, C, stride=2, act=False, bn=bn) if not reduction and s==2 else ConvBNAct(cin, C, kernel=1, stride=1, act=False, bn=bn),
+                  )
+          self.preprocess.append(pre_op)
+#          self.preprocess.append(FactorizedReduce(cin, C, stride=2, act=act, bn=bn) if not reduction and s==2 else ConvBNAct(cin, C, kernel=1, stride=1, act=act, bn=bn))
 
       self._ops = nn.ModuleList()
       tmp_cins, tmp_strides = [C for _ in range(len(in_channel))], strides.copy() if reduction else [1 for _ in range(len(strides))]
@@ -53,7 +58,7 @@ class Cell(nn.Module):
               in_channel=[tmp_cins[e] for e in edges[i]],
               out_channel=C,
               strides=[tmp_strides[e] for e in edges[i]],
-              act=act,
+              act=False,
               bn=False,
               drop_path_prob=drop_path_prob
           )
@@ -91,7 +96,12 @@ class Cell_search(SearchModule):
                 break
         self.preprocess = nn.ModuleList([])
         for cin, s in zip(in_channel, strides):
-            self.preprocess.append(FactorizedReduce(cin, C, stride=2, act=act, bn=bn) if not reduction and s==2 else ConvBNAct(cin, C, kernel=1, stride=1, act=act, bn=bn))
+            pre_op = nn.Sequential(
+                    get_act(),
+                    FactorizedReduce(cin, C, stride=2, act=False, bn=bn) if not reduction and s==2 else ConvBNAct(cin, C, kernel=1, stride=1, act=False, bn=bn),
+                    )
+            self.preprocess.append(pre_op)
+#            self.preprocess.append(FactorizedReduce(cin, C, stride=2, act=act, bn=bn) if not reduction and s==2 else ConvBNAct(cin, C, kernel=1, stride=1, act=act, bn=bn))
 
         candidate_op = get_search_space(candidate_op)
         self._ops = nn.ModuleList()
@@ -103,7 +113,7 @@ class Cell_search(SearchModule):
                                  candidate_op=candidate_op,
                                  gumbel_op=gumbel_op,
                                  gumbel_edge=gumbel_edge,
-                                 act=act, bn=False,
+                                 act=False, bn=False,
                                  independent_edge_arch_param=independent_edge_arch_param,
                                  independent_op_arch_param=independent_op_arch_param,
                                  independent_ch_arch_param=independent_ch_arch_param,
@@ -122,9 +132,38 @@ class Cell_search(SearchModule):
 
 
     def discretize(self, cfg, op_alphas=None, ch_alphas=None, edge_alphas=None, num_reserved_op=1, num_reserved_edge=2):
-        args = {'multiplier': self._multiplier, 'cell_ops': [], 'edges': [], 'drop_path_prob': 0.2}
+        args = dict(multiplier=self._multiplier, cell_ops=[], edges=[], 
+                drop_path_prob=0.2,
+                bn=dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True)),
+                )
         for i in range(self._steps):
             op = self._ops[i].discretize()
+            # set affine as True for each BN
+            for edge_idx, edge_op in enumerate(op['args']['ops']):
+                if isinstance(edge_op, (dict)):
+                    if edge_op.get('args', {}).get('bn', False):
+                        if edge_op['submodule_name'] == 'PoolBNAct': # when DARTS retrains, pooling has no BN
+                            edge_op['args']['bn'] = False
+                        else: # when DARTS retrain, affine in BN is set as True
+                            edge_op['args']['bn'] = dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True))
+                    if edge_op.get('args', {}).get('act', False) and 'Conv' in edge_op['submodule_name']:
+                       edge_op['args']['act'] = False
+                       op['args']['ops'][edge_idx] = [edict(submodule_name='torch.nn.ReLU', args=dict(inplace=False)), edge_op]
+                else:
+                    j, no_act_before = 0, True
+                    while j < len(edge_op):
+                        sub_op = edge_op[j]
+                        if 'ReLU' in sub_op['submodule_name']: no_act_before = False
+                        if sub_op.get('args', {}).get('bn', False):
+                            if sub_op['submodule_name'] == 'PoolBNAct': # when DARTS retrains, pooling has no BN
+                                sub_op['args']['bn'] = False
+                            else: # when DARTS retrain, affine in BN is set as True
+                                sub_op['args']['bn'] = dict(submodule_name='torch.nn.BatchNorm2d', args=dict(affine=True))
+                        if no_act_before and sub_op.get('args', {}).get('act', False) and 'Conv' in sub_op['submodule_name']:
+                                sub_op['args']['act'] = False
+                                edge_op.insert(j, edict(submodule_name='torch.nn.ReLU', args=dict(inplace=False)))
+                        j += 1
+
             edge = op.pop('input_idx')
             args['cell_ops'].append(op)
             args['edges'].append(edge)

@@ -30,6 +30,7 @@ optimizer: &optimizer
     lr: 1.0e-4
     beta1: 0.9
     beta2: 0.3
+    num_sample_per_step: 8
 
 lr_scheduler: &scheduler
   submodule_name: torch.optim.lr_scheduler.LambdaLR
@@ -65,7 +66,7 @@ engine:
     lr_scheduler: *scheduler
     hooks: *hooks
   run_args: 
-    max_iter: 500
+    max_iter: 1000
 
 
 

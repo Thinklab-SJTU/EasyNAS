@@ -53,8 +53,13 @@ def create_dataloader(cfg: dict) -> dict:
 #                indices, start, num_train = info.indices, info.start, len(info.indices)
 
             end = start + int(np.floor(portion * num_train))
+            if end <= num_train:
+                tmp_indices = indices[start:end]
+            else:
+                end = end % num_train
+                tmp_indices = indices[start:] + indices[:end]
             splitInfos[set_name] = splitInfos[set_name]._replace(start=end)
-            dataset = torch.utils.data.Subset(dataset, indices=indices[start:end])
+            dataset = torch.utils.data.Subset(dataset, indices=tmp_indices)
 
        	shuffle =  cfg.pop('shuffle', True)
         if is_dist_avail_and_initialized() and cfg.get('use_dist', True):

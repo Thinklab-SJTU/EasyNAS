@@ -9,14 +9,19 @@ class NSGA2(EvolutionAlgorithm):
             num_mutation,
             prob_mutation,
             num_population=None,
+            init_points=None,
             num_reward_one_deal=-1):
-        super(NSGA2, self).__init__(search_space, num_epoch, num_survive, num_crossover, num_mutation, prob_mutation, num_population, num_reward_one_deal)
+        super(NSGA2, self).__init__(
+                search_space, num_epoch, num_survive, num_crossover, num_mutation, prob_mutation, num_population, 
+                num_reward_one_deal=num_reward_one_deal,
+                init_points=init_points
+                )
 
     def domiates(self, cand1, cand2):
         ''' Whether cand1 dominates cand2
         Input:
-            cand1[engines/search_engine:QueryReward]: candidate solution 1
-            cand2[engines/search_engine:QueryReward]: candidate solution 2
+            cand1[src/util_type:QueryReward]: candidate solution 1
+            cand2[src/util_type:QueryReward]: candidate solution 2
         '''
         out_ = True
 #        equal_flag = True

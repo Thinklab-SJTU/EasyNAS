@@ -59,7 +59,6 @@ class BaseModel(nn.Module):
 
         self.to(self.device)
 
-
     def info(self, input_size=None):
         if input_size:
             self.logger.info("param size = %fMB, FLOPS=%fG", count_parameters_in_MB(self), thop.profile(self, inputs=(torch.zeros(1, self.input_ch, *input_size),), verbose=False)[0] / 1E9 if thop else 0)

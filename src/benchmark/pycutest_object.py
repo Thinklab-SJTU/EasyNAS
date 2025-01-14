@@ -25,6 +25,11 @@ class PyCUTEst_func(nn.Module):
         self.problem = pycutest.import_problem(problem_name, sifParams=sifParams)
         self.weight = nn.Parameter(torch.from_numpy(self.problem.x0))
 
+    def update_weight(weight):
+        if isinstance(weight, np.array):
+            weight = torch.from_numpy(weight, device=self.weight.device, dtype=self.weight.dtype)
+        self.weight.data.copy_(weight)
+
     def forward(self):
         return PyCUTEst_F().apply(self.weight, self.problem)
 
