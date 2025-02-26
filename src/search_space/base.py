@@ -42,6 +42,7 @@ def my_product(iter_fns, out=None):
 class SampleNode(object):
     def __init__(self, space, sample):
         """
+<<<<<<< HEAD
         If space is IIDSpace, sample should be {prefix: samples}. If space is DiscreteSpace, sample should be {num_reserve: (sample_index, sample)}. If space is ContinuousSpace, sample should be {sample/range: samples}
         """
         self.space = space
@@ -55,6 +56,12 @@ class SampleNode(object):
     def status(self, value):
         assert value in ['waiting', 'evaluating', 'error', 'done']
         self._status = value
+=======
+        If space is IIDSpace, sample should be {prefix: samples}. If space is DiscreteSpace, sample should be {idxes: samples}. If space is ContinuousSpace, sample should be {sample/range: samples}
+        """
+        self.space = space
+        self.sample = sample
+>>>>>>> 0589509 (first commit)
 
     def _build_sample_attr(self, name, fn, sample):
         if hasattr(self, name):
@@ -98,10 +105,14 @@ class SampleNode(object):
     def __hash__(self):
         def to_hash(param):
             if isinstance(param, dict):
+<<<<<<< HEAD
                 if isinstance(param, OrderedDict):
                     return tuple(to_hash(param[k]) for k in param)
                 else:
                     return tuple(to_hash(v) for k, v in sorted(param.items(), key=lambda item: item[0]))
+=======
+                return tuple(to_hash(v) for k, v in sorted(param.items(), key=lambda item: item[0]))
+>>>>>>> 0589509 (first commit)
             elif isinstance(param, list):
                 return tuple(param)
             else: return param
@@ -221,7 +232,11 @@ class _SearchSpace(ABC):
     def _sample_once(self, label_samples=None):
         pass
     @abstractmethod
+<<<<<<< HEAD
     def sample_from_node(self, node, label_samples):
+=======
+    def sample_from_node(self, node, label_samples, num_sampled=0):
+>>>>>>> 0589509 (first commit)
         pass
     @abstractmethod
     def enum_space(self):
@@ -240,6 +255,7 @@ class _SearchSpace(ABC):
             self._tmp_iter_in_sample += 1
         return sample_nodes
 
+<<<<<<< HEAD
     def build_nodes(self, src_samples):
         sample_nodes = []
         for idx, sample in enumerate(src_samples):
@@ -252,6 +268,13 @@ class _SearchSpace(ABC):
         for idx, node in enumerate(src_sample_nodes):
             assert self.__class__.__name__ == node.space.__class__.__name__
             sample_nodes.append(self.sample_from_node(node, label_samples))
+=======
+    def sample_from_nodes(self, src_sample_nodes, label_samples, num_sampled=0):
+        sample_nodes = [] 
+        for idx, node in enumerate(src_sample_nodes):
+            assert self.__class__.__name__ == node.space.__class__.__name__
+            sample_nodes.append(self.sample_from_node(node, label_samples, num_sampled+idx))
+>>>>>>> 0589509 (first commit)
         return sample_nodes
 
     def named_sampler(self, prefix='', recurse=True, memo=None):
@@ -304,7 +327,12 @@ class _SearchSpace(ABC):
                 space.apply_sampler_weights(fn, recurse, memo)
 
     def __repr__(self):
+<<<<<<< HEAD
         string = f"{self.__class__.__name__}(space_len={len(self.space)}, label={self.label}, sampler={self.sampler})"
+=======
+        string = f"{self.__class__.__name__}(space={self.space}, label={self.label}, sampler={self.sampler})"
+#        string = f"{self.__class__.__name__}(space={self.space}, label=self.labelsampler={self.sampler})"
+>>>>>>> 0589509 (first commit)
         return string
     def __getitem__(self, key):
         return self.space[key]
@@ -362,11 +390,18 @@ class _SearchSpace(ABC):
         return src
 
     def new_space(self, **kwargs):
+<<<<<<< HEAD
         ori_num_reserve = getattr(kwargs, 'num_reserve', None)
         for key in inspect.getfullargspec(self.__class__.__init__).args:
             if key not in kwargs and hasattr(self, key):
                 kwargs[key] = getattr(self, key)
         if ori_num_reserve is None and not getattr(self, 'return_list', False):
+=======
+        for key in inspect.getfullargspec(self.__class__.__init__).args:
+            if key not in kwargs and hasattr(self, key):
+                kwargs[key] = getattr(self, key)
+        if getattr(kwargs, 'return_list', False):
+>>>>>>> 0589509 (first commit)
             kwargs['num_reserve'] = None
         for prefix, child_space in self._child_spaces.items():
             new_child_space = child_space.new_space()
@@ -430,13 +465,21 @@ class IIDSpace(_SearchSpace):
         if self.embed_fn:
             return self.embed_fn(sample)
         else:
+<<<<<<< HEAD
             embeds = [sub_sample.embedding for sub_sample in sample.values]
             return np.concatenate(embeds, axis=0)
+=======
+            return None #len(sample)
+>>>>>>> 0589509 (first commit)
                 
     def _sample_once(self, label_samples=None):
         if label_samples is None: label_samples = {}
         if self.label in label_samples:
+<<<<<<< HEAD
             return self.sample_from_node(label_samples[self.label], label_samples)
+=======
+            return self.sample_from_node(label_samples[self.label], label_samples, num_sampled)
+>>>>>>> 0589509 (first commit)
         sample = {}
         for prefix, space in self._child_spaces.items():
             sample[prefix] = space._sample_once(label_samples)
@@ -453,6 +496,7 @@ class IIDSpace(_SearchSpace):
                 sample[prefix] = self._child_spaces[prefix].sample_from_node(s, label_samples)
             else:
                 sample[prefix] = self._child_spaces[prefix]._sample_once(label_samples)
+<<<<<<< HEAD
         for prefix, s in self._child_spaces.items():
             if prefix not in src_sample_node.sample:
                 sample[prefix] = s._sample_once(label_samples)
@@ -475,6 +519,10 @@ class IIDSpace(_SearchSpace):
         return SampleNode(self, sample)
 
 
+=======
+        return SampleNode(self, sample)
+
+>>>>>>> 0589509 (first commit)
     def enum_from_node(self, src_sample_node, label_sample):
         for child_sample in my_product([partial(space.enum_from_node, src_sample_node.sample[prefix], label_sample) for prefix, space in self._child_spaces.items()]):
             sample = {prefix: sub_sample for prefix, sub_sample in zip(self._child_spaces.keys(), child_sample)}
@@ -505,11 +553,19 @@ class RepeatSpace(IIDSpace):
         assert isinstance(space, _SearchSpace)
         self.num_repeat = num_repeat
         self.independent = independent
+<<<<<<< HEAD
         space = {'0': space}
         if independent:
             for i in range(1, num_repeat):
                 repeat_label = None if label is None else label+'repeat_%d'%i
                 space[str(i)] = space['0'].new_space(label=repeat_label)
+=======
+        space = {0: space}
+        if independent:
+            for i in range(1, num_repeat):
+                repeat_label = None if label is None else label+'repeat_%d'%i
+                space[i] = space[0].new_space(label=repeat_label)
+>>>>>>> 0589509 (first commit)
 #        space = {i: space.new_space(label=None) if i>0 and independent else space for i in range(num_repeat)}
         super(IIDSpace, self).__init__(space, sampler_cfg=None, embed_fn=None, label=label)
 
@@ -526,6 +582,7 @@ class RepeatSpace(IIDSpace):
             config = [_config['0'] for _ in range(self.num_repeat)]
         return config
 
+<<<<<<< HEAD
     def build_node(self, src_sample):
         _src_sample = {}
         for i, sample in enumerate(src_sample):
@@ -535,6 +592,10 @@ class RepeatSpace(IIDSpace):
 
     def discretize(self, **replace_settings):
         return [self.space[str(i)].discretize(**replace_settings) for i in range(self.num_repeat)]
+=======
+    def discretize(self, **replace_settings):
+        return [self.space[i].discretize(**replace_settings) for i in range(self.num_repeat)]
+>>>>>>> 0589509 (first commit)
 
 ###########################################
 class DiscreteSpace(_SearchSpace):
@@ -568,6 +629,7 @@ class DiscreteSpace(_SearchSpace):
         except:
             return len(list(self.enum_space()))
 
+<<<<<<< HEAD
     def get_num_reserve(self, label_samples=None):
         if isinstance(self.num_reserve, _SearchSpace):
             num_reserve = self.num_reserve._sample_once(label_samples)
@@ -580,13 +642,20 @@ class DiscreteSpace(_SearchSpace):
         self._num_reserve = num_reserve
         return num_reserve
 
+=======
+>>>>>>> 0589509 (first commit)
     def _sample_once(self, label_samples=None):
         if label_samples is None: label_samples = {}
         if self.label in label_samples:
             return self.sample_from_node(label_samples[self.label], label_samples)
+<<<<<<< HEAD
         num_reserve = self.get_num_reserve(label_samples)
         sample = OrderedDict()
         for i, idx in enumerate(self.sampler.sample(range(len(self.space)), num=num_reserve, replace=self.reserve_replace)):
+=======
+        sample = {}
+        for idx in self.sampler.sample(range(len(self.space)), num=self.num_reserve, replace=self.reserve_replace):
+>>>>>>> 0589509 (first commit)
             cand = deepcopy(self.space[idx])
             for ch_prefix, child_space in self._child_spaces.items():
                 keys = [tmp.split('::')[-1] for tmp in ch_prefix.split('.')]
@@ -597,20 +666,32 @@ class DiscreteSpace(_SearchSpace):
                         break
                     else:
                         self._set_item_by_name(cand, '.'.join(keys[1:]), ch_cand)
+<<<<<<< HEAD
             sample[i] = (idx, cand)
+=======
+            sample[idx] = cand 
+>>>>>>> 0589509 (first commit)
         sample = SampleNode(self, sample)
         if not self.label.startswith('_SearchSpace#'): label_samples[self.label] = sample
         return sample
 
     def sample_from_node(self, src_sample_node, label_samples):
         sample = {}
+<<<<<<< HEAD
         for i, (idx, s) in src_sample_node.sample.items():
+=======
+        for idx, s in src_sample_node.sample.items():
+>>>>>>> 0589509 (first commit)
             cand = deepcopy(self.space[idx])
             for ch_prefix, child_space in self._child_spaces.items():
                 keys = [tmp.split('::')[-1] for tmp in ch_prefix.split('.')]
                 if int(keys[0]) == idx:
                     ch_s = self._get_item_by_name(s, '.'.join(keys[1:]))
+<<<<<<< HEAD
                     if isinstance(ch_s, SampleNode) and ch_s.space.label == child_space.label:
+=======
+                    if isinstance(ch_s, SampleNode):
+>>>>>>> 0589509 (first commit)
                         ch_cand = child_space.sample_from_node(ch_s, label_samples)
                     else:
                         ch_cand = child_space._sample_once(label_samples=label_samples)
@@ -619,6 +700,7 @@ class DiscreteSpace(_SearchSpace):
                         break
                     else:
                         self._set_item_by_name(cand, '.'.join(keys[1:]), ch_cand)
+<<<<<<< HEAD
             sample[i] = (idx, cand)
         return SampleNode(self, sample)
 
@@ -644,6 +726,15 @@ class DiscreteSpace(_SearchSpace):
     def build_config(self, sample):
         config = []
         for i, (cand_idx, sample) in sample.items():
+=======
+            sample[idx] = cand
+        return SampleNode(self, sample)
+    
+
+    def build_config(self, sample):
+        config = []
+        for cand_idx, sample in sample.items():
+>>>>>>> 0589509 (first commit)
             conf = deepcopy(sample)
             for ch_prefix in self._child_spaces.keys():
                 keys = [tmp.split('::')[-1] for tmp in ch_prefix.split('.')]
@@ -663,6 +754,7 @@ class DiscreteSpace(_SearchSpace):
     def build_embedding(self, sample):
         if self.embed_fn:
             return self.embed_fn(sample)
+<<<<<<< HEAD
         else: # one-hot encoding
             num_reserve = len(sample)
             embed = np.zeros(len(self.space))
@@ -671,6 +763,12 @@ class DiscreteSpace(_SearchSpace):
                 if isinstance(self.space[cand_idx], _SearchSpace): 
                     raise(NotImplementedError("No implementation for tree-based search space"))
                 embed[int(cand_idx)] = 1./num_reserve
+=======
+        else:
+            embed = np.zeros(len(self.space))
+            for cand_idx in sample.keys():
+                embed[int(cand_idx)] = 1./self.num_reserve
+>>>>>>> 0589509 (first commit)
             return embed
 
     def enum_from_node(self, src_sample_node, label_sample):
@@ -691,10 +789,17 @@ class DiscreteSpace(_SearchSpace):
                         cand = s
                     else:
                         self._set_item_by_name(cand, '.'.join(k[1:]), s)
+<<<<<<< HEAD
                 yield SampleNode(self, {0:(idx, cand)})
 
         else:
             yield SampleNode(self, {0: (idx, config)})
+=======
+                yield SampleNode(self, {idx: cand})
+
+        else:
+            yield SampleNode(self, {idx: config})
+>>>>>>> 0589509 (first commit)
 
         
     def enum_space(self, recurse=True, label_sample=None):
@@ -722,12 +827,20 @@ class DiscreteSpace(_SearchSpace):
                                     cand = s
                                 else:
                                     self._set_item_by_name(cand, '.'.join(k[1:]), s)
+<<<<<<< HEAD
                             sample = SampleNode(self, {0: (idx, cand)})
+=======
+                            sample = SampleNode(self, {idx: cand})
+>>>>>>> 0589509 (first commit)
                             label_sample[self.label] = sample
                             yield sample
                             del label_sample[self.label]
                     else:
+<<<<<<< HEAD
                         sample = SampleNode(self, {0: (idx, config)})
+=======
+                        sample = SampleNode(self, {idx: config})
+>>>>>>> 0589509 (first commit)
                         label_sample[self.label] = sample
                         yield sample
                         del label_sample[self.label]
@@ -740,8 +853,12 @@ class DiscreteSpace(_SearchSpace):
         return self.space.index(v)
 
     def discretize(self, **replace_settings):
+<<<<<<< HEAD
         num_reserve = self._num_reserve
         out = [o.discretize(**replace_settings) if isinstance(o, _SearchSpace) else o for o in self.sampler.topk(self.space, k=num_reserve)]
+=======
+        out = [o.discretize(**replace_settings) if isinstance(o, _SearchSpace) else o for o in self.sampler.topk(self.space, k=self.num_reserve)]
+>>>>>>> 0589509 (first commit)
         return out if self.return_list else out[0]
 
 ###########################################
@@ -769,6 +886,7 @@ class FlattenSampledDiscreteSpace(DiscreteSpace):
         with self.change_to_flattened_space():
             return super(FlattenSampledDiscreteSpace, self)._sample_once(label_samples)
 
+<<<<<<< HEAD
     def sample_from_node(self, node, label_samples):
         with self.change_to_flattened_space():
             return super(FlattenSampledDiscreteSpace, self).sample_from_node(node, label_samples)
@@ -776,6 +894,11 @@ class FlattenSampledDiscreteSpace(DiscreteSpace):
     def build_node(self, src_sample):
         with self.change_to_flattened_space():
             return super(FlattenSampledDiscreteSpace, self).build_node(src_sample)
+=======
+    def sample_from_node(self, node, label_samples, num_sampled=0):
+        with self.change_to_flattened_space():
+            return super(FlattenSampledDiscreteSpace, self).sample_from_node(node, label_samples, num_sampled)
+>>>>>>> 0589509 (first commit)
 
     def build_config(self, sample):
         with self.change_to_flattened_space():
@@ -820,6 +943,7 @@ class ContinuousSpace(_SearchSpace):
         else:
             return self.end - self.start
 
+<<<<<<< HEAD
     def get_num_reserve(self, label_samples=None):
         if isinstance(self.num_reserve, _SearchSpace):
             num_reserve = self.num_reserve._sample_once(label_samples)
@@ -832,12 +956,18 @@ class ContinuousSpace(_SearchSpace):
         self._num_reserve = num_reserve
         return num_reserve
 
+=======
+>>>>>>> 0589509 (first commit)
     def _sample_once(self, label_samples=None):
         if label_samples is None: label_samples = {}
         if self.label in label_samples:
             return self.sample_from_node(label_samples[self.label], label_samples)
+<<<<<<< HEAD
         num_reserve = self.get_num_reserve(label_samples)
         sample = tuple(self.sampler.sample(num_reserve))
+=======
+        sample = tuple(self.sampler.sample(self.num_reserve))
+>>>>>>> 0589509 (first commit)
         sample = SampleNode(self, {s: s*self.size+self.start for s in sample})
 #        sample = SampleNode(self, {(s-self.start)/self.size: s for s in sample})
         if not self.label.startswith('_SearchSpace#'): label_samples[self.label] = sample
@@ -849,6 +979,7 @@ class ContinuousSpace(_SearchSpace):
             sample[ratio] = ratio * self.size + self.start
         return SampleNode(self, sample)
 
+<<<<<<< HEAD
     def build_node(self, src_sample):
         sample = {}
         if not self.return_list:
@@ -858,6 +989,8 @@ class ContinuousSpace(_SearchSpace):
             sample[ratio] = v 
         return SampleNode(self, sample)
 
+=======
+>>>>>>> 0589509 (first commit)
     def __len__(self):
         return self.end - self.start
 
@@ -872,7 +1005,11 @@ class ContinuousSpace(_SearchSpace):
     def build_embedding(self, sample):
         if self.embed_fn:
             return self.embed_fn(sample)
+<<<<<<< HEAD
         else: # normalized value
+=======
+        else:
+>>>>>>> 0589509 (first commit)
             vals = np.array([(v-self.start)/self.size for v in sample.values()])
             return vals
 
@@ -880,6 +1017,7 @@ class ContinuousSpace(_SearchSpace):
         raise(TypeError("ContinuousSpace does not support to enumrate the space."))
 
     def discretize(self, **replace_settings):
+<<<<<<< HEAD
         num_reserve = self._num_reserve
         out = self.sampler.topk(self.space, k=num_reserve)
         return out if self.return_list else out[0]
@@ -928,3 +1066,8 @@ class ContinuousTensorSpace(ContinuousSpace):
             return vals
     def discretize(self, **replace_settings):
         raise(TypeError("ContinuousTensorSpace does not support to discretize the space."))
+=======
+        out = self.sampler.topk(self.space, k=self.num_reserve)
+        return out if self.return_list else out[0]
+
+>>>>>>> 0589509 (first commit)

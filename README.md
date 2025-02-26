@@ -99,7 +99,7 @@ eval_engine2: &eval_engine2
       max_iter: 1000
 
 contractor: &contractor
-  submodule_name: src.evaluater.Contractor
+  submodule\_name: src.evaluater.Contractor
   args:
     eval_engines: [*eval_engine1, *eval_engine2]
     num_workers: 3 # parallel workers to evaluate candidates

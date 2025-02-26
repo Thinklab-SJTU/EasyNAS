@@ -29,7 +29,6 @@ class SearchEngine(BaseEngine):
             'results': EasyDict(),
             })
 
-
     def build_from_cfg(self, search_space_cfg, searcher_cfg, contractor_cfg, hooks_cfg):
         # build search_space
         print("Building search space")
@@ -61,6 +60,7 @@ class SearchEngine(BaseEngine):
 #            ctx = multiprocessing.get_context('spawn')
             sample_queue = mp.JoinableQueue()
             reward_queue = mp.JoinableQueue()
+<<<<<<< HEAD
             error_queue = mp.JoinableQueue()
 
             # multiprocessing for contractor
@@ -76,6 +76,19 @@ class SearchEngine(BaseEngine):
                 else:
                     print("Loading queries")
                     next_queries = [q for q, v in self.searcher.current_queries.items() if v =='waiting']
+=======
+
+            # multiprocessing for contractor
+            with self.contractor.build(sample_queue, reward_queue):
+
+                # initialize queries
+                if len(self.searcher.current_queries) == 0:
+                    print("Initializing...")
+                    next_queries = self.searcher.query_initial()
+                else:
+                    print("Loading queries")
+                    next_queries = self.searcher.current_queries.keys()
+>>>>>>> 0589509 (first commit)
                 for q in next_queries:
                     q = self.searcher.preprocess_cfg(q)
                     sample_queue.put(q)
@@ -83,25 +96,42 @@ class SearchEngine(BaseEngine):
     
                 # iterablely search
                 print("Searching...")
+<<<<<<< HEAD
                 done_tasks = []
                 while not self.searcher.stop_search():
                     q, r = reward_queue.get()
                     assert q in self.searcher.current_queries
                     done_tasks.append((q, r))
+=======
+                while not self.searcher.stop_search():
+                    q, r = reward_queue.get()
+                    assert q in self.searcher.current_queries
+>>>>>>> 0589509 (first commit)
                     self.searcher.current_queries[q] = r
                     if self.searcher.get_enough_rewards():
                         with hooks_epoch(self._hooks, self):
                             self.searcher.history_reward.append([])
+<<<<<<< HEAD
                             for i in range(len(done_tasks)):
                                 q, r = done_tasks.pop()
                                 assert q.status in ['done', 'error'], f"Get status as {q.status}"
                                 self.searcher.current_queries.pop(q)
                                 self.searcher.history_reward[-1].append(QueryReward(q, r))
                             next_queries = self.searcher.query_next()
+=======
+                            for q, r in list(self.searcher.current_queries.items()):
+                                if r != 'waiting': 
+                                    self.searcher.current_queries.pop(q)
+                                    self.searcher.history_reward[-1].append(QueryReward(q, r))
+                            next_queries = self.searcher.query_next()
+                            print(f"Num. of this queries={len(self.searcher.history_reward[-1])}; Num. of next queries={len(next_queries)}")
+    #                        print(len(self.searcher.current_queries), len(self.searcher.history_reward[-1]), len(next_queries))
+>>>>>>> 0589509 (first commit)
                             for q in next_queries:
                                 self.searcher.preprocess_cfg(q)
                                 sample_queue.put(q)
                             self.searcher.current_queries.update({q: 'waiting' for q in next_queries})
+<<<<<<< HEAD
 
                             print(f"Num. of this queries: {len(self.searcher.history_reward[-1])}")
                             string = "="*10 + f'Generate {len(next_queries)} new queries' + "="*10
@@ -133,6 +163,16 @@ class SearchEngine(BaseEngine):
                         if e is not None:
                             print(f"Worker-{pid} got error!")
                             raise(e)
+=======
+                            self.info.current_epoch += 1
+    
+                # get rewards of queries in the last epoch
+                self.searcher.history_reward.append([])
+                while len(self.searcher.current_queries)>0:
+                    query, reward = reward_queue.get()
+                    self.searcher.current_queries.pop(query)
+                    self.searcher.history_reward[-1].append(QueryReward(query, reward))
+>>>>>>> 0589509 (first commit)
 
 #        for i, rewards in enumerate(self.searcher.history_reward):
 #            print("Epoch", i)

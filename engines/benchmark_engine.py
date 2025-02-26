@@ -97,4 +97,3 @@ class BenchmarkEngine(BaseEngine):
 
     def extract_performance(self):
         return self.info.results.get('best')
-

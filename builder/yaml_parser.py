@@ -32,7 +32,6 @@ DIGITS={'0':0,'1':1,'2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9}
 def str2int(s):
     return int(float(s))
 def str2float(s):
-    return float(s)
     s=s.split('.')
     if s[0]==0:
         return 0+reduce(lambda x,y:x/10+y , map(lambda x:DIGITS[x],s[1][::-1]))/10
@@ -108,6 +107,7 @@ class CfgLoader(yaml.SafeLoader):
         return eval(expr)
 
     def construct_search_space(self, node):
+<<<<<<< HEAD
         from src.search_space.base import SearchSpace
         def _deal_with_space(ss_args):
             if not isinstance(ss_args, str):
@@ -127,13 +127,26 @@ class CfgLoader(yaml.SafeLoader):
         if isinstance(node, yaml.ScalarNode):
             ss_args = self.construct_scalar(node)
             ss_args = {'space': ss_args}
+=======
+        if isinstance(node, yaml.ScalarNode):
+            ss_args = self.construct_scalar(node)
+            ss_args_tmp = ss_args.split(':')
+            if len(ss_args_tmp) == 2:
+                ss_args = {'space': ss_args}
+            else:
+                assert len(ss_args_tmp) == 3
+                ss_args = {'space': np.arange(*[str2float(tmp) for tmp in ss_args_tmp]).tolist()}
+>>>>>>> 0589509 (first commit)
         elif isinstance(node, yaml.SequenceNode):
             ss_args = {'space': self.construct_sequence(node, deep=True)}
         elif isinstance(node, yaml.MappingNode):
             ss_args = self.construct_mapping(node, deep=True)
             if 'space' not in ss_args:
                 ss_args = {'space': ss_args}
+<<<<<<< HEAD
         ss_args['space'] = _deal_with_space(ss_args['space'])
+=======
+>>>>>>> 0589509 (first commit)
         return SearchSpace(**ss_args)
 #        def foo_constructor(loader, node):
 #            instance = Foo.__new__(Foo)
@@ -163,13 +176,19 @@ class CfgDumper(yaml.SafeDumper):
         return self.represent_sequence('!get_module', [module.__name__+'.'+cls_or_func.__name__, data.keywords])
     def represent_sampleNode(self, data):
         return self.represent_mapping('!sample_node', data.config)
+<<<<<<< HEAD
     def represent_numpyfloat(self, data):
         return self.represent_float(float(data))
+=======
+>>>>>>> 0589509 (first commit)
 CfgDumper.add_representer(edict, CfgDumper.represent_python_edict)
 CfgDumper.add_representer(tuple, CfgDumper.represent_python_tuple)
 CfgDumper.add_representer(partial, CfgDumper.represent_python_partial)
 CfgDumper.add_representer(SampleNode, CfgDumper.represent_sampleNode)
+<<<<<<< HEAD
 CfgDumper.add_representer(np.float64, CfgDumper.represent_numpyfloat)
+=======
+>>>>>>> 0589509 (first commit)
 
 if __name__ == '__main__':
 
